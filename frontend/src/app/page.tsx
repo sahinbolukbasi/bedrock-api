@@ -2877,80 +2877,125 @@ export default function RootPage() {
               </div>
             </div>
 
-            {/* Enterprise Sub-Navigation Tabs */}
-            <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 overflow-x-auto">
-              <button
-                onClick={() => setAdminSubTab("users")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                  adminSubTab === "users"
-                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
-                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>Kullanıcı & RBAC ({adminUsers.length})</span>
-              </button>
+            {/* 2-COLUMN ADMIN WORKSPACE: LEFT BUTTONS SIDEBAR + RIGHT CONTENT */}
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+              
+              {/* SOL YÖNETİM BUTONLARI & MENÜSÜ */}
+              <div className="w-full lg:w-72 shrink-0 space-y-3 bg-white dark:bg-gray-900 p-4 rounded-3xl border border-slate-200 dark:border-gray-800 shadow-sm sticky top-20">
+                <div className="flex items-center justify-between px-2 pb-1 border-b border-slate-100 dark:border-gray-800">
+                  <span className="text-[11px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-wider">
+                    Yönetici Modülleri
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
 
-              <button
-                onClick={() => setAdminSubTab("models")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                  adminSubTab === "models"
-                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
-                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <Cpu className="w-4 h-4" />
-                <span>Model Aç / Kapat ({adminModelsList.length})</span>
-              </button>
+                <nav className="space-y-1.5">
+                  <button
+                    onClick={() => setAdminSubTab("users")}
+                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition text-left ${
+                      adminSubTab === "users"
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Users className="w-4 h-4" />
+                      <span>Kullanıcı & RBAC</span>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      adminSubTab === "users" ? "bg-purple-700 text-white" : "bg-slate-200 dark:bg-gray-800 text-slate-600 dark:text-gray-400"
+                    }`}>
+                      {adminUsers.length}
+                    </span>
+                  </button>
 
-              <button
-                onClick={() => setAdminSubTab("broadcast")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                  adminSubTab === "broadcast"
-                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
-                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <SendHorizontal className="w-4 h-4" />
-                <span>Toplu Tanıtım & SMS/Mail</span>
-              </button>
+                  <button
+                    onClick={() => setAdminSubTab("models")}
+                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-bold transition text-left ${
+                      adminSubTab === "models"
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Cpu className="w-4 h-4" />
+                      <span>Model Aç / Kapat</span>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      adminSubTab === "models" ? "bg-purple-700 text-white" : "bg-slate-200 dark:bg-gray-800 text-slate-600 dark:text-gray-400"
+                    }`}>
+                      {adminModelsList.length}
+                    </span>
+                  </button>
 
-              <button
-                onClick={() => setAdminSubTab("notifications")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                  adminSubTab === "notifications"
-                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
-                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <Bell className="w-4 h-4" />
-                <span>Bildirim & Şablon Merkezi</span>
-              </button>
+                  <button
+                    onClick={() => setAdminSubTab("broadcast")}
+                    className={`w-full flex items-center gap-2.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition text-left ${
+                      adminSubTab === "broadcast"
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <SendHorizontal className="w-4 h-4" />
+                    <span>Toplu Tanıtım & SMS/Mail</span>
+                  </button>
 
-              <button
-                onClick={() => setAdminSubTab("audit")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                  adminSubTab === "audit"
-                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
-                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <ShieldAlert className="w-4 h-4" />
-                <span>Denetim İzi (Audit Logs)</span>
-              </button>
+                  <button
+                    onClick={() => setAdminSubTab("notifications")}
+                    className={`w-full flex items-center gap-2.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition text-left ${
+                      adminSubTab === "notifications"
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <Bell className="w-4 h-4" />
+                    <span>Bildirim & Şablonlar</span>
+                  </button>
 
-              <button
-                onClick={() => setAdminSubTab("system")}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                  adminSubTab === "system"
-                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
-                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
-                }`}
-              >
-                <Sliders className="w-4 h-4" />
-                <span>Sistem & Prometheus</span>
-              </button>
-            </div>
+                  <button
+                    onClick={() => setAdminSubTab("audit")}
+                    className={`w-full flex items-center gap-2.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition text-left ${
+                      adminSubTab === "audit"
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <ShieldAlert className="w-4 h-4" />
+                    <span>Denetim İzi (Audit Logs)</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAdminSubTab("system")}
+                    className={`w-full flex items-center gap-2.5 px-3.5 py-3 rounded-2xl text-xs font-bold transition text-left ${
+                      adminSubTab === "system"
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                        : "text-slate-700 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    <Sliders className="w-4 h-4" />
+                    <span>Sistem & Prometheus</span>
+                  </button>
+                </nav>
+
+                {/* Grafana & Dış Bağlantılar */}
+                <div className="pt-3 border-t border-slate-100 dark:border-gray-800 space-y-2">
+                  <a
+                    href="http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:3001"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-bold hover:bg-amber-500/20 transition"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-amber-500" />
+                      <span>Grafana Canlı Panel</span>
+                    </div>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+
+              {/* SAĞ ANA İÇERİK ALANI */}
+              <div className="flex-1 w-full space-y-6">
 
             {/* SUB-TAB 1: KULLANICI & RBAC YÖNETİMİ */}
             {adminSubTab === "users" && (
@@ -3616,6 +3661,9 @@ export default function RootPage() {
                 </div>
               </div>
             )}
+
+              </div>
+            </div>
 
           </div>
         )}
