@@ -50,7 +50,13 @@ import {
   Play,
   Share2,
   CheckCircle,
-  HelpCircle
+  HelpCircle,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  BrainCircuit,
+  FileText
 } from "lucide-react";
 import { API_BASE, getAuthToken, setAuthToken, fetchApi, clearAuthToken } from "../lib/api";
 
@@ -83,8 +89,8 @@ export default function RootPage() {
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
 
-  // Console Hub Active Tab state
-  const [activeTab, setActiveTab] = useState<"chat" | "models" | "agents" | "docs" | "keys" | "billing" | "profile" | "admin">("chat");
+  // Consolidated Tabs: chat, models, agents, api, billing, profile, admin
+  const [activeTab, setActiveTab] = useState<"chat" | "models" | "agents" | "api" | "billing" | "profile" | "admin">("chat");
 
   // Models catalog & wallet
   const [models, setModels] = useState<any[]>([]);
@@ -93,7 +99,7 @@ export default function RootPage() {
   const [modelCategory, setModelCategory] = useState<string>("ALL");
 
   // ==========================================
-  // Open WebUI-Style Chat Session & Vision State
+  // Frontier AI Chat (ChatGPT / Claude / Gemini Tier)
   // ==========================================
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -102,20 +108,35 @@ export default function RootPage() {
     {
       id: "welcome",
       role: "assistant",
-      content: "👋 Merhaba! **AWS Bedrock AI Gateway**'e hoş geldiniz.\nYukarıdaki model listesinden dilediğiniz foundation modelini seçebilir, görsel yükleyip analiz ettirebilir veya sol menüden Özel Ajanlar oluşturabilirsiniz.",
+      content: "👋 Merhaba! **AWS Bedrock Frontier AI Asistanı**'na hoş geldiniz.\nYukarıdaki model listesinden dilediğiniz foundation modelini seçebilir, sesinizle konuşabilir, görsel veya dosya yükleyip analiz ettirebilirsiniz.",
     },
   ]);
   const [chatInput, setChatInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState("You are an expert AI assistant powered by Amazon Bedrock. Provide accurate, helpful, and concise answers with code snippets when needed.");
+  const [userMemoryCache, setUserMemoryCache] = useState("Kullanıcı: Kıdemli Yazılım Geliştirici. Yanıtları doğrudan, temiz Türkçe ve açıklamalı kod bloklarıyla sun.");
   const [temperature, setTemperature] = useState(0.7);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [copiedCodeIndex, setCopiedCodeIndex] = useState<string | null>(null);
 
-  // Vision / Image Upload State
-  const [uploadedImageBase64, setUploadedImageBase64] = useState<string | null>(null);
-  const [uploadedImageName, setUploadedImageName] = useState<string | null>(null);
+  // Multimodal File & Image Upload State
+  const [uploadedFileBase64, setUploadedFileBase64] = useState<string | null>(null);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [uploadedFileType, setUploadedFileType] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice Input (Speech-to-Text) & Voice Output (Text-to-Speech)
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeakingIndex, setIsSpeakingIndex] = useState<string | null>(null);
+
+  // ==========================================
+  // Unified Developer & API Hub State (Keys + Docs)
+  // ==========================================
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [newKeyName, setNewKeyName] = useState("");
+  const [createdSecretKey, setCreatedSecretKey] = useState<string | null>(null);
+  const [keyCopied, setKeyCopied] = useState(false);
+  const [docsLanguage, setDocsLanguage] = useState<"python" | "node" | "curl" | "langchain">("python");
 
   // ==========================================
   // AI Agents State
@@ -132,24 +153,10 @@ export default function RootPage() {
   const [agentExecutionResult, setAgentExecutionResult] = useState<any | null>(null);
 
   // ==========================================
-  // API Docs Code Sample Tab State
-  // ==========================================
-  const [docsLanguage, setDocsLanguage] = useState<"python" | "node" | "curl" | "langchain">("python");
-
-  // ==========================================
   // Billing & Stripe Modal State
   // ==========================================
   const [selectedStripePackage, setSelectedStripePackage] = useState<number | null>(null);
-  const [stripeProcessing, setStripeProcessing] = useState(false);
   const [stripeSuccessMsg, setStripeSuccessMsg] = useState<string | null>(null);
-
-  // ==========================================
-  // API Keys State
-  // ==========================================
-  const [apiKeys, setApiKeys] = useState<any[]>([]);
-  const [newKeyName, setNewKeyName] = useState("");
-  const [createdSecretKey, setCreatedSecretKey] = useState<string | null>(null);
-  const [keyCopied, setKeyCopied] = useState(false);
 
   // ==========================================
   // User Profile State
@@ -288,14 +295,62 @@ export default function RootPage() {
     }
   };
 
-  // Handle Image Upload for Vision analysis
-  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Voice Input (Speech-to-Text) using Web Speech API
+  const handleToggleVoiceInput = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert("Tarayıcınız ses tanıma özelliğini desteklemiyor. Chrome veya Edge kullanabilirsiniz.");
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "tr-TR";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    if (!isListening) {
+      setIsListening(true);
+      recognition.start();
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setChatInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        setIsListening(false);
+      };
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
+    } else {
+      setIsListening(false);
+      recognition.stop();
+    }
+  };
+
+  // Voice Output (Text-to-Speech)
+  const handleSpeakText = (text: string, msgId: string) => {
+    if (!('speechSynthesis' in window)) return;
+    if (isSpeakingIndex === msgId) {
+      window.speechSynthesis.cancel();
+      setIsSpeakingIndex(null);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const cleanText = text.replace(/[*#`_]/g, "");
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = "tr-TR";
+    utterance.rate = 1.0;
+    utterance.onend = () => setIsSpeakingIndex(null);
+    utterance.onerror = () => setIsSpeakingIndex(null);
+    setIsSpeakingIndex(msgId);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Handle Multimodal File & Image Upload
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setUploadedImageName(file.name);
+    setUploadedFileName(file.name);
+    setUploadedFileType(file.type.startsWith("image/") ? "IMAGE" : "DOC");
     const reader = new FileReader();
     reader.onload = (event) => {
-      setUploadedImageBase64(event.target?.result as string);
+      setUploadedFileBase64(event.target?.result as string);
     };
     reader.readAsDataURL(file);
   };
@@ -347,17 +402,6 @@ export default function RootPage() {
     }
   };
 
-  // Process Stripe Top-up (Disabled for Maintenance)
-  const handleStripeCheckout = async (amount: number) => {
-    setStripeProcessing(true);
-    setStripeSuccessMsg(null);
-    setTimeout(() => {
-      setStripeProcessing(false);
-      setStripeSuccessMsg("⚠️ Çevrim İçi Bakiye Yükleme Geçici Olarak Kapalıdır. Stripe canlı ödeme altyapısı bakım ve güvenlik güncellemesi aşamasındadır. Test kredisi veya bakiye talepleriniz için lütfen sistem yöneticisi ile iletişime geçiniz.");
-      setSelectedStripePackage(null);
-    }, 800);
-  };
-
   // Guest Sign In
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -373,7 +417,7 @@ export default function RootPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.detail || "Giriş başarısız. Bilgilerinizi kontrol edin.");
+        throw new Error(data?.detail || data?.error?.message || "Giriş başarısız. Bilgilerinizi kontrol edin.");
       }
 
       setAuthToken(data.access_token);
@@ -456,7 +500,7 @@ export default function RootPage() {
   // Switch Tabs & Load Tab Data
   const handleTabChange = async (tab: any) => {
     setActiveTab(tab);
-    if (tab === "keys") {
+    if (tab === "api") {
       try {
         const data = await fetchApi("/api/keys");
         setApiKeys(data || []);
@@ -576,10 +620,10 @@ export default function RootPage() {
     }
   };
 
-  // Chat Streaming Execution with Vision Support
+  // Chat Streaming Execution with Vision & User Memory
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!chatInput.trim() && !uploadedImageBase64) || isStreaming) return;
+    if ((!chatInput.trim() && !uploadedFileBase64) || isStreaming) return;
 
     let currentConvId = activeConvId;
     if (!currentConvId) {
@@ -587,9 +631,9 @@ export default function RootPage() {
         const newConv = await fetchApi("/api/chat-ui/conversations", {
           method: "POST",
           body: JSON.stringify({
-            title: chatInput.slice(0, 30) || "Görsel Analiz Sohbeti",
+            title: chatInput.slice(0, 30) || (uploadedFileName ? `Dosya: ${uploadedFileName}` : "Yeni Sohbet"),
             model_id: selectedModel,
-            system_prompt: systemPrompt,
+            system_prompt: `${systemPrompt}\n[Kullanıcı Hafızası & Profil]: ${userMemoryCache}`,
             temperature: temperature,
           }),
         });
@@ -599,8 +643,8 @@ export default function RootPage() {
       } catch {}
     }
 
-    const userContent = uploadedImageBase64 
-      ? `[Görsel Yüklendi: ${uploadedImageName}]\n${chatInput}`
+    const userContent = uploadedFileBase64 
+      ? `[Eklenen Dosya / Görsel: ${uploadedFileName}]\n${chatInput}`
       : chatInput;
 
     const userMsg = { id: Date.now().toString(), role: "user", content: userContent };
@@ -608,8 +652,9 @@ export default function RootPage() {
     
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setChatInput("");
-    setUploadedImageBase64(null);
-    setUploadedImageName(null);
+    setUploadedFileBase64(null);
+    setUploadedFileName(null);
+    setUploadedFileType(null);
     setIsStreaming(true);
 
     if (currentConvId) {
@@ -620,6 +665,7 @@ export default function RootPage() {
     }
 
     try {
+      const fullSystemInstruction = `${systemPrompt}\n[Kullanıcı Hafızası]: ${userMemoryCache}`;
       const response = await fetch(`${API_BASE}/v1/chat/completions`, {
         method: "POST",
         headers: {
@@ -629,7 +675,7 @@ export default function RootPage() {
         body: JSON.stringify({
           model: selectedModel,
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: fullSystemInstruction },
             ...messages.filter((m) => m.id !== "welcome"),
             userMsg
           ].map((m) => ({ role: m.role, content: m.content })),
@@ -1029,7 +1075,7 @@ export default function RootPage() {
             </div>
           </div>
 
-          {/* Menü Sekmeleri */}
+          {/* Birleştirilmiş Menü Sekmeleri */}
           <nav className="space-y-1">
             <button
               onClick={() => handleTabChange("chat")}
@@ -1040,7 +1086,7 @@ export default function RootPage() {
               }`}
             >
               <MessageSquare className="w-4 h-4" />
-              <span>Sohbet & Vision</span>
+              <span>Sohbet & Sesli Asistan</span>
             </button>
 
             <button
@@ -1055,16 +1101,17 @@ export default function RootPage() {
               <span>Özel AI Ajanları ({agents.length})</span>
             </button>
 
+            {/* BİRLEŞTİRİLMİŞ GELİŞTİRİCİ & API MERKEZİ (KEYS + DOCS) */}
             <button
-              onClick={() => handleTabChange("docs")}
+              onClick={() => handleTabChange("api")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                activeTab === "docs"
+                activeTab === "api"
                   ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
                   : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
               }`}
             >
-              <Code2 className="w-4 h-4 text-emerald-500" />
-              <span>API Dokümantasyonu</span>
+              <Key className="w-4 h-4 text-emerald-500" />
+              <span>Geliştirici & API Merkezi</span>
             </button>
 
             <button
@@ -1080,18 +1127,6 @@ export default function RootPage() {
             </button>
 
             <button
-              onClick={() => handleTabChange("keys")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                activeTab === "keys"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
-              }`}
-            >
-              <Key className="w-4 h-4" />
-              <span>API Anahtarları</span>
-            </button>
-
-            <button
               onClick={() => handleTabChange("billing")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                 activeTab === "billing"
@@ -1100,7 +1135,7 @@ export default function RootPage() {
               }`}
             >
               <CreditCard className="w-4 h-4" />
-              <span>Bakiye & Stripe Yükleme</span>
+              <span>Bakiye & Cüzdan</span>
             </button>
 
             <button
@@ -1125,7 +1160,7 @@ export default function RootPage() {
                 }`}
               >
                 <ShieldAlert className="w-4 h-4" />
-                <span>Admin Kontrol Paneli</span>
+                <span>Admin & AWS Kaynakları</span>
               </button>
             )}
           </nav>
@@ -1152,7 +1187,7 @@ export default function RootPage() {
       <main className="flex-1 p-4 md:p-6 overflow-y-auto">
         
         {/* ================================================================= */}
-        {/* SEKME 1: SOHBET & GÖRSEL ANALİZ (CHAT PLAYGROUND & VISION) */}
+        {/* SEKME 1: FRONTIER AI SOHBET (SESLİ KONUŞMA, HAFIZA, GÖRSEL & DOSYA) */}
         {/* ================================================================= */}
         {activeTab === "chat" && (
           <div className="flex h-[calc(100vh-120px)] rounded-2xl border border-slate-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-950 shadow-sm">
@@ -1216,7 +1251,7 @@ export default function RootPage() {
             {/* Chat Mesajlaşma Alanı */}
             <div className="flex-1 flex flex-col bg-white dark:bg-gray-950">
               
-              {/* Üst Model ve Parametre Barı */}
+              {/* Üst Model, Hafıza ve Parametre Barı */}
               <div className="p-3 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between bg-slate-50/50 dark:bg-gray-900/30">
                 <div className="flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -1226,13 +1261,12 @@ export default function RootPage() {
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-lg px-3 py-1 text-xs text-indigo-600 dark:text-indigo-400 font-bold focus:outline-none"
                   >
-                    <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (200k · Vision)</option>
-                    <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (200k · Vision)</option>
-                    <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (300k · Vision)</option>
-                    <option value="amazon.nova-lite-v1:0">Amazon Nova Lite (300k · Vision)</option>
+                    <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (200k · Vision · Voice)</option>
+                    <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (200k · Hızlı)</option>
+                    <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (300k · Multimodal)</option>
+                    <option value="amazon.nova-lite-v1:0">Amazon Nova Lite (300k · Ultra Hızlı)</option>
                     <option value="meta.llama3-3-70b-instruct-v1:0">Meta Llama 3.3 70B (128k)</option>
                     <option value="mistral.mistral-large-2407-v1:0">Mistral Large 2 (128k)</option>
-                    <option value="cohere.command-r-plus-v1:0">Cohere Command R+ (128k)</option>
                   </select>
                 </div>
 
@@ -1240,14 +1274,30 @@ export default function RootPage() {
                   onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
                   className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:text-indigo-600"
                 >
-                  <Sliders className="w-3.5 h-3.5" />
-                  <span>Parametreler</span>
+                  <BrainCircuit className="w-3.5 h-3.5 text-purple-500" />
+                  <span>Kullanıcı Hafızası & Ayarlar</span>
                 </button>
               </div>
 
-              {/* Parametre Çekmecesi */}
+              {/* Parametre & Kullanıcı Hafızası Çekmecesi */}
               {showSettingsDrawer && (
                 <div className="p-4 border-b border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/80 space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-gray-300">
+                        🧠 Kullanıcı Hafızası & Profil Bilgisi (Prompt Cache)
+                      </label>
+                      <span className="text-[10px] text-purple-600 font-semibold">Tüm sohbetlerde hatırlanır</span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={userMemoryCache}
+                      onChange={(e) => setUserMemoryCache(e.target.value)}
+                      placeholder="Örn: Adım Ahmet, Senior Backend Developer'ım. Kodları Python/Go dilinde yaz, kısa ve net açıkla."
+                      className="w-full bg-white dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-lg p-2 text-xs text-slate-900 dark:text-white"
+                    />
+                  </div>
+
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 dark:text-gray-300 mb-1">
                       System Prompt (Sistem Talimatı)
@@ -1259,6 +1309,7 @@ export default function RootPage() {
                       className="w-full bg-white dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-lg p-2 text-xs text-slate-900 dark:text-white"
                     />
                   </div>
+
                   <div className="flex items-center gap-4">
                     <div className="flex-1">
                       <div className="flex justify-between text-[11px] font-bold text-slate-700 dark:text-gray-300 mb-1">
@@ -1298,17 +1349,38 @@ export default function RootPage() {
                       <div className="flex items-center justify-between text-[10px] opacity-70 mb-1.5 uppercase font-bold tracking-wider">
                         <span>{m.role === "user" ? "Siz" : selectedModel.split(".")[1] || "Bedrock AI"}</span>
                         {m.role !== "user" && (
-                          <button
-                            onClick={() => copyToClipboard(m.content, m.id || idx.toString())}
-                            className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
-                          >
-                            {copiedCodeIndex === (m.id || idx.toString()) ? (
-                              <Check className="w-3 h-3 text-emerald-500" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                            Kopyala
-                          </button>
+                          <div className="flex items-center gap-3">
+                            {/* Sesli Dinleme Butonu */}
+                            <button
+                              onClick={() => handleSpeakText(m.content, m.id || idx.toString())}
+                              className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
+                            >
+                              {isSpeakingIndex === (m.id || idx.toString()) ? (
+                                <>
+                                  <VolumeX className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                                  <span>Durdur</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Volume2 className="w-3.5 h-3.5 text-indigo-500" />
+                                  <span>Seslendir</span>
+                                </>
+                              )}
+                            </button>
+
+                            {/* Kopyalama Butonu */}
+                            <button
+                              onClick={() => copyToClipboard(m.content, m.id || idx.toString())}
+                              className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
+                            >
+                              {copiedCodeIndex === (m.id || idx.toString()) ? (
+                                <Check className="w-3 h-3 text-emerald-500" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                              Kopyala
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div className="whitespace-pre-wrap">{m.content}</div>
@@ -1316,7 +1388,7 @@ export default function RootPage() {
                   </div>
                 ))}
 
-                {/* Yanıt Oluşturuluyor / Yazıyor Animasyonu */}
+                {/* Yanıt Oluşturuluyor Animasyonu */}
                 {isStreaming && (
                   <div className="flex items-center gap-2 p-3 rounded-2xl bg-slate-100 dark:bg-gray-900 text-xs text-indigo-600 dark:text-indigo-400 font-bold max-w-[280px]">
                     <div className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
@@ -1325,15 +1397,19 @@ export default function RootPage() {
                 )}
               </div>
 
-              {/* Görsel Yüklendi Önizlemesi */}
-              {uploadedImageBase64 && (
+              {/* Eklenen Dosya / Görsel Önizleme Barı */}
+              {uploadedFileBase64 && (
                 <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 border-t border-indigo-100 dark:border-indigo-900 flex items-center justify-between text-xs text-indigo-700 dark:text-indigo-300">
                   <div className="flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-indigo-600" />
-                    <span>Görsel eklendi: <strong>{uploadedImageName}</strong> (Vision Analizi Hazır)</span>
+                    {uploadedFileType === "IMAGE" ? (
+                      <ImageIcon className="w-4 h-4 text-indigo-600" />
+                    ) : (
+                      <FileText className="w-4 h-4 text-purple-600" />
+                    )}
+                    <span>Yüklendi: <strong>{uploadedFileName}</strong> (Vision & Veri Analizine Hazır)</span>
                   </div>
                   <button
-                    onClick={() => { setUploadedImageBase64(null); setUploadedImageName(null); }}
+                    onClick={() => { setUploadedFileBase64(null); setUploadedFileName(null); setUploadedFileType(null); }}
                     className="p-1 hover:text-red-500"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -1341,36 +1417,51 @@ export default function RootPage() {
                 </div>
               )}
 
-              {/* Mesaj Gönderme & Görsel Yükleme Alanı */}
+              {/* Mesaj Gönderme, Sesli Konuşma & Dosya Yükleme Barı */}
               <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-200 dark:border-gray-800 flex items-center gap-2">
                 <input
                   type="file"
                   ref={fileInputRef}
-                  onChange={handleImageFileChange}
-                  accept="image/png, image/jpeg, image/webp"
+                  onChange={handleFileChange}
+                  accept="image/png, image/jpeg, image/webp, .pdf, .txt, .json, .py, .js"
                   className="hidden"
                 />
                 
+                {/* Dosya & Resim Yükleme Butonu */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  title="Görsel veya Doküman Yükle"
+                  title="Görsel veya Dosya Yükle"
                   className="p-2.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:text-indigo-600"
                 >
                   <Paperclip className="w-4 h-4" />
+                </button>
+
+                {/* Sesli Konuşma / Mikrofon Butonu */}
+                <button
+                  type="button"
+                  onClick={handleToggleVoiceInput}
+                  title={isListening ? "Dinlemeyi Durdur" : "Sesli Konuş (Speech-to-Text)"}
+                  className={`p-2.5 rounded-xl border transition ${
+                    isListening
+                      ? "bg-red-500 text-white border-red-600 animate-pulse shadow-md shadow-red-500/30"
+                      : "border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:text-indigo-600"
+                  }`}
+                >
+                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
                 </button>
 
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="AWS Bedrock'a soru sorun, kod isteyin veya görsel analiz ettirin..."
+                  placeholder={isListening ? "Sizi dinliyorum, konuşabilirsiniz..." : "AWS Bedrock'a soru sorun, sesle konuşun veya görsel yükleyin..."}
                   className="flex-1 bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl px-4 py-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
 
                 <button
                   type="submit"
-                  disabled={isStreaming || (!chatInput.trim() && !uploadedImageBase64)}
+                  disabled={isStreaming || (!chatInput.trim() && !uploadedFileBase64)}
                   className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-40"
                 >
                   <Send className="w-4 h-4" />
@@ -1383,7 +1474,7 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 2: ÖZEL AI AJANLARI & OTOMASYONLAR (AUTONOMOUS AGENTS HUB) */}
+        {/* SEKME 2: ÖZEL AI AJANLARI (AUTONOMOUS AGENTS HUB) */}
         {/* ================================================================= */}
         {activeTab === "agents" && (
           <div className="max-w-5xl mx-auto space-y-6">
@@ -1391,7 +1482,7 @@ export default function RootPage() {
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white">Özel AI Ajanları & Otomasyonlar</h2>
                 <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                  Arka planda veri takibi yapan, e-posta gönderen ve Telegram entegrasyonu sağlayan otonom ajanlar oluşturun.
+                  Telegram'dan tetiklenen, periyodik veri taraması yapan ve e-posta raporu gönderen otonom ajanlar oluşturun.
                 </p>
               </div>
               <button
@@ -1402,26 +1493,6 @@ export default function RootPage() {
                 <span>Yeni Ajan Oluştur</span>
               </button>
             </div>
-
-            {/* Ajan Çalıştırma Canlı Çıktı Kartı */}
-            {agentExecutionResult && (
-              <div className="p-5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-300">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle className="w-4 h-4 text-emerald-500" />
-                    <span>Ajan Başarıyla Tetiklendi: <strong>{agentExecutionResult.agent_name}</strong></span>
-                  </div>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">Tamamlandı</span>
-                </div>
-                <div className="p-3 rounded-xl bg-white dark:bg-gray-950 text-xs font-mono text-slate-800 dark:text-gray-200 border border-indigo-100 dark:border-indigo-900">
-                  {agentExecutionResult.output}
-                </div>
-                <div className="flex items-center gap-3 text-[11px] text-slate-500">
-                  <span>✓ E-Posta Bildirimi: <strong>Aktif</strong></span>
-                  <span>✓ Telegram Webhook: <strong>{agentExecutionResult.actions_triggered?.telegram ? "Tetiklendi" : "Yapılandırılmadı"}</strong></span>
-                </div>
-              </div>
-            )}
 
             {/* Ajan Mimari, Tetikleme & Fiyatlandırma Rehber Kartı */}
             <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
@@ -1472,10 +1543,25 @@ export default function RootPage() {
               </div>
             </div>
 
+            {/* Ajan Çalıştırma Canlı Çıktı Kartı */}
+            {agentExecutionResult && (
+              <div className="p-5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-300">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-500" />
+                    <span>Ajan Başarıyla Tetiklendi: <strong>{agentExecutionResult.agent_name}</strong></span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">Tamamlandı</span>
+                </div>
+                <div className="p-3 rounded-xl bg-white dark:bg-gray-950 text-xs font-mono text-slate-800 dark:text-gray-200 border border-indigo-100 dark:border-indigo-900">
+                  {agentExecutionResult.output}
+                </div>
+              </div>
+            )}
+
             {/* Ajanlar Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
-              {/* Hazır Başlangıç Ajanları + Kullanıcı Ajanları */}
               <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1534,7 +1620,6 @@ export default function RootPage() {
                 </div>
               </div>
 
-              {/* Kullanıcının Eklediği Özel Ajanlar */}
               {agents.map((ag) => (
                 <div key={ag.id} className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
                   <div className="flex items-center justify-between">
@@ -1662,36 +1747,95 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 3: API DOKÜMANTASYONU (INTERACTIVE QUICKSTART & CODE SAMPLES) */}
+        {/* SEKME 3: BİRLEŞTİRİLMİŞ GELİŞTİRİCİ & API MERKEZİ (KEYS + DOCS) */}
         {/* ================================================================= */}
-        {activeTab === "docs" && (
+        {activeTab === "api" && (
           <div className="max-w-5xl mx-auto space-y-6">
             <div>
-              <h2 className="text-xl font-black text-slate-900 dark:text-white">API Entegrasyon Dokümantasyonu</h2>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">Geliştirici & API Merkezi</h2>
               <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                Standart OpenAI SDK'ları ile AWS Bedrock modellerini çağırmak için eksiksiz kod rehberi.
+                API anahtarlarınızı üretin, yönetin ve standart SDK kodlarıyla AWS Bedrock modellerini hemen çağırın.
               </p>
             </div>
 
-            {/* API Endpoint & Auth Bilgi Kartı */}
-            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="font-bold text-slate-700 dark:text-gray-300">OpenAI Base URL:</span>
-                  <div className="mt-1 p-2.5 rounded-xl bg-slate-50 dark:bg-gray-950 font-mono text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-gray-800 break-all select-all">
-                    http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1
-                  </div>
+            {/* API Anahtarı Oluşturma Formu */}
+            <form onSubmit={handleCreateApiKey} className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex gap-2">
+              <input
+                type="text"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="Yeni Anahtar Adı (Örn: Production Backend)..."
+                className="flex-1 bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
+              />
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Yeni Anahtar Üret</span>
+              </button>
+            </form>
+
+            {createdSecretKey && (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 space-y-2">
+                <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Yeni API Anahtarınız (Lütfen güvenli bir yere kaydedin):</span>
                 </div>
-                <div>
-                  <span className="font-bold text-slate-700 dark:text-gray-300">Yetkilendirme Başlığı:</span>
-                  <div className="mt-1 p-2.5 rounded-xl bg-slate-50 dark:bg-gray-950 font-mono text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-gray-800 select-all">
-                    Authorization: Bearer sk-live-your-api-key
-                  </div>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 bg-white dark:bg-gray-950 p-2.5 rounded-xl border border-amber-300 dark:border-amber-700 font-mono text-xs text-amber-900 dark:text-amber-200 break-all">
+                    {createdSecretKey}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(createdSecretKey);
+                      setKeyCopied(true);
+                      setTimeout(() => setKeyCopied(false), 2000);
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition"
+                  >
+                    {keyCopied ? "Kopyalandı!" : "Kopyala"}
+                  </button>
                 </div>
+              </div>
+            )}
+
+            {/* Mevcut Anahtarlar Tablosu */}
+            <div className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-slate-200 dark:border-gray-800 font-bold text-xs">
+                Mevcut API Anahtarlarınız ({apiKeys.length})
+              </div>
+              <div className="divide-y divide-slate-100 dark:divide-gray-800">
+                {apiKeys.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500">Henüz bir anahtarınız yok. Yukarıdan oluşturabilirsiniz.</div>
+                ) : (
+                  apiKeys.map((k) => (
+                    <div key={k.id} className="p-4 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="font-bold text-slate-900 dark:text-white">{k.name}</div>
+                        <div className="text-slate-400 dark:text-gray-500 font-mono text-[11px] mt-0.5">
+                          {k.prefix}••••••••••••
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
+                          Harcanan: ${Number(k.spend_usd || 0).toFixed(4)}
+                        </span>
+                        <button
+                          onClick={() => handleRevokeKey(k.id)}
+                          title="Anahtarı İptal Et"
+                          className="text-slate-400 hover:text-red-600 p-1 transition"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
-            {/* Kod Örnekleri Tab */}
+            {/* İnteraktif Kod Dokümantasyonu */}
             <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
               <div className="p-4 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between bg-slate-50/60 dark:bg-gray-950">
                 <div className="flex gap-2">
@@ -1714,7 +1858,7 @@ export default function RootPage() {
                     </button>
                   ))}
                 </div>
-                <span className="text-[11px] text-emerald-600 font-bold hidden sm:inline">✓ %100 Drop-In Uyumlu</span>
+                <span className="text-[11px] text-emerald-600 font-bold hidden sm:inline">✓ OpenAI SDK Drop-In Uyumlu</span>
               </div>
 
               <div className="p-6 bg-slate-900 text-gray-200 font-mono text-xs overflow-x-auto leading-relaxed">
@@ -1840,102 +1984,15 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 5: API ANAHTARLARI */}
-        {/* ================================================================= */}
-        {activeTab === "keys" && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">API Anahtarları Yönetimi</h2>
-                <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                  OpenAI SDK ve harici istemciler için `sk-live-...` anahtarlarınızı yönetin.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={handleCreateApiKey} className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex gap-2">
-              <input
-                type="text"
-                value={newKeyName}
-                onChange={(e) => setNewKeyName(e.target.value)}
-                placeholder="Anahtar Adı (Örn: Production App)..."
-                className="flex-1 bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-              />
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Oluştur</span>
-              </button>
-            </form>
-
-            {createdSecretKey && (
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 space-y-2">
-                <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Yeni API Anahtarınız (Lütfen güvenli bir yere kaydedin):</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-white dark:bg-gray-950 p-2.5 rounded-xl border border-amber-300 dark:border-amber-700 font-mono text-xs text-amber-900 dark:text-amber-200 break-all">
-                    {createdSecretKey}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(createdSecretKey);
-                      setKeyCopied(true);
-                      setTimeout(() => setKeyCopied(false), 2000);
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition"
-                  >
-                    {keyCopied ? "Kopyalandı!" : "Kopyala"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-200 dark:border-gray-800 font-bold text-xs">
-                Mevcut Anahtarlarınız
-              </div>
-              <div className="divide-y divide-slate-100 dark:divide-gray-800">
-                {apiKeys.map((k) => (
-                  <div key={k.id} className="p-4 flex items-center justify-between text-xs">
-                    <div>
-                      <div className="font-bold text-slate-900 dark:text-white">{k.name}</div>
-                      <div className="text-slate-400 dark:text-gray-500 font-mono text-[11px] mt-0.5">
-                        {k.prefix}••••••••••••
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
-                        Harcanan: ${Number(k.spend_usd || 0).toFixed(4)}
-                      </span>
-                      <button
-                        onClick={() => handleRevokeKey(k.id)}
-                        title="Anahtarı İptal Et"
-                        className="text-slate-400 hover:text-red-600 p-1 transition"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ================================================================= */}
-        {/* SEKME 6: BAKİYE & STRIPE YÜKLEME (DOĞRUDAN BİLGİLENDİRME MODALI) */}
+        {/* SEKME 5: BAKİYE & CÜZDAN */}
         {/* ================================================================= */}
         {activeTab === "billing" && (
           <div className="max-w-4xl mx-auto space-y-6">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">Bakiye & Stripe Yükleme</h2>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">Bakiye & Cüzdan</h2>
             
             {stripeSuccessMsg && (
-              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4" />
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{stripeSuccessMsg}</span>
               </div>
             )}
@@ -1969,52 +2026,33 @@ export default function RootPage() {
               </div>
             </div>
 
-            {/* Stripe Bilgilendirme ve Ödeme Modalı */}
+            {/* Bakiye Yükleme Bakım Modalı */}
             {selectedStripePackage && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
                 <div className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <CreditCard className="w-5 h-5 text-indigo-600" />
-                      <h3 className="font-bold text-base text-slate-900 dark:text-white">Stripe Güvenli Ödeme</h3>
+                      <CreditCard className="w-5 h-5 text-amber-500" />
+                      <h3 className="font-bold text-base text-slate-900 dark:text-white">Bakiye Yükleme Bilgilendirmesi</h3>
                     </div>
                     <button onClick={() => setSelectedStripePackage(null)} className="text-slate-400 hover:text-slate-600">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Yüklenecek Tutar:</span>
-                      <strong className="text-slate-900 dark:text-white">${selectedStripePackage}.00 USD</strong>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Ödeme Altyapısı:</span>
-                      <span className="text-indigo-600 font-semibold">Stripe 256-Bit SSL</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500">Aktivasyon:</span>
-                      <span className="text-emerald-600 font-semibold">Anında Cüzdana Yansır</span>
-                    </div>
+                  <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 leading-relaxed space-y-2">
+                    <p className="font-bold">⚠️ Çevrim İçi Bakiye Yükleme Geçici Olarak Kapalıdır</p>
+                    <p>
+                      Stripe canlı ödeme altyapısı bakım ve güvenlik güncellemesi aşamasındadır. Kredi yükleme talepleriniz veya kurumsal faturalandırma için lütfen sistem yöneticisi ile iletişime geçiniz.
+                    </p>
                   </div>
 
-                  <div className="text-[11px] text-slate-500 leading-relaxed">
-                    Stripe entegrasyonu korumalıdır. "Ödemeyi Onayla" butonuna bastığınızda seçtiğiniz tutar cüzdanınıza anında aktarılacaktır.
-                  </div>
-
-                  <div className="flex gap-2">
+                  <div className="flex justify-end">
                     <button
                       onClick={() => setSelectedStripePackage(null)}
-                      className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-800 text-xs font-bold text-slate-700 dark:text-gray-300"
+                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
                     >
-                      Vazgeç
-                    </button>
-                    <button
-                      onClick={() => handleStripeCheckout(selectedStripePackage)}
-                      disabled={stripeProcessing}
-                      className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5"
-                    >
-                      {stripeProcessing ? "İşleniyor..." : `Ödemeyi Onayla ($${selectedStripePackage})`}
+                      Anladım
                     </button>
                   </div>
                 </div>
@@ -2025,7 +2063,7 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 7: KULLANICI PROFİLİ */}
+        {/* SEKME 6: KULLANICI PROFİLİ */}
         {/* ================================================================= */}
         {activeTab === "profile" && (
           <div className="max-w-4xl mx-auto space-y-6">
@@ -2166,15 +2204,15 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 8: ADMIN KONTROL MERKEZİ & AWS BULUT DİYAGNOSTİK */}
+        {/* SEKME 7: ADMIN KONTROL MERKEZİ & MERKEZİ AWS KAYNAKLARI */}
         {/* ================================================================= */}
         {activeTab === "admin" && user?.role === "admin" && (
           <div className="max-w-5xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">Admin Sistem Kontrol & AWS Canlı İzleme</h2>
+                <h2 className="text-xl font-black text-slate-900 dark:text-white">Admin Sistem Kontrol & AWS Kaynakları</h2>
                 <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                  AWS Bedrock bağlantı durumu, Fargate Cluster telemetrisi ve Kullanıcı yönetimi.
+                  Bağlı tüm AWS bulut kaynakları, Fargate Cluster telemetrisi ve Kullanıcı yönetimi.
                 </p>
               </div>
               <button
@@ -2186,59 +2224,52 @@ export default function RootPage() {
               </button>
             </div>
 
-            {/* AWS & Bulut Servis Bağlantı Durumu Kartları */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              
-              <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400">
-                  <span className="font-bold">AWS Bedrock Runtime</span>
-                  <Radio className="w-4 h-4 text-emerald-500 animate-pulse" />
-                </div>
-                <div className="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>{awsStatus?.services?.aws_bedrock?.status || "CONNECTED"}</span>
-                </div>
-                <div className="text-[10px] text-slate-400 font-mono">
-                  Bölge: {awsStatus?.region || "us-east-1"} · {awsStatus?.services?.aws_bedrock?.latency_ms || 12}ms
-                </div>
+            {/* MERKEZİ AWS BULUT KAYNAKLARI (ALL CONNECTED AWS RESOURCES) */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+              <div className="flex items-center gap-2">
+                <Server className="w-4 h-4 text-purple-600" />
+                <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                  Bağlı AWS Bulut Kaynakları & Servis Durumu
+                </h3>
               </div>
 
-              <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400">
-                  <span className="font-bold">PostgreSQL 16 RDS</span>
-                  <Database className="w-4 h-4 text-indigo-500" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
+                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>AWS Bedrock Runtime</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">Bölge: us-east-1</div>
+                  <div className="text-[10px] text-emerald-600 font-bold">19 Foundation Model Aktif</div>
                 </div>
-                <div className="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>{awsStatus?.services?.database_rds?.status || "CONNECTED"}</span>
-                </div>
-                <div className="text-[10px] text-slate-400">Multi-AZ Havuzu Aktif</div>
-              </div>
 
-              <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400">
-                  <span className="font-bold">ElastiCache Redis 7</span>
-                  <Zap className="w-4 h-4 text-amber-500" />
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
+                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Amazon RDS PostgreSQL</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">Multi-AZ Havuz</div>
+                  <div className="text-[10px] text-indigo-600 font-bold">PostgreSQL 16 Engine</div>
                 </div>
-                <div className="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>CONNECTED</span>
-                </div>
-                <div className="text-[10px] text-slate-400">Hız Limitleyici Aktif</div>
-              </div>
 
-              <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-2">
-                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400">
-                  <span className="font-bold">ECS Fargate Cluster</span>
-                  <Server className="w-4 h-4 text-purple-500" />
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
+                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Amazon ElastiCache</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">Redis 7 Cluster</div>
+                  <div className="text-[10px] text-amber-600 font-bold">Hız Limitleyici Aktif</div>
                 </div>
-                <div className="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                  <span>HEALTHY</span>
-                </div>
-                <div className="text-[10px] text-slate-400">2 Görev Çalışıyor</div>
-              </div>
 
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
+                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>AWS ECS Fargate</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500">ALB Entegre</div>
+                  <div className="text-[10px] text-purple-600 font-bold">2 Aktif Görev</div>
+                </div>
+              </div>
             </div>
 
             {/* Grafana-Style Sistem CPU, Memory & Network Göstergeleri */}
