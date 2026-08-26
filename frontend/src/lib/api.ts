@@ -1,13 +1,24 @@
+import { setSessionCookie, getSessionCookie, removeSessionCookie, publishLiveSyncEvent } from "./sync-engine";
+
 export const API_BASE = "";
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("bedrock_gateway_token");
+  const lsToken = localStorage.getItem("bedrock_gateway_token");
+  if (lsToken) return lsToken;
+  const cookieToken = getSessionCookie("bg_auth_token");
+  if (cookieToken) {
+    localStorage.setItem("bedrock_gateway_token", cookieToken);
+    return cookieToken;
+  }
+  return null;
 }
 
 export function setAuthToken(token: string) {
   if (typeof window !== "undefined") {
     localStorage.setItem("bedrock_gateway_token", token);
+    setSessionCookie("bg_auth_token", token);
+    publishLiveSyncEvent("AUTH_UPDATED", { token });
   }
 }
 
@@ -15,6 +26,10 @@ export function clearAuthToken() {
   if (typeof window !== "undefined") {
     localStorage.removeItem("bedrock_gateway_token");
     localStorage.removeItem("bedrock_gateway_user");
+    localStorage.removeItem("bedrock_gateway_balance");
+    removeSessionCookie("bg_auth_token");
+    removeSessionCookie("bg_user_balance");
+    publishLiveSyncEvent("AUTH_UPDATED", { token: null });
   }
 }
 
@@ -42,3 +57,4 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
 
   return response.json();
 }
+

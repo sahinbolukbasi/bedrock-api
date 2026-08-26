@@ -23,6 +23,7 @@ import {
   Bot
 } from "lucide-react";
 import { getAuthToken, clearAuthToken, fetchApi } from "../lib/api";
+import { subscribeToLiveSync, fetchWithSwr } from "../lib/sync-engine";
 import ThemeToggle from "./ThemeToggle";
 
 export default function Navigation() {
@@ -43,43 +44,76 @@ export default function Navigation() {
       return;
     }
     setIsLoggedIn(true);
+
+    // 1. Instantly check stored balance for 0ms rendering
+    if (typeof window !== "undefined") {
+      const storedBal = localStorage.getItem("bedrock_gateway_balance");
+      if (storedBal !== null) {
+        setBalance(parseFloat(storedBal));
+      }
+    }
+
     try {
-      const walletData = await fetchApi("/api/wallet");
+      const walletData = await fetchWithSwr(
+        "/api/wallet",
+        () => fetchApi("/api/wallet"),
+        {
+          ttlMs: 15000,
+          onBackgroundUpdate: (fresh) => {
+            if (fresh?.balance_usd !== undefined) {
+              setBalance(Number(fresh.balance_usd));
+            }
+          }
+        }
+      );
       if (walletData && walletData.balance_usd !== undefined) {
         setBalance(Number(walletData.balance_usd));
       }
-      const profile = await fetchApi("/api/auth/me");
+
+      const profile = await fetchWithSwr(
+        "/api/auth/me",
+        () => fetchApi("/api/auth/me"),
+        {
+          ttlMs: 30000,
+          onBackgroundUpdate: (freshProfile) => {
+            if (freshProfile) setUserProfile(freshProfile);
+          }
+        }
+      ).catch(() => null);
       if (profile) {
         setUserProfile(profile);
       }
     } catch (err) {
-      console.error("Failed to load user info:", err);
+      console.warn("User state live sync note:", err);
     }
   };
 
   useEffect(() => {
     loadUserState();
 
-    const handleAuthChange = () => {
-      loadUserState();
-    };
-
-    const handleBalanceUpdate = (e: any) => {
-      if (e.detail !== undefined) {
-        setBalance(e.detail);
-      } else {
+    // Subscribe to multi-tab real-time sync engine
+    const unsubscribe = subscribeToLiveSync((event) => {
+      if (event.type === "BALANCE_UPDATED") {
+        if (event.payload !== undefined) {
+          setBalance(Number(event.payload));
+        } else {
+          loadUserState();
+        }
+      } else if (event.type === "AUTH_UPDATED") {
         loadUserState();
       }
-    };
+    });
 
-    window.addEventListener("bedrock:auth-changed", handleAuthChange);
-    window.addEventListener("bedrock:balance-updated", handleBalanceUpdate);
+    const handleFocus = () => loadUserState();
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("online", handleFocus);
 
     return () => {
-      window.removeEventListener("bedrock:auth-changed", handleAuthChange);
-      window.removeEventListener("bedrock:balance-updated", handleBalanceUpdate);
+      unsubscribe();
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("online", handleFocus);
     };
-  }, [pathname]);
+  }, []);
 
   // Click outside to close dropdown
   useEffect(() => {

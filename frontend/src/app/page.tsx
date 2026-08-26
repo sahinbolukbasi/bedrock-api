@@ -71,6 +71,7 @@ import {
   History
 } from "lucide-react";
 import { API_BASE, getAuthToken, setAuthToken, fetchApi, clearAuthToken } from "../lib/api";
+import { subscribeToLiveSync, publishLiveSyncEvent, fetchWithSwr } from "../lib/sync-engine";
 import ArtifactCanvas, { ArtifactData } from "../components/ArtifactCanvas";
 import ReasoningAccordion from "../components/ReasoningAccordion";
 import ChatInputDock, { AttachedFile } from "../components/ChatInputDock";
@@ -338,9 +339,27 @@ export default function RootPage() {
     }
     initConsole();
 
-    // Setup periodic background auto-refresh & window focus sync
-    const syncInterval = setInterval(refreshAllUserData, 8000);
-    window.addEventListener("focus", refreshAllUserData);
+    // Setup periodic background high-speed auto-refresh & window focus sync
+    const syncInterval = setInterval(refreshAllUserData, 4000);
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        refreshAllUserData();
+      }
+    };
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    window.addEventListener("online", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+
+    // Subscribe to multi-tab real-time sync engine
+    const unsubscribeSync = subscribeToLiveSync((event) => {
+      if (event.type === "BALANCE_UPDATED" && event.payload !== undefined) {
+        setBalance(Number(event.payload));
+      } else if (event.type === "CONVERSATION_UPDATED") {
+        loadConversations();
+      } else if (event.type === "AUTH_UPDATED" || event.type === "ADMIN_SYNC_TRIGGERED") {
+        refreshAllUserData();
+      }
+    });
 
     // Listen to tab switches from Navigation header/dropdown
     const handleSwitchEvent = (e: any) => {
@@ -361,7 +380,10 @@ export default function RootPage() {
 
     return () => {
       clearInterval(syncInterval);
-      window.removeEventListener("focus", refreshAllUserData);
+      unsubscribeSync();
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      window.removeEventListener("online", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
       window.removeEventListener("bedrock:switch-tab", handleSwitchEvent);
     };
   }, []);
