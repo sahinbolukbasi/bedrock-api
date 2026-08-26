@@ -47,11 +47,29 @@ export default function RootPage() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
+  // Guest Auth Mode: "login" | "register" | "forgot"
+  const [authMode, setAuthMode] = useState<"login" | "register" | "forgot">("login");
+
   // Guest Login Form state
   const [loginEmail, setLoginEmail] = useState("admin@bedrockgateway.com");
   const [loginPassword, setLoginPassword] = useState("AdminPassword123!");
   const [loginError, setLoginError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+
+  // Guest Register Form state
+  const [regFullName, setRegFullName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
+  const [regTerms, setRegTerms] = useState(true);
+  const [regError, setRegError] = useState("");
+  const [regSuccess, setRegSuccess] = useState("");
+  const [regLoading, setRegLoading] = useState(false);
+
+  // Guest Forgot Password state
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSubmitted, setForgotSubmitted] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   // Console Hub Active Tab state
   const [activeTab, setActiveTab] = useState<"chat" | "models" | "keys" | "analytics" | "billing" | "profile" | "admin">("chat");
@@ -259,6 +277,66 @@ export default function RootPage() {
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  // Guest Registration Submit
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegError("");
+    setRegSuccess("");
+
+    if (regPassword !== regPasswordConfirm) {
+      setRegError("Girilen şifreler birbiriyle eşleşmiyor.");
+      return;
+    }
+    if (regPassword.length < 8) {
+      setRegError("Şifre en az 8 karakter uzunluğunda olmalıdır.");
+      return;
+    }
+
+    setRegLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: regEmail,
+          password: regPassword,
+          full_name: regFullName || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.message || "Kayıt işlemi başarısız.");
+      }
+
+      setAuthToken(data.access_token);
+      setToken(data.access_token);
+      setUser({ email: data.email, role: data.role, id: data.user_id });
+      setRegSuccess("Hesabınız oluşturuldu! $1.00 başlangıç kredisi tanımlandı.");
+
+      // Load console data
+      const walletData = await fetchApi("/api/wallet");
+      setBalance(Number(walletData.balance_usd));
+      const modelsData = await fetchApi("/v1/models");
+      setModels(modelsData.data || []);
+      loadConversations();
+    } catch (err: any) {
+      setRegError(err.message || "Kayıt olurken bir hata oluştu.");
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
+  // Guest Forgot Password Submit
+  const handleForgotSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    setTimeout(() => {
+      setForgotLoading(false);
+      setForgotSubmitted(true);
+    }, 1000);
   };
 
   // Switch Tabs & Load Tab-Specific Data
@@ -562,69 +640,261 @@ export default function RootPage() {
               </p>
             </div>
 
-            {/* Error Notification */}
-            {loginError && (
-              <div className="mb-6 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{loginError}</span>
-              </div>
+            {/* Auth Mode Tab Switcher */}
+            <div className="flex p-1 rounded-2xl bg-slate-100 dark:bg-gray-950 mb-6 border border-slate-200 dark:border-gray-800">
+              <button
+                onClick={() => { setAuthMode("login"); setLoginError(""); setRegError(""); }}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition ${
+                  authMode === "login"
+                    ? "bg-white dark:bg-gray-850 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                    : "text-slate-500 dark:text-gray-400 hover:text-slate-900"
+                }`}
+              >
+                Giriş Yap
+              </button>
+              <button
+                onClick={() => { setAuthMode("register"); setLoginError(""); setRegError(""); }}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 ${
+                  authMode === "register"
+                    ? "bg-white dark:bg-gray-850 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                    : "text-slate-500 dark:text-gray-400 hover:text-slate-900"
+                }`}
+              >
+                <span>Kayıt Ol</span>
+                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[9px] font-black">
+                  $1 Hediye
+                </span>
+              </button>
+            </div>
+
+            {/* TAB 1: LOGIN FORM */}
+            {authMode === "login" && (
+              <>
+                {loginError && (
+                  <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                      E-Posta Adresi
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-400 dark:text-gray-500 absolute left-3.5 top-3" />
+                      <input
+                        type="email"
+                        required
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        placeholder="admin@bedrockgateway.com"
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300">
+                        Şifre
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode("forgot")}
+                        className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold"
+                      >
+                        Şifremi Unuttum?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="w-4 h-4 text-slate-400 dark:text-gray-500 absolute left-3.5 top-3" />
+                      <input
+                        type="password"
+                        required
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition font-medium"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loginLoading}
+                    className="w-full mt-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {loginLoading ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span>Yönetim Paneline Giriş Yap</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mt-6 pt-4 border-t border-slate-200 dark:border-gray-800 text-center text-[11px] text-slate-500 dark:text-gray-400">
+                  Varsayılan Yönetici: <code className="text-indigo-600 dark:text-indigo-400 font-mono font-bold">admin@bedrockgateway.com</code>
+                </div>
+              </>
             )}
 
-            {/* Direct Login Form */}
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
-                  E-Posta Adresi
-                </label>
-                <div className="relative">
-                  <Mail className="w-4 h-4 text-slate-400 dark:text-gray-500 absolute left-3.5 top-3" />
-                  <input
-                    type="email"
-                    required
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    placeholder="admin@bedrockgateway.com"
-                    className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition font-medium"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
-                  Şifre
-                </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 text-slate-400 dark:text-gray-500 absolute left-3.5 top-3" />
-                  <input
-                    type="password"
-                    required
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition font-medium"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loginLoading}
-                className="w-full mt-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {loginLoading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <span>Yönetim Paneline Giriş Yap</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
+            {/* TAB 2: REGISTER FORM */}
+            {authMode === "register" && (
+              <>
+                {regError && (
+                  <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{regError}</span>
+                  </div>
                 )}
-              </button>
-            </form>
 
-            <div className="mt-6 pt-4 border-t border-slate-200 dark:border-gray-800 text-center text-[11px] text-slate-500 dark:text-gray-400">
-              Varsayılan Yönetici: <code className="text-indigo-600 dark:text-indigo-400 font-mono font-bold">admin@bedrockgateway.com</code>
-            </div>
+                {regSuccess && (
+                  <div className="mb-4 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                    <span>{regSuccess}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleRegisterSubmit} className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      Ad Soyad (Opsiyonel)
+                    </label>
+                    <input
+                      type="text"
+                      value={regFullName}
+                      onChange={(e) => setRegFullName(e.target.value)}
+                      placeholder="Ahmet Yılmaz"
+                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      E-Posta Adresi *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={regEmail}
+                      onChange={(e) => setRegEmail(e.target.value)}
+                      placeholder="adiniz@sirketiniz.com"
+                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      Şifre (En az 8 karakter) *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      Şifre Tekrar *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      minLength={8}
+                      value={regPasswordConfirm}
+                      onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                    />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                    <span>Ücretsiz <strong>$1.00 USD</strong> başlangıç kredisi ve Hoş Geldiniz e-postası anında tanımlanır.</span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={regLoading}
+                    className="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {regLoading ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <span>Ücretsiz Hesabımı Oluştur</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              </>
+            )}
+
+            {/* TAB 3: FORGOT PASSWORD */}
+            {authMode === "forgot" && (
+              <div className="space-y-4">
+                {forgotSubmitted ? (
+                  <div className="text-center space-y-3 py-4">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Şifre Sıfırlama E-Postası Gönderildi</h3>
+                    <p className="text-xs text-slate-500">
+                      <strong>{forgotEmail}</strong> adresine 6 haneli güvenlik kodunuz ve sıfırlama bağlantısı iletildi.
+                    </p>
+                    <button
+                      onClick={() => setAuthMode("login")}
+                      className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-xs"
+                    >
+                      Giriş Sayfasına Dön
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleForgotSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5">
+                        Kayıtlı E-Posta Adresiniz
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={forgotEmail}
+                        onChange={(e) => setForgotEmail(e.target.value)}
+                        placeholder="adiniz@sirketiniz.com"
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow-md shadow-indigo-600/20"
+                    >
+                      {forgotLoading ? "Kod Gönderiliyor..." : "Sıfırlama Kodu Gönder"}
+                    </button>
+                    <div className="text-center">
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode("login")}
+                        className="text-xs text-slate-500 hover:underline"
+                      >
+                        Giriş Ekranına Geri Dön
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
 
           </div>
         </div>

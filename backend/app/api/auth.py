@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -27,6 +28,8 @@ from app.domain.schemas import (
 from app.models.entities import User, Wallet
 from app.services.credit_service import CreditService
 
+from app.services.email_service import EmailService
+
 router = APIRouter()
 
 
@@ -47,7 +50,7 @@ async def register_user(body: UserRegisterRequest, db: AsyncSession = Depends(ge
         hashed_password=get_password_hash(body.password),
         full_name=body.full_name,
         role="user",
-        is_verified=True  # Auto-verified in development
+        is_verified=True
     )
     db.add(user)
     await db.flush()
@@ -57,6 +60,9 @@ async def register_user(body: UserRegisterRequest, db: AsyncSession = Depends(ge
     db.add(wallet)
     await db.commit()
     await db.refresh(user)
+
+    # Trigger async welcome email
+    asyncio.create_task(EmailService.send_welcome_email(user.email, user.full_name))
 
     access_token = create_access_token(str(user.id), role=user.role)
     refresh_token = create_refresh_token(str(user.id))
