@@ -1,283 +1,639 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { 
-  Zap, 
-  ShieldCheck, 
-  Coins, 
-  Code2, 
-  Layers, 
-  ArrowRight, 
-  CheckCircle2, 
+  MessageSquare, 
+  Cpu, 
+  Key, 
+  BarChart3, 
+  CreditCard, 
+  ShieldAlert, 
   Lock, 
-  Sparkles,
-  Server,
-  Terminal,
-  Cpu,
-  UserPlus,
-  LogIn,
-  Key
+  Mail, 
+  ArrowRight, 
+  Sparkles, 
+  Layers,
+  CheckCircle2,
+  AlertCircle,
+  Coins,
+  Activity,
+  Send,
+  Plus,
+  Trash2,
+  Copy,
+  Check,
+  Zap,
+  DollarSign,
+  Users
 } from "lucide-react";
-import { getAuthToken } from "../lib/api";
+import { API_BASE, getAuthToken, setAuthToken, fetchApi, clearAuthToken } from "../lib/api";
+import { useTheme } from "../components/ThemeProvider";
 
-export default function LandingPage() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<"python" | "node" | "curl">("python");
+export default function RootPage() {
+  const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
+  
+  // Auth state
+  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<any | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
+  // Guest Login Form state
+  const [loginEmail, setLoginEmail] = useState("admin@bedrockgateway.com");
+  const [loginPassword, setLoginPassword] = useState("AdminPassword123!");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  // Console Hub Active Tab state
+  const [activeTab, setActiveTab] = useState<"chat" | "keys" | "models" | "usage" | "billing" | "admin">("chat");
+
+  // Console data states
+  const [models, setModels] = useState<any[]>([]);
+  const [balance, setBalance] = useState<number>(0);
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [usageSummary, setUsageSummary] = useState<any>(null);
+  const [adminOverview, setAdminOverview] = useState<any>(null);
+
+  // Chat playground state
+  const [messages, setMessages] = useState<any[]>([
+    {
+      id: "1",
+      role: "assistant",
+      content: "Hello! Connected to **AWS Bedrock**. Choose a foundation model from above and start chatting or streaming inference.",
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState("anthropic.claude-3-5-sonnet-20241022-v2:0");
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  // Check auth on load
   useEffect(() => {
-    setIsLoggedIn(!!getAuthToken());
+    async function checkAuth() {
+      const savedToken = getAuthToken();
+      if (!savedToken) {
+        setToken(null);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      setToken(savedToken);
+      try {
+        const userProfile = await fetchApi("/api/auth/me");
+        setUser(userProfile);
+        const walletData = await fetchApi("/api/wallet");
+        setBalance(Number(walletData.balance_usd));
+        const modelsData = await fetchApi("/v1/models");
+        setModels(modelsData.data || []);
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        clearAuthToken();
+        setToken(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    checkAuth();
   }, []);
 
+  // Handle Guest Sign In
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+    setLoginLoading(true);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.detail || "Invalid email or password");
+      }
+
+      setAuthToken(data.access_token);
+      setToken(data.access_token);
+      setUser({ email: data.email, role: data.role, id: data.user_id });
+      
+      // Load console data
+      const walletData = await fetchApi("/api/wallet");
+      setBalance(Number(walletData.balance_usd));
+      const modelsData = await fetchApi("/v1/models");
+      setModels(modelsData.data || []);
+    } catch (err: any) {
+      setLoginError(err.message || "Failed to connect to gateway");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // Switch tabs & fetch module data
+  const handleTabChange = async (tab: any) => {
+    setActiveTab(tab);
+    if (tab === "keys") {
+      try {
+        const data = await fetchApi("/api/keys");
+        setApiKeys(data || []);
+      } catch {}
+    } else if (tab === "usage") {
+      try {
+        const data = await fetchApi("/api/usage/summary");
+        setUsageSummary(data);
+      } catch {}
+    } else if (tab === "admin") {
+      try {
+        const data = await fetchApi("/api/admin/overview");
+        setAdminOverview(data);
+      } catch {}
+    }
+  };
+
+  // Chat send message
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isStreaming) return;
+
+    const userMsg = { id: Date.now().toString(), role: "user", content: chatInput };
+    const assistantMsg = { id: (Date.now() + 1).toString(), role: "assistant", content: "" };
+    
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setChatInput("");
+    setIsStreaming(true);
+
+    try {
+      const response = await fetch(`${API_BASE}/v1/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          model: selectedModel,
+          messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })),
+          stream: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value);
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+              try {
+                const parsed = JSON.parse(line.slice(6));
+                const content = parsed.choices[0]?.delta?.content || "";
+                fullText += content;
+                setMessages((prev) => {
+                  const updated = [...prev];
+                  updated[updated.length - 1].content = fullText;
+                  return updated;
+                });
+              } catch {}
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1].content = `⚠️ Error: ${err.message || "Failed to generate response"}`;
+        return updated;
+      });
+    } finally {
+      setIsStreaming(false);
+      // Refresh wallet balance
+      fetchApi("/api/wallet").then((w) => setBalance(Number(w.balance_usd))).catch(() => {});
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
+        <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // LAYER 1: GUEST ENTRANCE GATEWAY (ZERO DISTRACTING BUTTONS)
+  // =========================================================================
+  if (!token) {
+    return (
+      <div className="min-h-[calc(100vh-64px)] flex items-center justify-center p-4 relative overflow-hidden bg-slate-950 dark:bg-[#0b0f17] light:bg-[#f8fafc]">
+        {/* Ambient Glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/10 dark:bg-indigo-500/20 blur-[130px] pointer-events-none rounded-full" />
+
+        <div className="w-full max-w-md relative z-10">
+          <div className="rounded-3xl border border-gray-800/80 bg-gray-900/90 dark:bg-gray-900/90 light:bg-white light:border-slate-200 shadow-2xl p-8 backdrop-blur-xl">
+            
+            {/* Logo & Header */}
+            <div className="text-center mb-8">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-amber-500 p-[2px] mb-4 shadow-lg shadow-indigo-500/20">
+                <div className="w-full h-full bg-gray-950 dark:bg-gray-950 light:bg-white rounded-[14px] flex items-center justify-center font-black text-white light:text-slate-900 text-lg">
+                  BG
+                </div>
+              </div>
+              <h1 className="text-2xl font-bold text-white light:text-slate-900 tracking-tight">
+                Bedrock <span className="text-amber-400">Gateway</span>
+              </h1>
+              <p className="text-xs text-gray-400 light:text-slate-500 mt-1.5">
+                Unified AI Control Center & Management Console
+              </p>
+            </div>
+
+            {/* Error Alert */}
+            {loginError && (
+              <div className="mb-6 p-3 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-2 text-xs text-red-400">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            {/* Direct Login Form */}
+            <form onSubmit={handleLoginSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 light:text-slate-700 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-3" />
+                  <input
+                    type="email"
+                    required
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="admin@bedrockgateway.com"
+                    className="w-full bg-gray-950/80 dark:bg-gray-950/80 light:bg-slate-50 border border-gray-800 dark:border-gray-800 light:border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white light:text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-300 light:text-slate-700 mb-1.5">
+                  Password
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-3" />
+                  <input
+                    type="password"
+                    required
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full bg-gray-950/80 dark:bg-gray-950/80 light:bg-slate-50 border border-gray-800 dark:border-gray-800 light:border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white light:text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loginLoading}
+                className="w-full mt-2 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {loginLoading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    <span>Enter Management Console</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t border-gray-800/80 dark:border-gray-800 light:border-slate-200 text-center text-[11px] text-gray-500 light:text-slate-400">
+              Default Admin: <code className="text-indigo-400 font-mono">admin@bedrockgateway.com</code>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // LAYER 2: UNIFIED CONSOLE & ALL-IN-ONE ADMIN WORKSPACE HUB
+  // =========================================================================
   return (
-    <div className="relative overflow-hidden">
-      {/* Dynamic Background Glows */}
-      <div className="absolute top-1/6 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-gradient-to-r from-indigo-500/20 via-purple-500/20 to-amber-500/20 blur-[140px] pointer-events-none" />
-      <div className="absolute top-2/3 right-10 w-[400px] h-[400px] bg-indigo-600/10 blur-[150px] pointer-events-none" />
+    <div className="min-h-[calc(100vh-64px)] flex flex-col md:flex-row bg-slate-950 dark:bg-[#0b0f17] light:bg-[#f8fafc]">
+      
+      {/* Left Workspace Navigation Sidebar */}
+      <aside className="w-full md:w-64 border-r border-gray-800/80 dark:border-gray-800 light:border-slate-200 bg-gray-950/50 dark:bg-gray-950/50 light:bg-white p-4 flex flex-col justify-between">
+        <div className="space-y-6">
+          
+          {/* Quick Balance Header Card */}
+          <div className="p-3.5 rounded-2xl bg-gray-900/80 dark:bg-gray-900/80 light:bg-slate-50 border border-gray-800 dark:border-gray-800 light:border-slate-200">
+            <div className="flex items-center justify-between text-xs text-gray-400 light:text-slate-500 mb-1">
+              <span>Account Balance</span>
+              <Coins className="w-3.5 h-3.5 text-amber-400" />
+            </div>
+            <div className="text-xl font-black text-emerald-400 light:text-emerald-600">
+              ${balance.toFixed(2)}
+            </div>
+            <div className="mt-2 text-[10px] text-gray-500 light:text-slate-400 truncate">
+              {user?.email} ({user?.role})
+            </div>
+          </div>
 
-      {/* Hero Section */}
-      <section className="max-w-6xl mx-auto px-4 pt-16 sm:pt-24 pb-16 text-center relative z-10">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-950/40 text-indigo-300 text-xs font-medium mb-8 backdrop-blur-md">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-          <span>Unified OpenAI-Compatible Gateway for AWS Bedrock Frontier AI</span>
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl lg:text-7xl font-extrabold text-white tracking-tight max-w-5xl mx-auto leading-[1.15]">
-          Supercharge your Apps with{" "}
-          <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-amber-400 bg-clip-text text-transparent">
-            AWS Bedrock
-          </span>{" "}
-          via One Single API Key
-        </h1>
-
-        <p className="mt-6 text-base sm:text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed">
-          Access frontier AI models including <strong className="text-gray-200">Claude 3.5 Sonnet v2</strong>, <strong className="text-gray-200">Amazon Nova Pro</strong>, and <strong className="text-gray-200">Meta Llama 3.3 70B</strong> with standard OpenAI SDKs. Zero AWS account or IAM credentials needed.
-        </p>
-
-        {/* CTA Buttons */}
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-          {isLoggedIn ? (
-            <Link
-              href="/chat"
-              className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition shadow-lg shadow-indigo-600/30 transform hover:-translate-y-0.5"
+          {/* Module Nav Links */}
+          <nav className="space-y-1">
+            <button
+              onClick={() => handleTabChange("chat")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                activeTab === "chat"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                  : "text-gray-400 light:text-slate-600 hover:text-white light:hover:text-slate-900 hover:bg-gray-900 light:hover:bg-slate-100"
+              }`}
             >
-              Open Console & Chat <ArrowRight className="w-4 h-4" />
-            </Link>
-          ) : (
-            <>
-              <Link
-                href="/register"
-                className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-sm transition shadow-lg shadow-indigo-600/30 transform hover:-translate-y-0.5"
+              <MessageSquare className="w-4 h-4" />
+              <span>Chat Playground</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange("keys")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                activeTab === "keys"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                  : "text-gray-400 light:text-slate-600 hover:text-white light:hover:text-slate-900 hover:bg-gray-900 light:hover:bg-slate-100"
+              }`}
+            >
+              <Key className="w-4 h-4" />
+              <span>API Keys Manager</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange("models")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                activeTab === "models"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                  : "text-gray-400 light:text-slate-600 hover:text-white light:hover:text-slate-900 hover:bg-gray-900 light:hover:bg-slate-100"
+              }`}
+            >
+              <Cpu className="w-4 h-4" />
+              <span>Models Catalog</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange("usage")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                activeTab === "usage"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                  : "text-gray-400 light:text-slate-600 hover:text-white light:hover:text-slate-900 hover:bg-gray-900 light:hover:bg-slate-100"
+              }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Usage & Metrics</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange("billing")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                activeTab === "billing"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20"
+                  : "text-gray-400 light:text-slate-600 hover:text-white light:hover:text-slate-900 hover:bg-gray-900 light:hover:bg-slate-100"
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Billing & Top-Up</span>
+            </button>
+
+            {user?.role === "admin" && (
+              <button
+                onClick={() => handleTabChange("admin")}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold transition ${
+                  activeTab === "admin"
+                    ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
+                    : "text-purple-400 light:text-purple-600 hover:bg-purple-950/30 light:hover:bg-purple-50"
+                }`}
               >
-                <UserPlus className="w-4 h-4" /> Get Started Free
-              </Link>
-              <Link
-                href="/login"
-                className="flex items-center gap-2 px-7 py-3.5 rounded-xl bg-gray-900/90 hover:bg-gray-800 border border-gray-800 text-gray-200 font-semibold text-sm transition"
-              >
-                <LogIn className="w-4 h-4 text-indigo-400" /> Sign In to Account
-              </Link>
-            </>
-          )}
-          <Link
-            href="/models"
-            className="flex items-center gap-2 px-6 py-3.5 rounded-xl bg-gray-900/40 hover:bg-gray-800/60 border border-gray-800/80 text-gray-400 hover:text-gray-200 font-medium text-sm transition"
-          >
-            <Cpu className="w-4 h-4 text-amber-400" /> Explore Models
-          </Link>
+                <ShieldAlert className="w-4 h-4" />
+                <span>Admin Controls</span>
+              </button>
+            )}
+          </nav>
         </div>
 
-        {/* Interactive Code Snippet Tabs */}
-        <div className="mt-14 max-w-3xl mx-auto rounded-2xl border border-gray-800 bg-gray-950/90 shadow-2xl p-6 text-left font-mono text-xs text-gray-300 backdrop-blur-md">
-          <div className="flex items-center justify-between border-b border-gray-800 pb-3 mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500/80" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-              <div className="w-3 h-3 rounded-full bg-green-500/80" />
-              <div className="flex gap-2 ml-4">
-                <button
-                  onClick={() => setActiveTab("python")}
-                  className={`px-2.5 py-1 rounded text-[11px] font-sans font-medium transition ${
-                    activeTab === "python" ? "bg-indigo-600 text-white" : "text-gray-400 hover:text-gray-200"
+        {/* Sidebar Footer Controls */}
+        <div className="pt-4 border-t border-gray-800/80 dark:border-gray-800 light:border-slate-200 flex items-center justify-between">
+          <button
+            onClick={() => {
+              clearAuthToken();
+              setToken(null);
+              setUser(null);
+            }}
+            className="text-xs text-red-400 hover:text-red-300 font-medium"
+          >
+            Log Out
+          </button>
+          <span className="text-[10px] text-gray-500">v1.0 Production</span>
+        </div>
+      </aside>
+
+      {/* Main Interactive Workspace Area */}
+      <main className="flex-1 p-4 md:p-6 overflow-y-auto">
+        
+        {/* TAB 1: CHAT PLAYGROUND */}
+        {activeTab === "chat" && (
+          <div className="max-w-4xl mx-auto flex flex-col h-[calc(100vh-140px)]">
+            <div className="flex items-center justify-between mb-4 bg-gray-900/60 dark:bg-gray-900/60 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200 p-3 rounded-2xl">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-bold text-white light:text-slate-900">Bedrock Model:</span>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="bg-gray-950 dark:bg-gray-950 light:bg-slate-50 border border-gray-800 dark:border-gray-800 light:border-slate-200 rounded-lg px-3 py-1.5 text-xs text-indigo-300 light:text-indigo-600 focus:outline-none"
+                >
+                  <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2</option>
+                  <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku</option>
+                  <option value="amazon.nova-pro-v1:0">Amazon Nova Pro</option>
+                  <option value="amazon.nova-lite-v1:0">Amazon Nova Lite</option>
+                  <option value="meta.llama3-3-70b-instruct-v1:0">Meta Llama 3.3 70B</option>
+                </select>
+              </div>
+              <span className="text-[11px] text-emerald-400 font-mono">SSE Real-Time Active</span>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="flex-1 overflow-y-auto space-y-4 p-4 rounded-2xl bg-gray-900/40 dark:bg-gray-900/40 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200 mb-4">
+              {messages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`flex gap-3 text-xs leading-relaxed ${
+                    m.role === "user" ? "justify-end" : "justify-start"
                   }`}
                 >
-                  Python
-                </button>
-                <button
-                  onClick={() => setActiveTab("node")}
-                  className={`px-2.5 py-1 rounded text-[11px] font-sans font-medium transition ${
-                    activeTab === "node" ? "bg-indigo-600 text-white" : "text-gray-400 hover:text-gray-200"
-                  }`}
-                >
-                  Node.js
-                </button>
-                <button
-                  onClick={() => setActiveTab("curl")}
-                  className={`px-2.5 py-1 rounded text-[11px] font-sans font-medium transition ${
-                    activeTab === "curl" ? "bg-indigo-600 text-white" : "text-gray-400 hover:text-gray-200"
-                  }`}
-                >
-                  cURL
-                </button>
+                  <div
+                    className={`max-w-[80%] rounded-2xl p-4 ${
+                      m.role === "user"
+                        ? "bg-indigo-600 text-white font-medium"
+                        : "bg-gray-950 dark:bg-gray-950 light:bg-slate-100 text-gray-200 light:text-slate-800 border border-gray-800 dark:border-gray-800 light:border-slate-200"
+                    }`}
+                  >
+                    <div className="text-[10px] opacity-60 mb-1 uppercase font-bold tracking-wider">
+                      {m.role === "user" ? "You" : selectedModel.split(".")[1] || "AI Assistant"}
+                    </div>
+                    <div className="whitespace-pre-wrap">{m.content}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Chat Input */}
+            <form onSubmit={handleSendMessage} className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask AWS Bedrock anything or test prompts..."
+                className="flex-1 bg-gray-900/90 dark:bg-gray-900/90 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200 rounded-xl px-4 py-3 text-xs text-white light:text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+              />
+              <button
+                type="submit"
+                disabled={isStreaming || !chatInput.trim()}
+                className="px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-40"
+              >
+                <Send className="w-4 h-4" />
+                <span>Send</span>
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* TAB 2: API KEYS */}
+        {activeTab === "keys" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-white light:text-slate-900">API Keys Manager</h2>
+                <p className="text-xs text-gray-400 light:text-slate-500 mt-0.5">
+                  Generate scoped API keys for OpenAI SDK and HTTP client integrations.
+                </p>
+              </div>
+              <Link
+                href="/api-keys"
+                className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5"
+              >
+                <Plus className="w-4 h-4" /> Create New Key
+              </Link>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-gray-900/40 dark:bg-gray-900/40 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200">
+              <div className="flex items-center gap-2 mb-4 text-xs font-bold text-gray-300 light:text-slate-700">
+                <Key className="w-4 h-4 text-indigo-400" />
+                <span>Active OpenAI Base URL</span>
+              </div>
+              <div className="bg-gray-950 dark:bg-gray-950 light:bg-slate-100 p-3 rounded-xl border border-gray-800 dark:border-gray-800 light:border-slate-200 font-mono text-xs text-indigo-400 break-all">
+                http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1
               </div>
             </div>
-            <span className="text-[11px] text-emerald-400 font-sans hidden sm:inline">✓ 100% OpenAI Drop-In</span>
           </div>
+        )}
 
-          {activeTab === "python" && (
-            <pre className="overflow-x-auto text-gray-300 leading-relaxed">
-              <span className="text-purple-400">from</span> openai <span className="text-purple-400">import</span> OpenAI<br/><br/>
-              client = OpenAI(<br/>
-              &nbsp;&nbsp;base_url=<span className="text-emerald-300">"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1"</span>,<br/>
-              &nbsp;&nbsp;api_key=<span className="text-amber-300">"sk-live-your-gateway-key"</span><br/>
-              )<br/><br/>
-              response = client.chat.completions.create(<br/>
-              &nbsp;&nbsp;model=<span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
-              &nbsp;&nbsp;messages=[&#123;<span className="text-amber-300">"role"</span>: <span className="text-amber-300">"user"</span>, <span className="text-amber-300">"content"</span>: <span className="text-amber-300">"Explain quantum computing in 3 sentences."</span>&#125;],<br/>
-              &nbsp;&nbsp;stream=<span className="text-indigo-400">True</span><br/>
-              )<br/>
-              <span className="text-purple-400">for</span> chunk <span className="text-purple-400">in</span> response:<br/>
-              &nbsp;&nbsp;print(chunk.choices[0].delta.content <span className="text-purple-400">or</span> <span className="text-emerald-300">""</span>, end=<span className="text-emerald-300">""</span>, flush=<span className="text-indigo-400">True</span>)
-            </pre>
-          )}
-
-          {activeTab === "node" && (
-            <pre className="overflow-x-auto text-gray-300 leading-relaxed">
-              <span className="text-purple-400">import</span> OpenAI <span className="text-purple-400">from</span> <span className="text-emerald-300">"openai"</span>;<br/><br/>
-              <span className="text-purple-400">const</span> client = <span className="text-purple-400">new</span> OpenAI(&#123;<br/>
-              &nbsp;&nbsp;baseURL: <span className="text-emerald-300">"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1"</span>,<br/>
-              &nbsp;&nbsp;apiKey: <span className="text-amber-300">"sk-live-your-gateway-key"</span>,<br/>
-              &#125;);<br/><br/>
-              <span className="text-purple-400">const</span> stream = <span className="text-purple-400">await</span> client.chat.completions.create(&#123;<br/>
-              &nbsp;&nbsp;model: <span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
-              &nbsp;&nbsp;messages: [&#123; role: <span className="text-amber-300">"user"</span>, content: <span className="text-amber-300">"Hello AWS Bedrock!"</span> &#125;],<br/>
-              &nbsp;&nbsp;stream: <span className="text-indigo-400">true</span>,<br/>
-              &#125;);<br/>
-              <span className="text-purple-400">for await</span> (<span className="text-purple-400">const</span> chunk <span className="text-purple-400">of</span> stream) &#123;<br/>
-              &nbsp;&nbsp;process.stdout.write(chunk.choices[0]?.delta?.content || <span className="text-emerald-300">""</span>);<br/>
-              &#125;
-            </pre>
-          )}
-
-          {activeTab === "curl" && (
-            <pre className="overflow-x-auto text-gray-300 leading-relaxed">
-              curl -X POST http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1/chat/completions \<br/>
-              &nbsp;&nbsp;-H <span className="text-emerald-300">"Authorization: Bearer sk-live-your-gateway-key"</span> \<br/>
-              &nbsp;&nbsp;-H <span className="text-emerald-300">"Content-Type: application/json"</span> \<br/>
-              &nbsp;&nbsp;-d '&#123;<br/>
-              &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"model"</span>: <span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
-              &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"messages"</span>: [&#123;<span className="text-amber-300">"role"</span>: <span className="text-amber-300">"user"</span>, <span className="text-amber-300">"content"</span>: <span className="text-amber-300">"Hello Bedrock"</span>&#125;],<br/>
-              &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"stream"</span>: <span className="text-indigo-400">true</span><br/>
-              &nbsp;&nbsp;&#125;'
-            </pre>
-          )}
-        </div>
-      </section>
-
-      {/* How it Works 3 Steps */}
-      <section className="max-w-6xl mx-auto px-4 py-16 border-t border-gray-900">
-        <div className="text-center mb-12">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">How It Works in 3 Simple Steps</h2>
-          <p className="text-gray-400 text-sm mt-2">Start streaming from AWS Bedrock in less than 2 minutes.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800 text-center">
-            <div className="w-12 h-12 mx-auto rounded-full bg-indigo-950 border border-indigo-800 text-indigo-400 flex items-center justify-center font-bold text-lg mb-4">
-              1
+        {/* TAB 3: MODELS CATALOG */}
+        {activeTab === "models" && (
+          <div className="max-w-5xl mx-auto space-y-6">
+            <h2 className="text-xl font-bold text-white light:text-slate-900">Supported Foundation Models</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {models.map((m) => (
+                <div
+                  key={m.id}
+                  className="p-5 rounded-2xl bg-gray-900/50 dark:bg-gray-900/50 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-sm text-white light:text-slate-900">{m.name}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
+                      {m.type}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 font-mono mb-3">{m.id}</div>
+                  <div className="text-[11px] text-gray-400 light:text-slate-500 flex justify-between pt-2 border-t border-gray-800/60 dark:border-gray-800/60 light:border-slate-100">
+                    <span>Context: {m.context_window?.toLocaleString()} tokens</span>
+                    <span className="text-emerald-400 font-semibold">
+                      ${m.pricing?.input_per_1k}/1k In · ${m.pricing?.output_per_1k}/1k Out
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-            <h3 className="text-lg font-semibold text-white">Create Account & Add Credit</h3>
-            <p className="text-gray-400 text-sm mt-2">
-              Sign up in seconds. Fund your account with pre-paid credits via Stripe. No subscription fees.
-            </p>
           </div>
+        )}
 
-          <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800 text-center">
-            <div className="w-12 h-12 mx-auto rounded-full bg-purple-950 border border-purple-800 text-purple-400 flex items-center justify-center font-bold text-lg mb-4">
-              2
+        {/* TAB 4: USAGE */}
+        {activeTab === "usage" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <h2 className="text-xl font-bold text-white light:text-slate-900">Usage & Cost Analytics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-5 rounded-2xl bg-gray-900/40 dark:bg-gray-900/40 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200">
+                <div className="text-xs text-gray-400">Total Spend (USD)</div>
+                <div className="text-2xl font-black text-white light:text-slate-900 mt-1">
+                  ${usageSummary?.total_spent_usd?.toFixed(4) || "0.0000"}
+                </div>
+              </div>
+              <div className="p-5 rounded-2xl bg-gray-900/40 dark:bg-gray-900/40 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200">
+                <div className="text-xs text-gray-400">Total Invocations</div>
+                <div className="text-2xl font-black text-indigo-400 mt-1">
+                  {usageSummary?.total_requests || 0}
+                </div>
+              </div>
+              <div className="p-5 rounded-2xl bg-gray-900/40 dark:bg-gray-900/40 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200">
+                <div className="text-xs text-gray-400">Total Tokens</div>
+                <div className="text-2xl font-black text-emerald-400 mt-1">
+                  {usageSummary?.total_tokens?.toLocaleString() || 0}
+                </div>
+              </div>
             </div>
-            <h3 className="text-lg font-semibold text-white">Generate API Key</h3>
-            <p className="text-gray-400 text-sm mt-2">
-              Create scoped `sk-live-...` keys with custom spending and rate limits.
-            </p>
           </div>
+        )}
 
-          <div className="p-6 rounded-2xl bg-gray-900/40 border border-gray-800 text-center">
-            <div className="w-12 h-12 mx-auto rounded-full bg-amber-950 border border-amber-800 text-amber-400 flex items-center justify-center font-bold text-lg mb-4">
-              3
+        {/* TAB 5: BILLING */}
+        {activeTab === "billing" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <h2 className="text-xl font-bold text-white light:text-slate-900">Wallet & Credits Top-Up</h2>
+            <div className="p-6 rounded-3xl bg-gradient-to-r from-indigo-950/60 to-purple-950/60 border border-indigo-800/50 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-indigo-300 font-medium">Available Balance</span>
+                <div className="text-3xl font-black text-white mt-1">${balance.toFixed(2)} USD</div>
+              </div>
+              <Link
+                href="/billing"
+                className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition"
+              >
+                Top-Up via Stripe
+              </Link>
             </div>
-            <h3 className="text-lg font-semibold text-white">Plug into any OpenAI SDK</h3>
-            <p className="text-gray-400 text-sm mt-2">
-              Point your existing code to our gateway URL and enjoy frontier AI models instantly.
-            </p>
           </div>
-        </div>
-      </section>
+        )}
 
-      {/* Architectural Highlights */}
-      <section className="max-w-6xl mx-auto px-4 py-16 border-t border-gray-900">
-        <div className="text-center mb-12">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white">Enterprise AI Gateway Architecture</h2>
-          <p className="text-gray-400 text-sm mt-2">Engineered for security, sub-second latency, and strict transactional consistency.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-2xl bg-gray-900/50 border border-gray-800 hover:border-indigo-500/50 transition">
-            <div className="w-10 h-10 rounded-xl bg-indigo-950 flex items-center justify-center text-indigo-400 mb-4 border border-indigo-800/50">
-              <Lock className="w-5 h-5" />
+        {/* TAB 6: ADMIN */}
+        {activeTab === "admin" && (
+          <div className="max-w-5xl mx-auto space-y-6">
+            <h2 className="text-xl font-bold text-white light:text-slate-900">System Admin Control Center</h2>
+            <div className="p-6 rounded-2xl bg-gray-900/40 dark:bg-gray-900/40 light:bg-white border border-gray-800 dark:border-gray-800 light:border-slate-200">
+              <div className="text-sm font-bold text-purple-400 mb-2">Platform Overview</div>
+              <div className="text-xs text-gray-400 light:text-slate-600">
+                Multi-AZ Fargate Cluster · PostgreSQL Row-Lock Wallet · Redis Rate Limiter · AWS WAF Active
+              </div>
             </div>
-            <h3 className="font-semibold text-lg text-white">Zero AWS Key Exposure</h3>
-            <p className="text-gray-400 text-sm mt-2">
-              Developers never touch AWS IAM keys. Access models via platform-hashed API keys (`sk-live-...`) with granular spending limits.
-            </p>
           </div>
+        )}
 
-          <div className="p-6 rounded-2xl bg-gray-900/50 border border-gray-800 hover:border-purple-500/50 transition">
-            <div className="w-10 h-10 rounded-xl bg-purple-950 flex items-center justify-center text-purple-400 mb-4 border border-purple-800/50">
-              <Coins className="w-5 h-5" />
-            </div>
-            <h3 className="font-semibold text-lg text-white">Atomic Credit Ledger</h3>
-            <p className="text-gray-400 text-sm mt-2">
-              PostgreSQL row-level locking (`SELECT ... FOR UPDATE`) prevents concurrent balance overdrafts during high-frequency parallel inference.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-gray-900/50 border border-gray-800 hover:border-amber-500/50 transition">
-            <div className="w-10 h-10 rounded-xl bg-amber-950 flex items-center justify-center text-amber-400 mb-4 border border-amber-800/50">
-              <Zap className="w-5 h-5" />
-            </div>
-            <h3 className="font-semibold text-lg text-white">Real-Time SSE Streaming</h3>
-            <p className="text-gray-400 text-sm mt-2">
-              Ultra-low latency token-by-token streaming with immediate cost calculation and graceful client disconnect protection.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer CTA */}
-      <section className="max-w-4xl mx-auto px-4 py-20 text-center">
-        <div className="p-10 rounded-3xl bg-gradient-to-b from-gray-900 to-gray-950 border border-gray-800 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          <h2 className="text-3xl font-extrabold text-white">Ready to connect to AWS Bedrock?</h2>
-          <p className="text-gray-400 text-sm mt-3 max-w-xl mx-auto">
-            Create your account today, generate an API key, and start querying Claude 3.5, Nova, and Llama 3 in minutes.
-          </p>
-          <div className="mt-8 flex justify-center gap-4">
-            <Link
-              href="/register"
-              className="px-8 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition shadow-lg shadow-indigo-600/30"
-            >
-              Get Started Now
-            </Link>
-            <Link
-              href="/login"
-              className="px-6 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-200 font-semibold text-sm transition"
-            >
-              Sign In
-            </Link>
-          </div>
-        </div>
-      </section>
+      </main>
     </div>
   );
 }
