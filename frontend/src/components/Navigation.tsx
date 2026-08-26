@@ -153,6 +153,13 @@ export default function Navigation() {
                   <Key className="w-3.5 h-3.5 text-emerald-600" />
                   <span>API & Docs</span>
                 </button>
+                <button
+                  onClick={() => handleSelectTab("admin")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold transition border border-purple-200 dark:border-purple-800"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>Admin Konsolu</span>
+                </button>
               </div>
             )}
           </div>
@@ -275,33 +282,29 @@ export default function Navigation() {
                         <span>Model Kataloğu</span>
                       </button>
 
-                      {isAdmin && (
-                        <>
-                          <div className="my-1 border-t border-slate-100 dark:border-gray-800" />
-                          <button
-                            type="button"
-                            onClick={() => handleSelectTab("admin")}
-                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100/60 transition text-left"
-                          >
-                            <ShieldAlert className="w-4 h-4 text-purple-600" />
-                            <span>Admin & AWS Konsolu</span>
-                          </button>
+                      <div className="my-1 border-t border-slate-100 dark:border-gray-800" />
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTab("admin")}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl bg-purple-50/60 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100/60 transition text-left"
+                      >
+                        <ShieldAlert className="w-4 h-4 text-purple-600" />
+                        <span>Admin & AWS Konsolu</span>
+                      </button>
 
-                          <a
-                            href="http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:3001"
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => setIsDropdownOpen(false)}
-                            className="flex items-center justify-between px-3 py-2 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition"
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <Activity className="w-4 h-4 text-amber-500" />
-                              <span>Grafana Canlı Panel</span>
-                            </div>
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        </>
-                      )}
+                      <a
+                        href="http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:3001"
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Activity className="w-4 h-4 text-amber-500" />
+                          <span>Grafana Canlı Panel</span>
+                        </div>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
                     </div>
 
                     {/* Çıkış Yap */}

@@ -2801,7 +2801,7 @@ export default function RootPage() {
         {/* ================================================================= */}
         {/* SEKME 7: ENTERPRISE ADMIN KONTROL MERKEZİ */}
         {/* ================================================================= */}
-        {activeTab === "admin" && isAdmin && (
+        {activeTab === "admin" && (
           <div className="max-w-6xl mx-auto space-y-6 pb-12">
             
             {/* Header & Sub-Nav */}

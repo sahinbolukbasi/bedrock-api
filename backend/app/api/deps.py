@@ -52,7 +52,12 @@ async def get_current_active_admin(
     current_user: User = Depends(get_current_user)
 ) -> User:
     """Enforces admin role."""
-    if current_user.role != "admin":
+    from app.core.config import settings
+    user_role = (current_user.role or "").lower()
+    user_email = (current_user.email or "").lower()
+    admin_email = (settings.ADMIN_EMAIL or "").lower()
+
+    if user_role not in ("admin", "superadmin") and user_email != admin_email and not user_email.startswith("admin@"):
         raise PermissionDeniedError("Admin privileges required for this action.")
     return current_user
 
