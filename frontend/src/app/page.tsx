@@ -248,6 +248,51 @@ export default function RootPage() {
     (typeof window !== "undefined" && localStorage.getItem("bedrock_gateway_token") && user?.email?.includes("admin"))
   );
 
+  // Universal real-time state synchronizer across tabs & modules
+  const refreshAllUserData = async () => {
+    const currentToken = getAuthToken() || token;
+    if (!currentToken) return;
+
+    try {
+      // 1. Fetch user profile
+      const userProfile = await fetchApi("/api/auth/me").catch(() => null);
+      if (userProfile) {
+        setUser(userProfile);
+        setProfileFullName(userProfile.full_name || "");
+        setProfilePhone(userProfile.phone_number || "");
+        setProfileAvatar(userProfile.avatar_url || null);
+      }
+
+      // 2. Fetch wallet balance & broadcast
+      const walletData = await fetchApi("/api/wallet").catch(() => null);
+      if (walletData && walletData.balance_usd !== undefined) {
+        const balNum = Number(walletData.balance_usd);
+        setBalance(balNum);
+        window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: balNum }));
+      }
+
+      // 3. Fetch models
+      const modelsData = await fetchApi("/v1/models").catch(() => null);
+      if (modelsData?.data && modelsData.data.length > 0) {
+        setModels(modelsData.data);
+      }
+
+      // 4. Fetch conversations
+      const convList = await fetchApi("/api/chat-ui/conversations").catch(() => null);
+      if (convList && Array.isArray(convList)) {
+        setConversations(convList);
+      }
+
+      // 5. Fetch agents
+      const agentList = await fetchApi("/api/agents").catch(() => null);
+      if (agentList && Array.isArray(agentList)) {
+        setAgents(agentList);
+      }
+    } catch (err) {
+      console.warn("Background auto-sync note:", err);
+    }
+  };
+
   // Check auth & load initial data on page load
   useEffect(() => {
     async function initConsole() {
@@ -260,29 +305,7 @@ export default function RootPage() {
       }
       setToken(savedToken);
       try {
-        const userProfile = await fetchApi("/api/auth/me");
-        if (userProfile) {
-          setUser(userProfile);
-          setProfileFullName(userProfile.full_name || "");
-          setProfilePhone(userProfile.phone_number || "");
-          setProfileAvatar(userProfile.avatar_url || null);
-        }
-        try {
-          const walletData = await fetchApi("/api/wallet");
-          if (walletData && walletData.balance_usd !== undefined) {
-            setBalance(Number(walletData.balance_usd));
-          }
-        } catch {}
-        try {
-          const txs = await fetchApi("/api/wallet/transactions");
-          setUserTransactions(txs || []);
-        } catch {}
-        try {
-          const modelsData = await fetchApi("/v1/models");
-          setModels(modelsData.data || []);
-        } catch {}
-        loadConversations();
-        loadAgents();
+        await refreshAllUserData();
       } catch (err: any) {
         console.error("Initialization failed:", err);
         if (err.message && (err.message.includes("401") || err.message.includes("Unauthorized") || err.message.includes("Invalid token"))) {
@@ -295,6 +318,10 @@ export default function RootPage() {
       }
     }
     initConsole();
+
+    // Setup periodic background auto-refresh & window focus sync
+    const syncInterval = setInterval(refreshAllUserData, 8000);
+    window.addEventListener("focus", refreshAllUserData);
 
     // Listen to tab switches from Navigation header/dropdown
     const handleSwitchEvent = (e: any) => {
@@ -313,7 +340,11 @@ export default function RootPage() {
       }
     }
 
-    return () => window.removeEventListener("bedrock:switch-tab", handleSwitchEvent);
+    return () => {
+      clearInterval(syncInterval);
+      window.removeEventListener("focus", refreshAllUserData);
+      window.removeEventListener("bedrock:switch-tab", handleSwitchEvent);
+    };
   }, []);
 
   // Fetch list of conversations
@@ -554,17 +585,12 @@ export default function RootPage() {
       setAuthToken(data.access_token);
       setToken(data.access_token);
       setUser({ email: data.email || emailClean, role: data.role || "admin", id: data.user_id });
-      
-      try {
-        const walletData = await fetchApi("/api/wallet");
-        if (walletData?.balance_usd !== undefined) setBalance(Number(walletData.balance_usd));
-      } catch {}
-      try {
-        const modelsData = await fetchApi("/v1/models");
-        setModels(modelsData?.data || []);
-      } catch {}
-      loadConversations();
-      loadAgents();
+      setActiveTab("chat");
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", "/?tab=chat");
+        window.dispatchEvent(new Event("bedrock:auth-changed"));
+      }
+      await refreshAllUserData();
     } catch (err: any) {
       setLoginError(err.message || "Ağ geçidine bağlanılamadı.");
     } finally {
@@ -614,7 +640,7 @@ export default function RootPage() {
     }
   };
 
-  // Verify Email OTP Code -> logs into the system!
+  // Verify Email OTP Code -> logs into the system & lands on chat screen!
   const handleVerifyEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setVerifyError("");
@@ -645,17 +671,12 @@ export default function RootPage() {
       setToken(data.access_token);
       setUser({ email: data.email, role: data.role, id: data.user_id });
       setIsVerifyingEmail(false);
-
-      try {
-        const walletData = await fetchApi("/api/wallet");
-        if (walletData?.balance_usd !== undefined) setBalance(Number(walletData.balance_usd));
-      } catch {}
-      try {
-        const modelsData = await fetchApi("/v1/models");
-        setModels(modelsData?.data || []);
-      } catch {}
-      loadConversations();
-      loadAgents();
+      setActiveTab("chat");
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, "", "/?tab=chat");
+        window.dispatchEvent(new Event("bedrock:auth-changed"));
+      }
+      await refreshAllUserData();
     } catch (err: any) {
       setVerifyError(err.message || "Doğrulama işlemi başarısız.");
     } finally {

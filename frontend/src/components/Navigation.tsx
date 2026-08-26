@@ -59,6 +59,26 @@ export default function Navigation() {
 
   useEffect(() => {
     loadUserState();
+
+    const handleAuthChange = () => {
+      loadUserState();
+    };
+
+    const handleBalanceUpdate = (e: any) => {
+      if (e.detail !== undefined) {
+        setBalance(e.detail);
+      } else {
+        loadUserState();
+      }
+    };
+
+    window.addEventListener("bedrock:auth-changed", handleAuthChange);
+    window.addEventListener("bedrock:balance-updated", handleBalanceUpdate);
+
+    return () => {
+      window.removeEventListener("bedrock:auth-changed", handleAuthChange);
+      window.removeEventListener("bedrock:balance-updated", handleBalanceUpdate);
+    };
   }, [pathname]);
 
   // Click outside to close dropdown
