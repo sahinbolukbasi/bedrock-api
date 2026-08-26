@@ -314,3 +314,69 @@ class UsageAnalyticsItem(BaseModel):
     cost_usd: Decimal
     revenue_usd: Decimal
     profit_usd: Decimal
+
+
+class AdminBalanceAdjustRequest(BaseModel):
+    new_balance_usd: Optional[Decimal] = None
+    amount: Optional[Decimal] = None
+    balance: Optional[Decimal] = None
+
+
+class AdminNotifyUserRequest(BaseModel):
+    title: str = "Sistem Bildirimi"
+    message: str
+    channel: str = "EMAIL"
+
+
+# ==========================================
+# Agent & Tool Schemas
+# ==========================================
+class AgentCreateRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    system_prompt: str
+    has_email_tool: bool = True
+    has_telegram_tool: bool = False
+    telegram_webhook: Optional[str] = None
+
+
+class AgentExecutionRequest(BaseModel):
+    task_input: str
+    context_data: Optional[Dict[str, Any]] = None
+
+
+# ==========================================
+# Chat UI Conversation & Message Schemas
+# ==========================================
+class ConversationCreateRequest(BaseModel):
+    title: str
+    model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    system_prompt: Optional[str] = None
+    temperature: Optional[float] = 0.7
+
+
+class ConversationResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    title: str
+    model_id: str
+    system_prompt: Optional[str] = None
+    temperature: Optional[float] = 0.7
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class ConversationMessageCreateRequest(BaseModel):
+    role: str
+    content: str
+
+
+class ConversationMessageResponse(BaseModel):
+    id: uuid.UUID
+    conversation_id: uuid.UUID
+    role: str
+    content: str
+    tokens: Optional[int] = 0
+    cost_usd: Optional[Decimal] = None
+    created_at: Optional[datetime] = None
