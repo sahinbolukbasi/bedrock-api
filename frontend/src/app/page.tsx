@@ -1762,111 +1762,180 @@ export default function RootPage() {
                 </div>
               )}
 
-              {/* Mesaj Akışı */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((m, idx) => {
-                  const thinkMatch = m.content.match(/<think>([\s\S]*?)<\/think>/i);
-                  const reasoning = thinkMatch ? thinkMatch[1].trim() : null;
-                  const cleanContent = m.content.replace(/<think>[\s\S]*?<\/think>/i, "").trim();
+              {/* Mesaj Akışı & Başlangıç Kartları */}
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+                {messages.length <= 1 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center max-w-xl mx-auto py-8 space-y-6">
+                    <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-amber-500 p-[3px] shadow-xl shadow-indigo-500/20">
+                      <div className="w-full h-full bg-white dark:bg-gray-950 rounded-[21px] flex items-center justify-center font-black text-2xl text-indigo-600 dark:text-indigo-400">
+                        ⚡
+                      </div>
+                    </div>
 
-                  // Check if this message contains an artifact (HTML, Mermaid, SVG)
-                  const messageArtifact = m.role === "assistant" ? extractArtifactFromText(cleanContent) : null;
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                        Bedrock AI Chat Studio
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-gray-400 leading-relaxed">
+                        Claude 3.5 Sonnet, Amazon Nova Pro ve Llama 3 modelleri ile kodlama yapın, 
+                        canlı Canvas arayüzleri geliştirin ve çok modlu dosyaları analiz edin.
+                      </p>
+                    </div>
 
-                  return (
-                    <div
-                      key={m.id || idx}
-                      className={`flex gap-3 text-xs leading-relaxed ${
-                        m.role === "user" ? "justify-end" : "justify-start"
-                      }`}
-                    >
+                    {/* Hızlı Başlangıç İstem Kartları */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-left">
+                      {[
+                        {
+                          icon: "🎨",
+                          title: "Modern Dashboard Canvas",
+                          prompt: "Tailwind CSS ve modern grafik kartları içeren interaktif bir HTML Canvas arayüzü oluştur.",
+                          desc: "HTML, Tailwind CSS ve JS Canlı Önizleme"
+                        },
+                        {
+                          icon: "📐",
+                          title: "Mermaid Mimari Şeması",
+                          prompt: "AWS ECS, API Gateway ve Bedrock arasındaki event-driven mimariyi Mermaid.js formatında çiz.",
+                          desc: "Canlı Akış & Sistem Şeması"
+                        },
+                        {
+                          icon: "⚡",
+                          title: "Python Bedrock Entegrasyonu",
+                          prompt: "Python boto3 Converse API ile streaming yanıt alan asenkron bir wrapper kodu yaz.",
+                          desc: "Production-ready Backend Kodu"
+                        },
+                        {
+                          icon: "🧠",
+                          title: "PostgreSQL Optimizasyonu",
+                          prompt: "Büyük ölçekli PostgreSQL veritabanlarında sorgu optimizasyonu ve indeksleme stratejilerini açıkla.",
+                          desc: "Veritabanı & Performans Analizi"
+                        }
+                      ].map((card, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setChatInput(card.prompt);
+                          }}
+                          className="p-3.5 rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50/70 dark:bg-gray-900/60 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-white dark:hover:bg-gray-900 transition shadow-sm group text-left"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-base">{card.icon}</span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-gray-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
+                              {card.title}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 dark:text-gray-400 line-clamp-2">
+                            {card.desc}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((m, idx) => {
+                    const thinkMatch = m.content.match(/<think>([\s\S]*?)<\/think>/i);
+                    const reasoning = thinkMatch ? thinkMatch[1].trim() : null;
+                    const cleanContent = m.content.replace(/<think>[\s\S]*?<\/think>/i, "").trim();
+
+                    // Check if this message contains an artifact (HTML, Mermaid, SVG)
+                    const messageArtifact = m.role === "assistant" ? extractArtifactFromText(cleanContent) : null;
+
+                    return (
                       <div
-                        className={`max-w-[88%] sm:max-w-[82%] rounded-2xl p-4 shadow-sm ${
-                          m.role === "user"
-                            ? "bg-indigo-600 text-white font-medium rounded-tr-none"
-                            : "bg-slate-100 dark:bg-gray-900 text-slate-900 dark:text-gray-100 border border-slate-200 dark:border-gray-800 rounded-tl-none"
+                        key={m.id || idx}
+                        className={`flex gap-3 text-xs leading-relaxed ${
+                          m.role === "user" ? "justify-end" : "justify-start"
                         }`}
                       >
-                        {/* Mesaj Üst Başlığı & Eylemler */}
-                        <div className="flex items-center justify-between text-[10px] opacity-75 mb-2 pb-1.5 border-b border-black/10 dark:border-white/10 uppercase font-bold tracking-wider">
-                          <div className="flex items-center gap-1.5">
-                            <span>{m.role === "user" ? "Siz" : selectedModel.split(".")[1]?.split("-")[0] || "Bedrock AI"}</span>
-                            {m.role === "user" && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-700 text-indigo-200 font-mono">
-                                ◀ 1/1 ▶
-                              </span>
+                        <div
+                          className={`max-w-[88%] sm:max-w-[82%] rounded-2xl p-4 shadow-sm ${
+                            m.role === "user"
+                              ? "bg-indigo-600 text-white font-medium rounded-tr-none"
+                              : "bg-slate-100 dark:bg-gray-900 text-slate-900 dark:text-gray-100 border border-slate-200 dark:border-gray-800 rounded-tl-none"
+                          }`}
+                        >
+                          {/* Mesaj Üst Başlığı & Eylemler */}
+                          <div className="flex items-center justify-between text-[10px] opacity-75 mb-2 pb-1.5 border-b border-black/10 dark:border-white/10 uppercase font-bold tracking-wider">
+                            <div className="flex items-center gap-1.5">
+                              <span>{m.role === "user" ? "Siz" : selectedModel.split(".")[1]?.split("-")[0] || "Bedrock AI"}</span>
+                              {m.role === "user" && (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-700 text-indigo-200 font-mono">
+                                  ◀ 1/1 ▶
+                                </span>
+                              )}
+                            </div>
+
+                            {m.role !== "user" && (
+                              <div className="flex items-center gap-3">
+                                {/* Canvas'ta Aç Butonu */}
+                                {messageArtifact && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveArtifact(messageArtifact);
+                                      setIsCanvasOpen(true);
+                                    }}
+                                    className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/30 transition font-sans normal-case font-bold"
+                                  >
+                                    <Layers className="w-3 h-3" />
+                                    <span>Canvas'ta Aç</span>
+                                  </button>
+                                )}
+
+                                {/* Sesli Dinleme Butonu */}
+                                <button
+                                  onClick={() => handleSpeakText(cleanContent, m.id || idx.toString())}
+                                  className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
+                                >
+                                  {isSpeakingIndex === (m.id || idx.toString()) ? (
+                                    <>
+                                      <VolumeX className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                                      <span>Durdur</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Volume2 className="w-3.5 h-3.5 text-indigo-500" />
+                                      <span>Seslendir</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                {/* Kopyalama Butonu */}
+                                <button
+                                  onClick={() => copyToClipboard(cleanContent, m.id || idx.toString())}
+                                  className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
+                                >
+                                  {copiedCodeIndex === (m.id || idx.toString()) ? (
+                                    <Check className="w-3 h-3 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                  Kopyala
+                                </button>
+                              </div>
                             )}
                           </div>
 
-                          {m.role !== "user" && (
-                            <div className="flex items-center gap-3">
-                              {/* Canvas'ta Aç Butonu */}
-                              {messageArtifact && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveArtifact(messageArtifact);
-                                    setIsCanvasOpen(true);
-                                  }}
-                                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/30 transition font-sans normal-case font-bold"
-                                >
-                                  <Layers className="w-3 h-3" />
-                                  <span>Canvas'ta Aç</span>
-                                </button>
-                              )}
+                          {/* Akıl Yürütme Düşünce Akordeonu */}
+                          {reasoning && (
+                            <ReasoningAccordion reasoningText={reasoning} />
+                          )}
 
-                              {/* Sesli Dinleme Butonu */}
-                              <button
-                                onClick={() => handleSpeakText(cleanContent, m.id || idx.toString())}
-                                className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
-                              >
-                                {isSpeakingIndex === (m.id || idx.toString()) ? (
-                                  <>
-                                    <VolumeX className="w-3.5 h-3.5 text-red-500 animate-pulse" />
-                                    <span>Durdur</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Volume2 className="w-3.5 h-3.5 text-indigo-500" />
-                                    <span>Seslendir</span>
-                                  </>
-                                )}
-                              </button>
+                          {/* Ana Mesaj İçeriği */}
+                          <div className="whitespace-pre-wrap">{cleanContent}</div>
 
-                              {/* Kopyalama Butonu */}
-                              <button
-                                onClick={() => copyToClipboard(cleanContent, m.id || idx.toString())}
-                                className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
-                              >
-                                {copiedCodeIndex === (m.id || idx.toString()) ? (
-                                  <Check className="w-3 h-3 text-emerald-500" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                                Kopyala
-                              </button>
+                          {/* Token & Maliyet Göstergesi */}
+                          {m.role === "assistant" && cleanContent && (
+                            <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-gray-800/50 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                              <span>~{Math.ceil(cleanContent.length / 4)} token</span>
+                              <span className="text-emerald-500 font-bold">$0.0008 USD</span>
                             </div>
                           )}
                         </div>
-
-                        {/* Akıl Yürütme Düşünce Akordeonu */}
-                        {reasoning && (
-                          <ReasoningAccordion reasoningText={reasoning} />
-                        )}
-
-                        {/* Ana Mesaj İçeriği */}
-                        <div className="whitespace-pre-wrap">{cleanContent}</div>
-
-                        {/* Token & Maliyet Göstergesi */}
-                        {m.role === "assistant" && cleanContent && (
-                          <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-gray-800/50 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                            <span>~{Math.ceil(cleanContent.length / 4)} token</span>
-                            <span className="text-emerald-500 font-bold">$0.0008 USD</span>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
 
                 {/* Yanıt Oluşturuluyor Animasyonu */}
                 {isStreaming && (
