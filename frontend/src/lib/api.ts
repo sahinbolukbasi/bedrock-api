@@ -1,7 +1,8 @@
 export const API_BASE = (() => {
   if (typeof window !== "undefined") {
-    if (process.env.NEXT_PUBLIC_API_URL && !process.env.NEXT_PUBLIC_API_URL.includes("localhost")) {
-      return process.env.NEXT_PUBLIC_API_URL;
+    // On production ALB or domain, use same-origin relative path so requests route through port 80 path rules
+    if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      return "";
     }
     return `${window.location.protocol}//${window.location.hostname}:8000`;
   }
