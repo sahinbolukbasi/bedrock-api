@@ -57,10 +57,16 @@ import {
   VolumeX,
   BrainCircuit,
   FileText,
-  Bell,
-  Download
+  Download,
+  GitBranch,
+  ChevronLeft,
+  ChevronRight,
+  Maximize2
 } from "lucide-react";
 import { API_BASE, getAuthToken, setAuthToken, fetchApi, clearAuthToken } from "../lib/api";
+import ArtifactCanvas, { ArtifactData } from "../components/ArtifactCanvas";
+import ReasoningAccordion from "../components/ReasoningAccordion";
+import ChatInputDock, { AttachedFile } from "../components/ChatInputDock";
 
 export default function RootPage() {
   // Auth state
@@ -118,8 +124,16 @@ export default function RootPage() {
   const [systemPrompt, setSystemPrompt] = useState("You are an expert AI assistant powered by Amazon Bedrock. Provide accurate, helpful, and concise answers with code snippets when needed.");
   const [userMemoryCache, setUserMemoryCache] = useState("Kullanıcı: Kıdemli Yazılım Geliştirici. Yanıtları doğrudan, temiz Türkçe ve açıklamalı kod bloklarıyla sun.");
   const [temperature, setTemperature] = useState(0.7);
+  const [chatTopP, setChatTopP] = useState(0.9);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [copiedCodeIndex, setCopiedCodeIndex] = useState<string | null>(null);
+
+  // Dynamic Artifacts & Split Canvas State (Claude / OpenUI standard)
+  const [activeArtifact, setActiveArtifact] = useState<ArtifactData | null>(null);
+  const [isCanvasOpen, setIsCanvasOpen] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState("");
 
   // Multimodal File & Image Upload State
   const [uploadedFileBase64, setUploadedFileBase64] = useState<string | null>(null);
@@ -809,10 +823,9 @@ export default function RootPage() {
     }
   };
 
-  // Chat Execution with Resilient Streaming and Instant Non-Streaming Fallback
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if ((!chatInput.trim() && !uploadedFileBase64) || isStreaming) return;
+  // Chat Execution with Resilient Streaming, AbortController, and Dynamic Canvas Extraction
+  const handleDockSendMessage = async (files: AttachedFile[] = []) => {
+    if ((!chatInput.trim() && files.length === 0 && !uploadedFileBase64) || isStreaming) return;
 
     const tokenToUse = getAuthToken() || token;
     if (!tokenToUse) {
@@ -826,7 +839,7 @@ export default function RootPage() {
         const newConv = await fetchApi("/api/chat-ui/conversations", {
           method: "POST",
           body: JSON.stringify({
-            title: chatInput.slice(0, 35) || (uploadedFileName ? `Dosya: ${uploadedFileName}` : "Yeni Sohbet"),
+            title: chatInput.slice(0, 35) || (files[0]?.name ? `Dosya: ${files[0].name}` : "Yeni Sohbet"),
             model_id: selectedModel,
             system_prompt: `${systemPrompt}\n[Kullanıcı Hafızası]: ${userMemoryCache}`,
             temperature: temperature,
@@ -842,10 +855,14 @@ export default function RootPage() {
       }
     }
 
-    const userContent = uploadedFileBase64 
-      ? `[Eklenen Dosya / Görsel: ${uploadedFileName}]\n${chatInput}`
-      : chatInput;
+    let fileContextText = "";
+    if (files.length > 0) {
+      fileContextText = files.map((f) => `[Eklenen Dosya: ${f.name} (${f.type})]\n${f.content || ""}`).join("\n\n") + "\n\n";
+    } else if (uploadedFileBase64) {
+      fileContextText = `[Eklenen Dosya: ${uploadedFileName}]\n`;
+    }
 
+    const userContent = `${fileContextText}${chatInput}`.trim();
     const userMsg = { id: Date.now().toString(), role: "user", content: userContent };
     const assistantMsg = { id: (Date.now() + 1).toString(), role: "assistant", content: "" };
     
@@ -855,6 +872,9 @@ export default function RootPage() {
     setUploadedFileName(null);
     setUploadedFileType(null);
     setIsStreaming(true);
+
+    const abortCtrl = new AbortController();
+    abortControllerRef.current = abortCtrl;
 
     if (currentConvId) {
       fetchApi(`/api/chat-ui/conversations/${currentConvId}/messages`, {
@@ -879,6 +899,7 @@ export default function RootPage() {
       // 1. Try Streaming SSE Endpoint
       const response = await fetch(`${API_BASE}/v1/chat/completions`, {
         method: "POST",
+        signal: abortCtrl.signal,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokenToUse}`,
@@ -927,6 +948,7 @@ export default function RootPage() {
         // 2. If Streaming fails or returns non-200, fallback to direct non-streaming JSON
         const nonStreamRes = await fetch(`${API_BASE}/v1/chat/completions`, {
           method: "POST",
+          signal: abortCtrl.signal,
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${tokenToUse}`,
@@ -954,6 +976,13 @@ export default function RootPage() {
         });
       }
 
+      // Auto-detect artifacts (HTML, SVG, Mermaid) in output
+      const detected = extractArtifactFromText(fullText);
+      if (detected) {
+        setActiveArtifact(detected);
+        setIsCanvasOpen(true);
+      }
+
       // Persist assistant response to DB
       if (currentConvId && fullText) {
         fetchApi(`/api/chat-ui/conversations/${currentConvId}/messages`, {
@@ -962,20 +991,94 @@ export default function RootPage() {
         }).catch(() => {});
       }
     } catch (err: any) {
-      console.error("Chat Generation Error:", err);
-      setMessages((prev) => {
-        const updated = [...prev];
-        if (updated.length > 0) {
-          updated[updated.length - 1].content = `⚠️ Model Yanıtı Alınamadı: ${err.message || "Bilinmeyen bir hata oluştu."}`;
-        }
-        return updated;
-      });
+      if (err.name === "AbortError") {
+        console.log("Stream stopped by user.");
+      } else {
+        console.error("Chat Generation Error:", err);
+        setMessages((prev) => {
+          const updated = [...prev];
+          if (updated.length > 0) {
+            updated[updated.length - 1].content = `⚠️ Model Yanıtı Alınamadı: ${err.message || "Bilinmeyen bir hata oluştu."}`;
+          }
+          return updated;
+        });
+      }
     } finally {
       setIsStreaming(false);
+      abortControllerRef.current = null;
       fetchApi("/api/wallet").then((w) => {
         if (w && w.balance_usd !== undefined) setBalance(Number(w.balance_usd));
       }).catch(() => {});
     }
+  };
+
+  const handleStopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setIsStreaming(false);
+    }
+  };
+
+  // Helper: Extract Artifact from response
+  const extractArtifactFromText = (text: string): ArtifactData | null => {
+    const htmlMatch = text.match(/```html\n([\s\S]*?)```/i);
+    if (htmlMatch) {
+      return {
+        id: "html-" + Date.now(),
+        title: "İnteraktif Web Bileşeni",
+        type: "html",
+        language: "html",
+        content: htmlMatch[1],
+      };
+    }
+    const mermaidMatch = text.match(/```mermaid\n([\s\S]*?)```/i);
+    if (mermaidMatch) {
+      return {
+        id: "mermaid-" + Date.now(),
+        title: "Mermaid.js Mimari Şeması",
+        type: "mermaid",
+        language: "mermaid",
+        content: mermaidMatch[1],
+      };
+    }
+    const svgMatch = text.match(/```svg\n([\s\S]*?)```/i) || text.match(/<svg[\s\S]*?<\/svg>/i);
+    if (svgMatch) {
+      return {
+        id: "svg-" + Date.now(),
+        title: "Vektörel SVG Grafiği",
+        type: "svg",
+        language: "svg",
+        content: svgMatch[1] || svgMatch[0],
+      };
+    }
+    return null;
+  };
+
+  // Export Chat to Markdown
+  const handleExportChat = (format: "md" | "json" = "md") => {
+    if (messages.length === 0) return;
+    let content = "";
+    let mime = "text/markdown";
+    let filename = `sohbet_${Date.now()}.md`;
+
+    if (format === "json") {
+      content = JSON.stringify(messages, null, 2);
+      mime = "application/json";
+      filename = `sohbet_${Date.now()}.json`;
+    } else {
+      content = `# AWS Bedrock Chat Geçmişi\n\nModel: ${selectedModel}\nTarih: ${new Date().toLocaleString()}\n\n---\n\n`;
+      messages.forEach((m) => {
+        content += `### ${m.role === "user" ? "Kullanıcı" : "Bedrock AI"}\n\n${m.content}\n\n---\n\n`;
+      });
+    }
+
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Copy code utility
@@ -1481,10 +1584,10 @@ export default function RootPage() {
               </div>
             </div>
 
-            {/* Chat Mesajlaşma Alanı */}
-            <div className="flex-1 flex flex-col bg-white dark:bg-gray-950">
+            {/* Chat Mesajlaşma Alanı (Split-View Canvas Uyumlu) */}
+            <div className={`flex-1 flex flex-col bg-white dark:bg-gray-950 transition-all ${isCanvasOpen ? "mr-0 md:mr-[48%] lg:mr-[42%]" : ""}`}>
               
-              {/* Üst Model, Hafıza ve Parametre Barı */}
+              {/* Üst Model, Hafıza, Canvas & Parametre Barı */}
               <div className="p-3 border-b border-slate-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-gray-900/40">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm">
@@ -1528,13 +1631,53 @@ export default function RootPage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-slate-700 dark:text-gray-300 hover:text-indigo-600 shadow-sm transition"
-                >
-                  <BrainCircuit className="w-3.5 h-3.5 text-purple-500" />
-                  <span>Kullanıcı Hafızası & Ayarlar</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Canvas Paneli Açma / Kapatma Butonu */}
+                  <button
+                    onClick={() => {
+                      if (!activeArtifact) {
+                        setActiveArtifact({
+                          id: "demo-canvas",
+                          title: "Canlı Önizleme & Canvas",
+                          type: "html",
+                          language: "html",
+                          content: `<div class="flex flex-col items-center justify-center min-h-[300px] text-center p-8 bg-gradient-to-br from-indigo-950 via-gray-900 to-purple-950 rounded-3xl border border-indigo-500/30 text-white shadow-2xl">
+                            <div class="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center font-black text-xl mb-4 shadow-lg shadow-indigo-500/50">⚡</div>
+                            <h2 class="text-xl font-black mb-2">Claude & OpenUI Canvas Runtime</h2>
+                            <p class="text-xs text-indigo-200 max-w-sm">Modelden gelen HTML, Tailwind CSS, SVG ve Mermaid.js akış diyagramları burada canlı olarak çalışır.</p>
+                          </div>`,
+                        });
+                      }
+                      setIsCanvasOpen(!isCanvasOpen);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-sm ${
+                      isCanvasOpen
+                        ? "bg-indigo-600 text-white shadow-indigo-600/30"
+                        : "border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-slate-700 dark:text-gray-300 hover:text-indigo-600"
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Canvas ({isCanvasOpen ? "Açık" : "Kapalı"})</span>
+                  </button>
+
+                  {/* Dışa Aktarma Butonu */}
+                  <button
+                    onClick={() => handleExportChat("md")}
+                    title="Sohbeti Markdown Olarak İndir"
+                    className="p-2 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:text-indigo-600 shadow-sm"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Ayarlar Çekmecesi */}
+                  <button
+                    onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-slate-700 dark:text-gray-300 hover:text-indigo-600 shadow-sm transition"
+                  >
+                    <BrainCircuit className="w-3.5 h-3.5 text-purple-500" />
+                    <span>Hafıza & Ayarlar</span>
+                  </button>
+                </div>
               </div>
 
               {/* Parametre & Kullanıcı Hafızası Çekmecesi */}
@@ -1568,8 +1711,8 @@ export default function RootPage() {
                     />
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
                       <div className="flex justify-between text-[11px] font-bold text-slate-700 dark:text-gray-300 mb-1">
                         <span>Sıcaklık (Temperature)</span>
                         <span>{temperature}</span>
@@ -1584,67 +1727,130 @@ export default function RootPage() {
                         className="w-full accent-indigo-600"
                       />
                     </div>
+                    <div>
+                      <div className="flex justify-between text-[11px] font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        <span>Top-P Sampling</span>
+                        <span>{chatTopP}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1.0"
+                        step="0.05"
+                        value={chatTopP}
+                        onChange={(e) => setChatTopP(parseFloat(e.target.value))}
+                        className="w-full accent-indigo-600"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Mesaj Akışı */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((m, idx) => (
-                  <div
-                    key={m.id || idx}
-                    className={`flex gap-3 text-xs leading-relaxed ${
-                      m.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
+                {messages.map((m, idx) => {
+                  const thinkMatch = m.content.match(/<think>([\s\S]*?)<\/think>/i);
+                  const reasoning = thinkMatch ? thinkMatch[1].trim() : null;
+                  const cleanContent = m.content.replace(/<think>[\s\S]*?<\/think>/i, "").trim();
+
+                  // Check if this message contains an artifact (HTML, Mermaid, SVG)
+                  const messageArtifact = m.role === "assistant" ? extractArtifactFromText(cleanContent) : null;
+
+                  return (
                     <div
-                      className={`max-w-[85%] rounded-2xl p-4 shadow-sm ${
-                        m.role === "user"
-                          ? "bg-indigo-600 text-white font-medium rounded-tr-none"
-                          : "bg-slate-100 dark:bg-gray-900 text-slate-900 dark:text-gray-100 border border-slate-200 dark:border-gray-800 rounded-tl-none"
+                      key={m.id || idx}
+                      className={`flex gap-3 text-xs leading-relaxed ${
+                        m.role === "user" ? "justify-end" : "justify-start"
                       }`}
                     >
-                      <div className="flex items-center justify-between text-[10px] opacity-70 mb-1.5 uppercase font-bold tracking-wider">
-                        <span>{m.role === "user" ? "Siz" : selectedModel.split(".")[1] || "Bedrock AI"}</span>
-                        {m.role !== "user" && (
-                          <div className="flex items-center gap-3">
-                            {/* Sesli Dinleme Butonu */}
-                            <button
-                              onClick={() => handleSpeakText(m.content, m.id || idx.toString())}
-                              className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
-                            >
-                              {isSpeakingIndex === (m.id || idx.toString()) ? (
-                                <>
-                                  <VolumeX className="w-3.5 h-3.5 text-red-500 animate-pulse" />
-                                  <span>Durdur</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Volume2 className="w-3.5 h-3.5 text-indigo-500" />
-                                  <span>Seslendir</span>
-                                </>
-                              )}
-                            </button>
+                      <div
+                        className={`max-w-[88%] sm:max-w-[82%] rounded-2xl p-4 shadow-sm ${
+                          m.role === "user"
+                            ? "bg-indigo-600 text-white font-medium rounded-tr-none"
+                            : "bg-slate-100 dark:bg-gray-900 text-slate-900 dark:text-gray-100 border border-slate-200 dark:border-gray-800 rounded-tl-none"
+                        }`}
+                      >
+                        {/* Mesaj Üst Başlığı & Eylemler */}
+                        <div className="flex items-center justify-between text-[10px] opacity-75 mb-2 pb-1.5 border-b border-black/10 dark:border-white/10 uppercase font-bold tracking-wider">
+                          <div className="flex items-center gap-1.5">
+                            <span>{m.role === "user" ? "Siz" : selectedModel.split(".")[1]?.split("-")[0] || "Bedrock AI"}</span>
+                            {m.role === "user" && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-700 text-indigo-200 font-mono">
+                                ◀ 1/1 ▶
+                              </span>
+                            )}
+                          </div>
 
-                            {/* Kopyalama Butonu */}
-                            <button
-                              onClick={() => copyToClipboard(m.content, m.id || idx.toString())}
-                              className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
-                            >
-                              {copiedCodeIndex === (m.id || idx.toString()) ? (
-                                <Check className="w-3 h-3 text-emerald-500" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
+                          {m.role !== "user" && (
+                            <div className="flex items-center gap-3">
+                              {/* Canvas'ta Aç Butonu */}
+                              {messageArtifact && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveArtifact(messageArtifact);
+                                    setIsCanvasOpen(true);
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/30 transition font-sans normal-case font-bold"
+                                >
+                                  <Layers className="w-3 h-3" />
+                                  <span>Canvas'ta Aç</span>
+                                </button>
                               )}
-                              Kopyala
-                            </button>
+
+                              {/* Sesli Dinleme Butonu */}
+                              <button
+                                onClick={() => handleSpeakText(cleanContent, m.id || idx.toString())}
+                                className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
+                              >
+                                {isSpeakingIndex === (m.id || idx.toString()) ? (
+                                  <>
+                                    <VolumeX className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                                    <span>Durdur</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Volume2 className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span>Seslendir</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {/* Kopyalama Butonu */}
+                              <button
+                                onClick={() => copyToClipboard(cleanContent, m.id || idx.toString())}
+                                className="hover:text-indigo-400 flex items-center gap-1 normal-case font-sans"
+                              >
+                                {copiedCodeIndex === (m.id || idx.toString()) ? (
+                                  <Check className="w-3 h-3 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                                Kopyala
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Akıl Yürütme Düşünce Akordeonu */}
+                        {reasoning && (
+                          <ReasoningAccordion reasoningText={reasoning} />
+                        )}
+
+                        {/* Ana Mesaj İçeriği */}
+                        <div className="whitespace-pre-wrap">{cleanContent}</div>
+
+                        {/* Token & Maliyet Göstergesi */}
+                        {m.role === "assistant" && cleanContent && (
+                          <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-gray-800/50 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                            <span>~{Math.ceil(cleanContent.length / 4)} token</span>
+                            <span className="text-emerald-500 font-bold">$0.0008 USD</span>
                           </div>
                         )}
                       </div>
-                      <div className="whitespace-pre-wrap">{m.content}</div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Yanıt Oluşturuluyor Animasyonu */}
                 {isStreaming && (
@@ -1655,79 +1861,30 @@ export default function RootPage() {
                 )}
               </div>
 
-              {/* Eklenen Dosya / Görsel Önizleme Barı */}
-              {uploadedFileBase64 && (
-                <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 border-t border-indigo-100 dark:border-indigo-900 flex items-center justify-between text-xs text-indigo-700 dark:text-indigo-300">
-                  <div className="flex items-center gap-2">
-                    {uploadedFileType === "IMAGE" ? (
-                      <ImageIcon className="w-4 h-4 text-indigo-600" />
-                    ) : (
-                      <FileText className="w-4 h-4 text-purple-600" />
-                    )}
-                    <span>Yüklendi: <strong>{uploadedFileName}</strong> (Vision & Veri Analizine Hazır)</span>
-                  </div>
-                  <button
-                    onClick={() => { setUploadedFileBase64(null); setUploadedFileName(null); setUploadedFileType(null); }}
-                    className="p-1 hover:text-red-500"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Mesaj Gönderme, Sesli Konuşma & Dosya Yükleme Barı */}
-              <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-200 dark:border-gray-800 flex items-center gap-2">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/png, image/jpeg, image/webp, .pdf, .txt, .json, .py, .js"
-                  className="hidden"
+              {/* İleri Seviye Giriş Alanı (ChatInputDock) */}
+              <div className="p-3 border-t border-slate-200 dark:border-gray-800 bg-slate-50/50 dark:bg-gray-950">
+                <ChatInputDock
+                  inputPrompt={chatInput}
+                  setInputPrompt={setChatInput}
+                  onSendMessage={handleDockSendMessage}
+                  isStreaming={isStreaming}
+                  onStopStreaming={handleStopStreaming}
+                  selectedModel={selectedModel}
+                  onSelectModel={setSelectedModel}
+                  models={models}
+                  onOpenSettings={() => setShowSettingsDrawer(!showSettingsDrawer)}
                 />
-                
-                {/* Dosya & Resim Yükleme Butonu */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Görsel veya Dosya Yükle"
-                  className="p-2.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:text-indigo-600"
-                >
-                  <Paperclip className="w-4 h-4" />
-                </button>
-
-                {/* Sesli Konuşma / Mikrofon Butonu */}
-                <button
-                  type="button"
-                  onClick={handleToggleVoiceInput}
-                  title={isListening ? "Dinlemeyi Durdur" : "Sesli Konuş (Speech-to-Text)"}
-                  className={`p-2.5 rounded-xl border transition ${
-                    isListening
-                      ? "bg-red-500 text-white border-red-600 animate-pulse shadow-md shadow-red-500/30"
-                      : "border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:text-indigo-600"
-                  }`}
-                >
-                  {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                </button>
-
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  placeholder={isListening ? "Sizi dinliyorum, konuşabilirsiniz..." : "AWS Bedrock'a soru sorun, sesle konuşun veya görsel yükleyin..."}
-                  className="flex-1 bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl px-4 py-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-                />
-
-                <button
-                  type="submit"
-                  disabled={isStreaming || (!chatInput.trim() && !uploadedFileBase64)}
-                  className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-40"
-                >
-                  <Send className="w-4 h-4" />
-                  <span>Gönder</span>
-                </button>
-              </form>
+              </div>
 
             </div>
+
+            {/* Sağ Panel: Dynamic Artifacts Canvas */}
+            <ArtifactCanvas
+              isOpen={isCanvasOpen}
+              onClose={() => setIsCanvasOpen(false)}
+              artifact={activeArtifact}
+            />
+
           </div>
         )}
 
