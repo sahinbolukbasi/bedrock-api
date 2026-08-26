@@ -4,22 +4,24 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, Any, Dict
 import jwt
-from passlib.context import CryptContext
+import bcrypt
 import pyotp
 from app.core.config import settings
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-
+# Pure bcrypt hashing (100% Python 3.12+ compatible)
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    safe_password = plain_password[:72]
-    return pwd_context.verify(safe_password, hashed_password)
+    try:
+        safe_password = plain_password.encode("utf-8")[:72]
+        return bcrypt.checkpw(safe_password, hashed_password.encode("utf-8"))
+    except Exception:
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    safe_password = password[:72]
-    return pwd_context.hash(safe_password)
+    safe_password = password.encode("utf-8")[:72]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(safe_password, salt).decode("utf-8")
 
 
 # JWT Tokens
