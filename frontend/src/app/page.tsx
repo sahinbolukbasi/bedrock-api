@@ -56,7 +56,9 @@ import {
   Volume2,
   VolumeX,
   BrainCircuit,
-  FileText
+  FileText,
+  Bell,
+  Download
 } from "lucide-react";
 import { API_BASE, getAuthToken, setAuthToken, fetchApi, clearAuthToken } from "../lib/api";
 
@@ -169,14 +171,31 @@ export default function RootPage() {
   const [mfaStatus, setMfaStatus] = useState<string | null>(null);
 
   // ==========================================
-  // Admin & AWS Infrastructure State
+  // Admin & AWS Infrastructure State (Enterprise Dashboard)
   // ==========================================
+  const [adminSubTab, setAdminSubTab] = useState<"users" | "notifications" | "audit" | "system">("users");
   const [adminOverview, setAdminOverview] = useState<any>(null);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
   const [awsStatus, setAwsStatus] = useState<any>(null);
   const [selectedUserForBalance, setSelectedUserForBalance] = useState<any | null>(null);
   const [newBalanceAmount, setNewBalanceAmount] = useState<string>("100");
   const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [notificationTemplates, setNotificationTemplates] = useState<any[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
+  const [testRecipient, setTestRecipient] = useState("admin@bedrockgateway.com");
+  const [testNotificationMsg, setTestNotificationMsg] = useState<string | null>(null);
+  const [auditLogsList, setAuditLogsList] = useState<any[]>([]);
+  const [systemSettings, setSystemSettings] = useState<any>({
+    maintenance_mode: false,
+    maintenance_message: "Sistem planlı bakım nedeniyle kısa süreliğine kapalıdır.",
+    global_margin_multiplier: 1.20,
+    feature_flags: {
+      enable_nova_pro_model: true,
+      enable_voice_notes: true,
+      enable_stripe_auto_topup: true,
+      enable_telegram_bot_daemon: true
+    }
+  });
 
   // Check auth & load initial data on page load
   useEffect(() => {
@@ -521,8 +540,49 @@ export default function RootPage() {
       setAdminUsers(usersList || []);
       const awsInfo = await fetchApi("/api/admin/aws-status");
       setAwsStatus(awsInfo);
+      const templates = await fetchApi("/api/admin/notifications/templates");
+      setNotificationTemplates(templates || []);
+      if (templates && templates.length > 0 && !selectedTemplate) {
+        setSelectedTemplate(templates[0]);
+      }
+      const logs = await fetchApi("/api/admin/audit-logs");
+      setAuditLogsList(logs || []);
+      const settings = await fetchApi("/api/admin/system/settings");
+      if (settings) setSystemSettings(settings);
     } catch (err) {
       console.error("Failed to load admin data:", err);
+    }
+  };
+
+  const handleTestNotification = async (channel: "EMAIL" | "SMS") => {
+    try {
+      setTestNotificationMsg("Gönderiliyor...");
+      const res = await fetchApi("/api/admin/notifications/test-send", {
+        method: "POST",
+        body: JSON.stringify({
+          channel,
+          recipient: testRecipient,
+          subject: selectedTemplate?.subject || "Test Bildirimi",
+          content: selectedTemplate?.body_html || "Bedrock Gateway test içeriği.",
+        }),
+      });
+      setTestNotificationMsg(res.message || "Başarıyla gönderildi!");
+      setTimeout(() => setTestNotificationMsg(null), 4000);
+    } catch (err: any) {
+      setTestNotificationMsg(`Hata: ${err.message}`);
+    }
+  };
+
+  const handleSaveSystemSettings = async (newSettings: any) => {
+    try {
+      const res = await fetchApi("/api/admin/system/settings", {
+        method: "POST",
+        body: JSON.stringify(newSettings),
+      });
+      if (res.settings) setSystemSettings(res.settings);
+      alert("Sistem ayarları başarıyla güncellendi!");
+    } catch (err: any) {
+      alert(`Hata: ${err.message}`);
     }
   };
 
@@ -2237,219 +2297,575 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 7: ADMIN KONTROL MERKEZİ & MERKEZİ AWS KAYNAKLARI */}
+        {/* SEKME 7: ENTERPRISE ADMIN KONTROL MERKEZİ */}
         {/* ================================================================= */}
         {activeTab === "admin" && user?.role === "admin" && (
-          <div className="max-w-5xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="max-w-6xl mx-auto space-y-6 pb-12">
+            
+            {/* Header & Sub-Nav */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">Admin Sistem Kontrol & AWS Kaynakları</h2>
-                <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                  Bağlı tüm AWS bulut kaynakları, Fargate Cluster telemetrisi ve Kullanıcı yönetimi.
-                </p>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-[10px] font-black uppercase tracking-wider border border-purple-200 dark:border-purple-800">
+                    Süper Yönetici Konsolu
+                  </span>
+                  <span className="text-xs text-slate-400">● AWS Bedrock Enterprise Control Plane</span>
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+                  Yönetim & Operasyon Merkezi
+                </h2>
               </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <a
+                  href="http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:3001"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-sm transition"
+                >
+                  <Gauge className="w-3.5 h-3.5" />
+                  <span>Grafana Canlı Panel (:3001)</span>
+                </a>
+                <button
+                  onClick={fetchAdminData}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-xs font-bold text-slate-700 dark:text-gray-300 hover:text-indigo-600 shadow-sm transition"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Yenile</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Enterprise Sub-Navigation Tabs */}
+            <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 overflow-x-auto">
               <button
-                onClick={fetchAdminData}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-xs font-bold text-slate-700 dark:text-gray-300 hover:text-indigo-600"
+                onClick={() => setAdminSubTab("users")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                  adminSubTab === "users"
+                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
+                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
               >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>AWS Durumunu Yenile</span>
+                <Users className="w-4 h-4" />
+                <span>Kullanıcı & RBAC ({adminUsers.length})</span>
+              </button>
+
+              <button
+                onClick={() => setAdminSubTab("notifications")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                  adminSubTab === "notifications"
+                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
+                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <Bell className="w-4 h-4" />
+                <span>Bildirim & Şablon Merkezi</span>
+              </button>
+
+              <button
+                onClick={() => setAdminSubTab("audit")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                  adminSubTab === "audit"
+                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
+                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <ShieldAlert className="w-4 h-4" />
+                <span>Denetim İzi (Audit Logs)</span>
+              </button>
+
+              <button
+                onClick={() => setAdminSubTab("system")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                  adminSubTab === "system"
+                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
+                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <Sliders className="w-4 h-4" />
+                <span>Sistem Sağlığı & Feature Flags</span>
               </button>
             </div>
 
-            {/* MERKEZİ AWS BULUT KAYNAKLARI (ALL CONNECTED AWS RESOURCES) */}
-            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
-              <div className="flex items-center gap-2">
-                <Server className="w-4 h-4 text-purple-600" />
-                <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-                  Bağlı AWS Bulut Kaynakları & Servis Durumu
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
-                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>AWS Bedrock Runtime</span>
+            {/* SUB-TAB 1: KULLANICI & RBAC YÖNETİMİ */}
+            {adminSubTab === "users" && (
+              <div className="space-y-6">
+                {/* Financial & User KPI Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-1">
+                    <div className="text-xs text-slate-500 font-bold uppercase">Toplam Kullanıcı</div>
+                    <div className="text-2xl font-black text-slate-900 dark:text-white">{adminUsers.length}</div>
+                    <div className="text-[11px] text-emerald-600 font-semibold">● Tüm hesaplar aktif</div>
                   </div>
-                  <div className="text-[11px] text-slate-500">Bölge: us-east-1</div>
-                  <div className="text-[10px] text-emerald-600 font-bold">19 Foundation Model Aktif</div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
-                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Amazon RDS PostgreSQL</span>
+                  <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-1">
+                    <div className="text-xs text-slate-500 font-bold uppercase">Kullanıcı Bakiyeleri</div>
+                    <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                      ${adminUsers.reduce((acc, u) => acc + (u.balance_usd || 0), 0).toFixed(2)}
+                    </div>
+                    <div className="text-[11px] text-slate-400">Kullanılabilir müşteri kredisi</div>
                   </div>
-                  <div className="text-[11px] text-slate-500">Multi-AZ Havuz</div>
-                  <div className="text-[10px] text-indigo-600 font-bold">PostgreSQL 16 Engine</div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
-                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Amazon ElastiCache</span>
+                  <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-1">
+                    <div className="text-xs text-slate-500 font-bold uppercase">Bedrock Model Geliri</div>
+                    <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+                      ${adminOverview?.total_revenue_usd || "0.00"}
+                    </div>
+                    <div className="text-[11px] text-indigo-500 font-semibold">Net Kâr: ${adminOverview?.platform_net_profit_usd || "0.00"}</div>
                   </div>
-                  <div className="text-[11px] text-slate-500">Redis 7 Cluster</div>
-                  <div className="text-[10px] text-amber-600 font-bold">Hız Limitleyici Aktif</div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
-                  <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>AWS ECS Fargate</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500">ALB Entegre</div>
-                  <div className="text-[10px] text-purple-600 font-bold">2 Aktif Görev</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Grafana-Style Sistem CPU, Memory & Network Göstergeleri */}
-            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Gauge className="w-4 h-4 text-indigo-600" />
-                  <span className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-                    Grafana Canlı Sistem Telemetrisi
-                  </span>
-                </div>
-                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-600 font-bold border border-emerald-200 dark:border-emerald-800">
-                  ● 1s Canlı Akış
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
-                  <div className="text-slate-500">CPU Kullanımı</div>
-                  <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
-                    {awsStatus?.telemetry?.cpu_utilization_pct || 14.2}%
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden mt-2">
-                    <div className="bg-indigo-600 h-full rounded-full" style={{ width: "14.2%" }} />
+                  <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-1">
+                    <div className="text-xs text-slate-500 font-bold uppercase">İstek & Token Hacmi</div>
+                    <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                      {adminOverview?.total_requests || 0} req
+                    </div>
+                    <div className="text-[11px] text-slate-400">{adminOverview?.total_tokens_served || 0} token işlendi</div>
                   </div>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
-                  <div className="text-slate-500">Bellek (RAM) Kullanımı</div>
-                  <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
-                    {awsStatus?.telemetry?.memory_utilization_pct || 28.5}%
-                  </div>
-                  <div className="w-full bg-slate-200 dark:bg-gray-800 h-1.5 rounded-full overflow-hidden mt-2">
-                    <div className="bg-purple-600 h-full rounded-full" style={{ width: "28.5%" }} />
-                  </div>
-                </div>
+                {/* Bakiye Düzenleme Modalı */}
+                {selectedUserForBalance && (
+                  <div className="p-6 rounded-3xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-sm text-purple-900 dark:text-purple-200">
+                          Bakiye Tanımla: {selectedUserForBalance.email}
+                        </h4>
+                        <p className="text-xs text-purple-700 dark:text-purple-400">
+                          Müşteri hesabına anında kullanılabilir AWS Bedrock kredisi yükleyin.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedUserForBalance(null)}
+                        className="text-xs font-bold text-purple-700 dark:text-purple-300 hover:underline"
+                      >
+                        Kapat
+                      </button>
+                    </div>
 
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
-                  <div className="text-slate-500">Ağ Bant Genişliği</div>
-                  <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                    {awsStatus?.telemetry?.network_out_mbps || 24.1} Mbps
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-1">Giriş: {awsStatus?.telemetry?.network_in_mbps || 8.4} Mbps</div>
-                </div>
-              </div>
-            </div>
+                    <div className="flex flex-wrap gap-2">
+                      {[10, 25, 50, 100, 250].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setNewBalanceAmount(preset.toString())}
+                          className="px-3 py-1.5 rounded-xl border border-purple-300 dark:border-purple-700 bg-white dark:bg-gray-900 text-xs font-bold text-purple-700 dark:text-purple-300 hover:bg-purple-100"
+                        >
+                          +${preset}
+                        </button>
+                      ))}
+                    </div>
 
-            {/* Bakiye Düzenleme Modalı */}
-            {selectedUserForBalance && (
-              <div className="p-5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 space-y-3">
-                <div className="text-xs font-bold text-purple-900 dark:text-purple-300">
-                  {selectedUserForBalance.email} için Bakiye Düzenle
+                    <form onSubmit={handleAdjustBalance} className="flex gap-2">
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={newBalanceAmount}
+                        onChange={(e) => setNewBalanceAmount(e.target.value)}
+                        className="w-48 bg-white dark:bg-gray-950 border border-purple-300 dark:border-purple-700 rounded-xl px-4 py-2 text-sm font-bold text-slate-900 dark:text-white"
+                        placeholder="Miktar ($)"
+                      />
+                      <button
+                        type="submit"
+                        className="px-6 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/20"
+                      >
+                        Bakiyeyi Güncelle
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {/* Kullanıcı Yönetim Tablosu */}
+                <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+                  <div className="p-5 border-b border-slate-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-sm text-slate-900 dark:text-white">Kayıtlı Kullanıcılar</span>
+                      <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 font-bold">
+                        {adminUsers.length}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="E-posta veya ada göre filtrele..."
+                        value={userSearchTerm}
+                        onChange={(e) => setUserSearchTerm(e.target.value)}
+                        className="bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 px-3.5 py-1.5 text-xs rounded-xl text-slate-900 dark:text-white w-64"
+                      />
+                      <a
+                        href="/api/admin/export/users.csv"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-800 text-xs font-bold text-slate-700 dark:text-gray-300 hover:text-indigo-600"
+                        download
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>CSV İndir</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-gray-950 text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-gray-800">
+                        <tr>
+                          <th className="p-4">Kullanıcı / E-posta</th>
+                          <th className="p-4">Rol & Yetki</th>
+                          <th className="p-4">Kullanılabilir Bakiye</th>
+                          <th className="p-4">Durum</th>
+                          <th className="p-4 text-right">Yönetim</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
+                        {adminUsers
+                          .filter((u) => u.email.toLowerCase().includes(userSearchTerm.toLowerCase()))
+                          .map((u) => (
+                            <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/40 transition">
+                              <td className="p-4">
+                                <div className="font-bold text-slate-900 dark:text-white">{u.email}</div>
+                                <div className="text-[11px] text-slate-400">{u.full_name || "Bireysel Kullanıcı"}</div>
+                              </td>
+                              <td className="p-4">
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider uppercase ${
+                                  u.role === "admin"
+                                    ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
+                                    : "bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-gray-300"
+                                }`}>
+                                  {u.role}
+                                </span>
+                              </td>
+                              <td className="p-4 font-black text-sm text-emerald-600 dark:text-emerald-400">
+                                ${u.balance_usd?.toFixed(2)}
+                              </td>
+                              <td className="p-4">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  u.is_active 
+                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" 
+                                    : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                                }`}>
+                                  {u.is_active ? "Aktif" : "Askıda"}
+                                </span>
+                              </td>
+                              <td className="p-4 text-right space-x-2">
+                                <button
+                                  onClick={() => {
+                                    setSelectedUserForBalance(u);
+                                    setNewBalanceAmount(u.balance_usd?.toString() || "100");
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 font-bold"
+                                >
+                                  Bakiye Yükle
+                                </button>
+                                <button
+                                  onClick={() => handleToggleUserStatus(u.id, u.is_active)}
+                                  className={`px-2.5 py-1 rounded-lg font-bold ${
+                                    u.is_active
+                                      ? "bg-red-50 dark:bg-red-950/60 text-red-600 hover:bg-red-100"
+                                      : "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 hover:bg-emerald-100"
+                                  }`}
+                                >
+                                  {u.is_active ? "Askıya Al" : "Aktifleştir"}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <form onSubmit={handleAdjustBalance} className="flex gap-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={newBalanceAmount}
-                    onChange={(e) => setNewBalanceAmount(e.target.value)}
-                    className="w-40 bg-white dark:bg-gray-950 border border-purple-300 dark:border-purple-700 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 dark:text-white"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold"
-                  >
-                    Kaydet
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedUserForBalance(null)}
-                    className="px-3 py-2 rounded-xl bg-slate-200 dark:bg-gray-800 text-xs font-bold"
-                  >
-                    İptal
-                  </button>
-                </form>
               </div>
             )}
 
-            {/* Kullanıcı Yönetim Tablosu */}
-            <div className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-200 dark:border-gray-800 font-bold text-xs flex justify-between items-center">
-                <span>Kullanıcı Yönetimi ({adminUsers.length})</span>
-                <input
-                  type="text"
-                  placeholder="Kullanıcı ara..."
-                  value={userSearchTerm}
-                  onChange={(e) => setUserSearchTerm(e.target.value)}
-                  className="bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 px-3 py-1 text-xs rounded-lg text-slate-900 dark:text-white"
-                />
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-gray-950 text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-gray-800">
-                    <tr>
-                      <th className="p-3">Kullanıcı</th>
-                      <th className="p-3">Rol</th>
-                      <th className="p-3">Bakiye</th>
-                      <th className="p-3">Durum</th>
-                      <th className="p-3 text-right">İşlemler</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
-                    {adminUsers
-                      .filter((u) => u.email.toLowerCase().includes(userSearchTerm.toLowerCase()))
-                      .map((u) => (
-                        <tr key={u.id}>
-                          <td className="p-3 font-semibold text-slate-900 dark:text-white">
-                            {u.email}
-                          </td>
-                          <td className="p-3 uppercase font-bold text-indigo-600 dark:text-indigo-400">
-                            {u.role}
-                          </td>
-                          <td className="p-3 font-black text-emerald-600 dark:text-emerald-400">
-                            ${u.balance_usd?.toFixed(2)}
-                          </td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              u.is_active 
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" 
-                                : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
-                            }`}>
-                              {u.is_active ? "Aktif" : "Askıda"}
+            {/* SUB-TAB 2: BİLDİRİM & ŞABLON MERKEZİ */}
+            {adminSubTab === "notifications" && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+                  {/* Şablon Listesi */}
+                  <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-indigo-600" />
+                      <span>İletişim Şablonları</span>
+                    </h3>
+
+                    <div className="space-y-2">
+                      {notificationTemplates.map((tpl) => (
+                        <div
+                          key={tpl.id}
+                          onClick={() => setSelectedTemplate(tpl)}
+                          className={`p-3.5 rounded-2xl border cursor-pointer transition ${
+                            selectedTemplate?.id === tpl.id
+                              ? "border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/30"
+                              : "border-slate-200 dark:border-gray-800 hover:bg-slate-50 dark:hover:bg-gray-800/40"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-slate-900 dark:text-white">{tpl.title}</span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300">
+                              {tpl.channel}
                             </span>
-                          </td>
-                          <td className="p-3 text-right space-x-2">
-                            <button
-                              onClick={() => {
-                                setSelectedUserForBalance(u);
-                                setNewBalanceAmount(u.balance_usd?.toString() || "0");
-                              }}
-                              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-                            >
-                              Bakiye Düzenle
-                            </button>
-                            <button
-                              onClick={() => handleToggleUserStatus(u.id, u.is_active)}
-                              className="text-xs font-bold text-slate-500 hover:text-red-600 hover:underline"
-                            >
-                              {u.is_active ? "Askıya Al" : "Aktif Et"}
-                            </button>
-                          </td>
-                        </tr>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">{tpl.subject}</p>
+                        </div>
                       ))}
-                  </tbody>
-                </table>
+                    </div>
+                  </div>
+
+                  {/* Şablon Önizleme ve Test Gönderimi */}
+                  <div className="lg:col-span-2 p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-5">
+                    {selectedTemplate ? (
+                      <>
+                        <div className="flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-3">
+                          <div>
+                            <h3 className="font-black text-base text-slate-900 dark:text-white">{selectedTemplate.title}</h3>
+                            <p className="text-xs text-slate-400 font-mono mt-0.5">Şablon ID: {selectedTemplate.id}</p>
+                          </div>
+                          <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 text-xs font-bold">
+                            ● AWS {selectedTemplate.channel === "EMAIL" ? "SES" : "SNS"} Aktif
+                          </span>
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase">E-posta / SMS Başlığı</label>
+                          <input
+                            type="text"
+                            value={selectedTemplate.subject}
+                            readOnly
+                            className="w-full mt-1 bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-900 dark:text-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase">Şablon HTML / Metin Önizlemesi</label>
+                          <div
+                            className="mt-1 p-4 rounded-xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 text-xs text-slate-800 dark:text-gray-200 font-mono overflow-auto max-h-48"
+                            dangerouslySetInnerHTML={{ __html: selectedTemplate.body_html }}
+                          />
+                        </div>
+
+                        {/* Test Gönderim Kutusu */}
+                        <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 space-y-3">
+                          <span className="font-bold text-xs text-indigo-900 dark:text-indigo-200">
+                            Canlı Test Bildirimi Gönder (AWS {selectedTemplate.channel === "EMAIL" ? "SES" : "SNS"})
+                          </span>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={testRecipient}
+                              onChange={(e) => setTestRecipient(e.target.value)}
+                              placeholder={selectedTemplate.channel === "EMAIL" ? "ornek@sirket.com" : "+905551234567"}
+                              className="flex-1 bg-white dark:bg-gray-950 border border-indigo-300 dark:border-indigo-700 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleTestNotification(selectedTemplate.channel)}
+                              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20"
+                            >
+                              Test Gönder
+                            </button>
+                          </div>
+                          {testNotificationMsg && (
+                            <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                              {testNotificationMsg}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-12 text-slate-400 text-xs">Bir şablon seçin.</div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* SUB-TAB 3: DENETİM İZİ (AUDIT LOGS) */}
+            {adminSubTab === "audit" && (
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+                  <div className="p-5 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">Değiştirilemez Denetim Günlüğü (Audit Logs)</h3>
+                      <p className="text-xs text-slate-400">Platformdaki tüm yetkili eylemler, bakiye değişiklikleri ve kural güncellemeleri.</p>
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-500">Son {auditLogsList.length} Eylem</span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-gray-950 text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-gray-800">
+                        <tr>
+                          <th className="p-4">Zaman</th>
+                          <th className="p-4">Eylem (Action)</th>
+                          <th className="p-4">Kaynak Tipi</th>
+                          <th className="p-4">Kaynak ID</th>
+                          <th className="p-4">Detaylar</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-gray-800 font-mono">
+                        {auditLogsList.map((log: any) => (
+                          <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/40">
+                            <td className="p-4 text-slate-500">{new Date(log.created_at).toLocaleString()}</td>
+                            <td className="p-4">
+                              <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 font-bold">
+                                {log.action}
+                              </span>
+                            </td>
+                            <td className="p-4 text-slate-700 dark:text-gray-300 font-bold">{log.resource_type}</td>
+                            <td className="p-4 text-slate-400">{log.resource_id?.slice(0, 12)}...</td>
+                            <td className="p-4 text-[11px] text-slate-500 max-w-xs truncate">
+                              {JSON.stringify(log.details || {})}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB 4: SİSTEM SAĞLIĞI & FEATURE FLAGS */}
+            {adminSubTab === "system" && (
+              <div className="space-y-6">
+                
+                {/* Feature Flags & Maintenance Mode */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  
+                  {/* Bakım Modu & Global Ayarlar */}
+                  <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-purple-600" />
+                      <span>Sistem Modu & Fiyatlandırma Çarpanı</span>
+                    </h3>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-bold text-xs text-slate-900 dark:text-white">Bakım Modu</div>
+                          <div className="text-[11px] text-slate-500">Müşteri erişimini geçici olarak kapatır.</div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={systemSettings.maintenance_mode}
+                          onChange={(e) => {
+                            const updated = { ...systemSettings, maintenance_mode: e.target.checked };
+                            setSystemSettings(updated);
+                            handleSaveSystemSettings(updated);
+                          }}
+                          className="w-5 h-5 accent-purple-600 rounded cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-900 dark:text-white">Global Kâr Marjı Çarpanı</span>
+                        <span className="font-black text-sm text-purple-600 dark:text-purple-400">
+                          {((systemSettings.global_margin_multiplier - 1) * 100).toFixed(0)}% Kâr
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1.05"
+                        max="2.00"
+                        step="0.05"
+                        value={systemSettings.global_margin_multiplier}
+                        onChange={(e) => {
+                          const updated = { ...systemSettings, global_margin_multiplier: parseFloat(e.target.value) };
+                          setSystemSettings(updated);
+                        }}
+                        onMouseUp={() => handleSaveSystemSettings(systemSettings)}
+                        className="w-full accent-purple-600 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Feature Flags */}
+                  <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Dinamik Özellik Anahtarları (Feature Flags)</span>
+                    </h3>
+
+                    <div className="space-y-2.5 text-xs">
+                      {Object.entries(systemSettings.feature_flags || {}).map(([key, val]) => (
+                        <div key={key} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 flex items-center justify-between">
+                          <span className="font-mono text-slate-700 dark:text-gray-300">{key}</span>
+                          <input
+                            type="checkbox"
+                            checked={val as boolean}
+                            onChange={(e) => {
+                              const updated = {
+                                ...systemSettings,
+                                feature_flags: {
+                                  ...systemSettings.feature_flags,
+                                  [key]: e.target.checked
+                                }
+                              };
+                              setSystemSettings(updated);
+                              handleSaveSystemSettings(updated);
+                            }}
+                            className="w-4 h-4 accent-purple-600 rounded cursor-pointer"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bağlı AWS Bulut Kaynakları */}
+                <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Server className="w-4 h-4 text-purple-600" />
+                      <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                        Bağlı AWS Bulut Kaynakları (Resource Group)
+                      </h3>
+                    </div>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-bold">
+                      ● 36 Aktif AWS Kaynağı
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span>AWS Bedrock Runtime</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500">Bölge: us-east-1</div>
+                      <div className="text-[10px] text-emerald-600 font-bold">Nova, Claude, Llama Aktif</div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span>Amazon RDS PostgreSQL</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500">Multi-AZ Havuz</div>
+                      <div className="text-[10px] text-indigo-600 font-bold">PostgreSQL 16 Engine</div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span>Amazon ElastiCache</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500">Redis 7 Cluster</div>
+                      <div className="text-[10px] text-amber-600 font-bold">Token Bucket Limitleyici</div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1">
+                      <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        <span>AWS ECS Fargate</span>
+                      </div>
+                      <div className="text-[11px] text-slate-500">ALB Entegre</div>
+                      <div className="text-[10px] text-purple-600 font-bold">3 Aktif Servis (Port 3001)</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 

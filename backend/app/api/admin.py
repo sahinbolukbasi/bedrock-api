@@ -248,7 +248,7 @@ async def get_aws_system_status(
             "ecs_fargate": {
                 "status": "HEALTHY",
                 "cluster": "bedrock-gateway-cluster",
-                "services": ["backend-svc", "frontend-svc"]
+                "services": ["backend-svc", "frontend-svc", "monitoring-svc"]
             }
         },
         "telemetry": {
@@ -259,3 +259,152 @@ async def get_aws_system_status(
             "active_connections": 12
         }
     }
+
+
+# ============================================================================
+# ENTERPRISE NOTIFICATION CENTER & TEMPLATES
+# ============================================================================
+
+DEFAULT_TEMPLATES = [
+    {
+        "id": "WELCOME_EMAIL",
+        "channel": "EMAIL",
+        "title": "Hoş Geldiniz E-Postası",
+        "subject": "AWS Bedrock AI Gateway'e Hoş Geldiniz! 🚀",
+        "body_html": "<p>Merhaba <strong>{{user_name}}</strong>,</p><p>Bedrock AI Gateway hesabınız başarıyla oluşturuldu. API anahtarlarınızı konsoldan alıp hemen model çağırmaya başlayabilirsiniz.</p>",
+        "variables": ["user_name", "login_url", "api_keys_url"],
+        "is_active": True
+    },
+    {
+        "id": "AGENT_REPORT_ALERT",
+        "channel": "EMAIL",
+        "title": "Otonom Ajan Görev Raporu",
+        "subject": "🤖 Ajan Bildirimi: {{agent_name}} Görevini Tamamladı",
+        "body_html": "<p>Sayın <strong>{{user_name}}</strong>,</p><p><strong>{{agent_name}}</strong> ajanınız zamanlanmış analizini başarıyla tamamladı.</p><div style='background:#1e293b;padding:12px;border-radius:8px;'>{{analysis_summary}}</div>",
+        "variables": ["user_name", "agent_name", "tokens_used", "cost_usd", "analysis_summary"],
+        "is_active": True
+    },
+    {
+        "id": "SMS_AGENT_URGENT_ALERT",
+        "channel": "SMS",
+        "title": "Acil SMS Ajan Bildirimi",
+        "subject": "SMS Bildirimi",
+        "body_html": "Bedrock AI: {{agent_name}} ajanınız analizi tamamladı. Sonuç: {{summary_snippet}} - Harcama: ${{cost_usd}}",
+        "variables": ["agent_name", "summary_snippet", "cost_usd"],
+        "is_active": True
+    },
+    {
+        "id": "INVOICE_PAID",
+        "channel": "EMAIL",
+        "title": "Bakiye Yükleme Onayı",
+        "subject": "💳 Bakiye Yüklemeniz Başarılı! (${{amount_usd}})",
+        "body_html": "<p>Hesabınıza <strong>${{amount_usd}}</strong> bakiye başarıyla tanımlandı. Güncel kullanılabilir bakiyeniz: <strong>${{new_balance_usd}}</strong></p>",
+        "variables": ["user_name", "amount_usd", "new_balance_usd", "transaction_id"],
+        "is_active": True
+    }
+]
+
+
+@router.get("/notifications/templates")
+async def list_notification_templates(admin_user: User = Depends(get_current_active_admin)):
+    return DEFAULT_TEMPLATES
+
+
+@router.post("/notifications/test-send")
+async def test_send_notification(
+    payload: Dict[str, Any],
+    admin_user: User = Depends(get_current_active_admin)
+):
+    channel = payload.get("channel", "EMAIL")
+    recipient = payload.get("recipient", admin_user.email)
+    subject = payload.get("subject", "Test Bildirimi")
+    content = payload.get("content", "Bu bir test bildirimidir.")
+
+    if channel == "EMAIL":
+        from app.services.email_service import EmailService
+        success = await EmailService.send_email_async(
+            to_email=recipient,
+            subject=subject,
+            html_content=f"<p>{content}</p>"
+        )
+        return {"success": success, "message": f"Test e-postası {recipient} adresine iletildi."}
+    elif channel == "SMS":
+        import boto3
+        from app.core.config import settings
+        try:
+            sns_client = boto3.client("sns", region_name=settings.AWS_REGION)
+            sns_client.publish(PhoneNumber=recipient, Message=content)
+            return {"success": True, "message": f"Test SMS {recipient} numarasına gönderildi."}
+        except Exception as e:
+            return {"success": False, "message": f"SMS gönderim hatası: {str(e)}"}
+    return {"success": False, "message": "Desteklenmeyen kanal."}
+
+
+# ============================================================================
+# SYSTEM SETTINGS & FEATURE FLAGS
+# ============================================================================
+
+SYSTEM_SETTINGS_CACHE = {
+    "maintenance_mode": False,
+    "maintenance_message": "Sistem planlı bakım nedeniyle kısa süreliğine kapalıdır.",
+    "global_margin_multiplier": 1.20,
+    "feature_flags": {
+        "enable_nova_pro_model": True,
+        "enable_voice_notes": True,
+        "enable_stripe_auto_topup": True,
+        "enable_telegram_bot_daemon": True
+    }
+}
+
+
+@router.get("/system/settings")
+async def get_system_settings(admin_user: User = Depends(get_current_active_admin)):
+    return SYSTEM_SETTINGS_CACHE
+
+
+@router.post("/system/settings")
+async def update_system_settings(
+    settings_payload: Dict[str, Any],
+    admin_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    SYSTEM_SETTINGS_CACHE.update(settings_payload)
+    audit = AuditLog(
+        user_id=admin_user.id,
+        action="SYSTEM_SETTINGS_UPDATED",
+        resource_type="SYSTEM",
+        resource_id="global_settings",
+        details=settings_payload
+    )
+    db.add(audit)
+    await db.commit()
+    return {"success": True, "settings": SYSTEM_SETTINGS_CACHE}
+
+
+# ============================================================================
+# DATA EXPORTS (CSV)
+# ============================================================================
+
+from fastapi.responses import Response
+
+@router.get("/export/users.csv")
+async def export_users_csv(
+    admin_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(User).options(selectinload(User.wallet)).order_by(User.created_at.desc())
+    res = await db.execute(stmt)
+    users = res.scalars().all()
+
+    csv_lines = ["ID,Email,Full Name,Role,Active,Balance USD,Created At"]
+    for u in users:
+        balance = float(u.wallet.balance_usd) if u.wallet else 0.0
+        csv_lines.append(f'"{u.id}","{u.email}","{u.full_name or ""}","{u.role}","{u.is_active}","{balance:.2f}","{u.created_at}"')
+
+    csv_data = "\n".join(csv_lines)
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=bedrock_users_export.csv"}
+    )
+
