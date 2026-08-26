@@ -1,29 +1,32 @@
-# 📚 AWS Bedrock AI Gateway — Ana Dokümantasyon & LLM Yönergesi
+# 📚 AWS Bedrock AI Gateway — Master Documentation & LLM Guide
 
-Bu dizin, **AWS Bedrock AI Gateway** platformunun tüm mimarisini, AWS servis haritasını, veritabanı şemasını, API uç noktalarını, otonom ajan motorunu, izleme katmanını ve yapay zeka ajanlarının (LLM pair-programmers) sistemi bozmadan müdahale edebilmeleri için gereken kuralları içerir.
+Bu dizin, **AWS Bedrock AI Gateway Platformu** için tüm teknik mimariyi, AWS kaynak kataloğunu, API uç noktalarını, otonom ajan motorunu, izleme stack'ini ve yapay zeka geliştiricileri için el kitabını barındırır.
 
 ---
 
-## 🧭 Dokümantasyon İndeksi
+## 🧭 Dokümantasyon Modülleri
 
-| Doküman | Açıklama |
+| Doküman | İçerik & Amaç |
 | :--- | :--- |
-| [ARCHITECTURE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/ARCHITECTURE.md) | Uçtan uca AWS altyapı ve sistem mimarisi |
-| [AWS_RESOURCE_CATALOG.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AWS_RESOURCE_CATALOG.md) | AWS Resource Group, tüm 36+ AWS kaynağının ARN ve ID listesi |
-| [AI_AGENT_PLAYBOOK.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AI_AGENT_PLAYBOOK.md) | LLM'lerin kod yazma, hata ayıklama ve güvenli geliştirme kuralları |
-| [DATABASE_SCHEMA.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DATABASE_SCHEMA.md) | RDS PostgreSQL modelleri, tablolar, Redis önbellek yapısı |
-| [TELEGRAM_AND_AUTONOMOUS_BOTS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/TELEGRAM_AND_AUTONOMOUS_BOTS.md) | Telegram Botu (`@BedrocksAiBot`), Cron Scheduler, SNS SMS & SES Mail |
-| [API_REFERENCE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/API_REFERENCE.md) | OpenAI uyumlu `/v1` ve Gateway platform API uç noktaları |
-| [MONITORING_AND_LOGS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/MONITORING_AND_LOGS.md) | Grafana Dashboard, Prometheus metrikleri ve CloudWatch logları |
+| 🤖 **[AI_AGENT_PLAYBOOK.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AI_AGENT_PLAYBOOK.md)** | **Yapay zeka ajanları & LLM'ler için sistemi bozmadan müdahale etme el kitabı** |
+| 🌐 **[AWS_RESOURCE_CATALOG.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AWS_RESOURCE_CATALOG.md)** | Resource Group (`bedrock-gateway-production-resources`), 36+ AWS kaynağının ARN ve ID haritası |
+| 🏛️ **[ARCHITECTURE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/ARCHITECTURE.md)** | ECS Fargate, ALB, RDS, ElastiCache, Secrets Manager ve Bedrock uçtan uca mimarisi |
+| 📱 **[TELEGRAM_AND_AUTONOMOUS_BOTS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/TELEGRAM_AND_AUTONOMOUS_BOTS.md)** | Telegram Botu (`@BedrocksAiBot`), Cron Scheduler, SNS SMS & SES Mail, Öğrenen Bellek Cache |
+| 📡 **[API_REFERENCE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/API_REFERENCE.md)** | OpenAI uyumlu `/v1/chat/completions`, `/v1/models` ve Gateway yönetim API uç noktaları |
+| 🗄️ **[DATABASE_SCHEMA.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DATABASE_SCHEMA.md)** | RDS PostgreSQL entity modelleri, ilişkiler, indeksler ve Redis anahtar yapısı |
+| 📊 **[MONITORING_AND_LOGS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/MONITORING_AND_LOGS.md)** | Grafana Dashboard, Prometheus metrikleri ve CloudWatch logları |
+| 🚀 **[DEPLOYMENT.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DEPLOYMENT.md)** | Terraform altyapı kurulumu, ECR build & push, ECS rolling deployment |
+| 🔒 **[SECURITY.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/SECURITY.md)** | IAM least-privilege, API key hashleme, Redis token-bucket rate limiter, WAF |
+| 🛠️ **[TROUBLESHOOTING.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/TROUBLESHOOTING.md)** | 502 Bad Gateway, CloudWatch log akışları, Bedrock kota aşımı çözüm rehberi |
 
 ---
 
-## ⚡ Hızlı Özet & Canlı Bilgiler
+## ⚡ Canlı Sistem Bilgileri
 
-* **Web Portalı (Frontend):** `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com`
-* **API Ağ Geçidi (Backend):** `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000` (veya port 80 path routing `/api/*`, `/v1/*`)
-* **Telegram Botu:** `@BedrocksAiBot` (`https://t.me/BedrocksAiBot`)
+* **Web Konsolu & Portalı:** `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com`
+* **API Ağ Geçidi:** `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000` (veya port 80 üzerinden `/api/*`, `/v1/*`)
+* **Telegram Botu:** `@BedrocksAiBot` ([https://t.me/BedrocksAiBot](https://t.me/BedrocksAiBot))
 * **AWS Bölgesi:** `us-east-1` (N. Virginia)
 * **AWS Resource Group:** `bedrock-gateway-production-resources`
-* **Süper Yönetici Girişi:** `admin@bedrockgateway.com` / `AdminPassword123!`
+* **Admin Hesabı:** `admin@bedrockgateway.com` / `AdminPassword123!`
 * **AWS Secrets Manager:** `bedrock-gateway-secrets-prod`
