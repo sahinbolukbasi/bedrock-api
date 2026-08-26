@@ -1,12 +1,11 @@
 export const API_BASE = (() => {
   if (typeof window !== "undefined") {
-    // On production ALB or domain, use same-origin relative path so requests route through port 80 path rules
+    // On AWS ALB or production domain, use same-origin relative path for path routing
     if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
       return "";
     }
-    return `${window.location.protocol}//${window.location.hostname}:8000`;
   }
-  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  return process.env.NEXT_PUBLIC_API_URL || "http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com";
 })();
 
 export function getAuthToken(): string | null {

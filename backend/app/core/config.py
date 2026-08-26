@@ -14,21 +14,21 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Bedrock AI Gateway"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/v1"
-    ENVIRONMENT: str = "development"
+    ENVIRONMENT: str = "production"
 
     # Security & Auth
-    SECRET_KEY: str = "super-secret-key-change-in-production-min-32-chars"
+    SECRET_KEY: str = "super-secure-production-jwt-key-32-chars-minimum"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 1 day
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     ALGORITHM: str = "HS256"
 
-    # Database (PostgreSQL)
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/bedrock_gateway"
+    # Database (Amazon RDS PostgreSQL 16)
+    DATABASE_URL: str = "postgresql+asyncpg://bedrockadmin:BedrockSecurePassword2026!@bedrock-gateway-db.cobqqmqcs7xh.us-east-1.rds.amazonaws.com:5432/bedrock_gateway"
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # Redis (Amazon ElastiCache Redis 7)
+    REDIS_URL: str = "redis://bedrock-gateway-redis.hmoplf.0001.use1.cache.amazonaws.com:6379/0"
 
-    # AWS Settings (In production on ECS/EKS, IAM roles are used automatically without static keys)
+    # AWS Settings (IAM roles used on ECS Fargate)
     AWS_REGION: str = "us-east-1"
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
@@ -40,7 +40,11 @@ class Settings(BaseSettings):
     STRIPE_WEBHOOK_SECRET: str = "whsec_placeholder"
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8000", "https://app.bedrockgateway.com", "*"]
+    CORS_ORIGINS: List[str] = [
+        "http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com",
+        "https://app.bedrockgateway.com",
+        "*"
+    ]
 
     # Rate Limiting & Abuse Protection
     DEFAULT_RATE_LIMIT_RPM: int = 120

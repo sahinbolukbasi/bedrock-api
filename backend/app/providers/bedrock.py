@@ -114,9 +114,8 @@ class AWSBedrockProvider(IModelProvider):
             "topP": float(request.top_p) if request.top_p is not None else 1.0,
         }
 
-        # Mock fallback for test environment or when AWS Bedrock is unreachable
-        if not self._client or settings.AWS_ACCESS_KEY_ID == "mock_key":
-            return self._mock_chat_completion(request, model_entity)
+        if not self._client:
+            self._init_client()
 
         try:
             params = {
@@ -156,9 +155,41 @@ class AWSBedrockProvider(IModelProvider):
             )
             return chat_response, input_tokens, output_tokens
 
-        except (BotoCoreError, ClientError, Exception) as e:
-            logger.warning(f"AWS Bedrock converse note (fallback engaged): {e}")
-            return self._mock_chat_completion(request, model_entity)
+        except Exception as e:
+            logger.error(f"AWS Bedrock converse error for model {model_entity.model_id}: {e}")
+            # If the model requested is not supported in the region, try resilient fallback with Nova Micro or Claude Haiku
+            fallback_models = ["amazon.nova-micro-v1:0", "anthropic.claude-3-haiku-20240307-v1:0"]
+            for fb_model in fallback_models:
+                if fb_model != model_entity.model_id:
+                    try:
+                        params["modelId"] = fb_model
+                        response = self._client.converse(**params)
+                        output_msg = response.get("output", {}).get("message", {})
+                        text_blocks = output_msg.get("content", [])
+                        response_text = "".join([b.get("text", "") for b in text_blocks if "text" in b])
+                        usage = response.get("usage", {})
+                        input_tokens = usage.get("inputTokens", len(json.dumps(converse_messages)) // 4)
+                        output_tokens = usage.get("outputTokens", len(response_text) // 4)
+                        return ChatCompletionResponse(
+                            id=f"chatcmpl-bedrock-{uuid.uuid4().hex[:12]}",
+                            created=int(time.time()),
+                            model=fb_model,
+                            choices=[
+                                ChatChoice(
+                                    index=0,
+                                    message=ChatChoiceMessage(role="assistant", content=response_text),
+                                    finish_reason="stop"
+                                )
+                            ],
+                            usage=UsageInfo(
+                                prompt_tokens=input_tokens,
+                                completion_tokens=output_tokens,
+                                total_tokens=input_tokens + output_tokens
+                            )
+                        ), input_tokens, output_tokens
+                    except Exception as fb_err:
+                        logger.error(f"Fallback model {fb_model} failed: {fb_err}")
+            raise e
 
     async def stream_chat(
         self,

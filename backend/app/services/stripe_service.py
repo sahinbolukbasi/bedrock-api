@@ -47,10 +47,10 @@ class StripeService:
         if not pkg:
             raise ValueError("Invalid credit package selected.")
 
-        succ_url = success_url or "http://localhost:3000/billing?payment=success"
-        canc_url = cancel_url or "http://localhost:3000/billing?payment=cancelled"
+        succ_url = success_url or "http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com/billing?payment=success"
+        canc_url = cancel_url or "http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com/billing?payment=cancelled"
 
-        # If Stripe key is in placeholder/mock mode, create a local mock session
+        # If Stripe key is in placeholder/mock mode, create a session on AWS ALB
         if settings.STRIPE_SECRET_KEY.startswith("sk_test_placeholder"):
             mock_session_id = f"cs_mock_{uuid.uuid4().hex}"
             purchase = CreditPurchase(
@@ -63,7 +63,7 @@ class StripeService:
             db.add(purchase)
             await db.commit()
             return {
-                "checkout_url": f"http://localhost:3000/billing/mock-checkout?session_id={mock_session_id}&pkg={package_id}",
+                "checkout_url": f"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com/billing/mock-checkout?session_id={mock_session_id}&pkg={package_id}",
                 "session_id": mock_session_id
             }
 
