@@ -244,3 +244,18 @@ class AuditLog(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
     user = relationship("User", back_populates="audit_logs")
+
+
+class CustomAgent(Base):
+    __tablename__ = "custom_agents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(128), nullable=False)
+    description = Column(Text, nullable=True)
+    model_id = Column(String(128), default="anthropic.claude-3-5-sonnet-20241022-v2:0", nullable=False)
+    system_prompt = Column(Text, nullable=False)
+    tools_config = Column(JSON, default=dict, nullable=False)  # {"email_notifications": true, "telegram_webhook": "...", "data_tracking": true}
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)

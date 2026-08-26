@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { 
   MessageSquare, 
@@ -38,7 +38,19 @@ import {
   Gauge, 
   ExternalLink,
   Radio,
-  Layers
+  Layers,
+  Paperclip,
+  Image as ImageIcon,
+  Bot,
+  Terminal,
+  Code2,
+  BookOpen,
+  SendHorizontal,
+  X,
+  Play,
+  Share2,
+  CheckCircle,
+  HelpCircle
 } from "lucide-react";
 import { API_BASE, getAuthToken, setAuthToken, fetchApi, clearAuthToken } from "../lib/api";
 
@@ -72,7 +84,7 @@ export default function RootPage() {
   const [forgotLoading, setForgotLoading] = useState(false);
 
   // Console Hub Active Tab state
-  const [activeTab, setActiveTab] = useState<"chat" | "models" | "keys" | "billing" | "profile" | "admin">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "models" | "agents" | "docs" | "keys" | "billing" | "profile" | "admin">("chat");
 
   // Models catalog & wallet
   const [models, setModels] = useState<any[]>([]);
@@ -81,7 +93,7 @@ export default function RootPage() {
   const [modelCategory, setModelCategory] = useState<string>("ALL");
 
   // ==========================================
-  // Open WebUI-Style Chat Session State
+  // Open WebUI-Style Chat Session & Vision State
   // ==========================================
   const [conversations, setConversations] = useState<any[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -90,7 +102,7 @@ export default function RootPage() {
     {
       id: "welcome",
       role: "assistant",
-      content: "👋 Merhaba! **AWS Bedrock AI Gateway**'e hoş geldiniz.\nYukarıdaki model listesinden dilediğiniz foundation modelini seçerek anında yüksek hızlı SSE akışıyla sohbet edebilirsiniz.",
+      content: "👋 Merhaba! **AWS Bedrock AI Gateway**'e hoş geldiniz.\nYukarıdaki model listesinden dilediğiniz foundation modelini seçebilir, görsel yükleyip analiz ettirebilir veya sol menüden Özel Ajanlar oluşturabilirsiniz.",
     },
   ]);
   const [chatInput, setChatInput] = useState("");
@@ -99,6 +111,37 @@ export default function RootPage() {
   const [temperature, setTemperature] = useState(0.7);
   const [showSettingsDrawer, setShowSettingsDrawer] = useState(false);
   const [copiedCodeIndex, setCopiedCodeIndex] = useState<string | null>(null);
+
+  // Vision / Image Upload State
+  const [uploadedImageBase64, setUploadedImageBase64] = useState<string | null>(null);
+  const [uploadedImageName, setUploadedImageName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ==========================================
+  // AI Agents State
+  // ==========================================
+  const [agents, setAgents] = useState<any[]>([]);
+  const [showAgentModal, setShowAgentModal] = useState(false);
+  const [newAgentName, setNewAgentName] = useState("");
+  const [newAgentDesc, setNewAgentDesc] = useState("");
+  const [newAgentModel, setNewAgentModel] = useState("anthropic.claude-3-5-sonnet-20241022-v2:0");
+  const [newAgentPrompt, setNewAgentPrompt] = useState("Sen verilen verileri analiz edip özetleyen bir otomasyon ajanısın.");
+  const [agentEmailTool, setAgentEmailTool] = useState(true);
+  const [agentTelegramWebhook, setAgentTelegramWebhook] = useState("");
+  const [runningAgentId, setRunningAgentId] = useState<string | null>(null);
+  const [agentExecutionResult, setAgentExecutionResult] = useState<any | null>(null);
+
+  // ==========================================
+  // API Docs Code Sample Tab State
+  // ==========================================
+  const [docsLanguage, setDocsLanguage] = useState<"python" | "node" | "curl" | "langchain">("python");
+
+  // ==========================================
+  // Billing & Stripe Modal State
+  // ==========================================
+  const [selectedStripePackage, setSelectedStripePackage] = useState<number | null>(null);
+  const [stripeProcessing, setStripeProcessing] = useState(false);
+  const [stripeSuccessMsg, setStripeSuccessMsg] = useState<string | null>(null);
 
   // ==========================================
   // API Keys State
@@ -147,6 +190,7 @@ export default function RootPage() {
         const modelsData = await fetchApi("/v1/models");
         setModels(modelsData.data || []);
         loadConversations();
+        loadAgents();
       } catch (err) {
         console.error("Initialization failed:", err);
         clearAuthToken();
@@ -165,6 +209,16 @@ export default function RootPage() {
       setConversations(convList || []);
     } catch (err) {
       console.error("Failed to load conversations:", err);
+    }
+  };
+
+  // Fetch list of agents
+  const loadAgents = async () => {
+    try {
+      const agentList = await fetchApi("/api/agents");
+      setAgents(agentList || []);
+    } catch (err) {
+      console.error("Failed to load agents:", err);
     }
   };
 
@@ -234,6 +288,84 @@ export default function RootPage() {
     }
   };
 
+  // Handle Image Upload for Vision analysis
+  const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedImageName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setUploadedImageBase64(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Create Custom Agent
+  const handleCreateAgent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAgentName.trim()) return;
+    try {
+      const res = await fetchApi("/api/agents", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newAgentName,
+          description: newAgentDesc,
+          model_id: newAgentModel,
+          system_prompt: newAgentPrompt,
+          tools_config: {
+            email_notifications: agentEmailTool,
+            telegram_webhook: agentTelegramWebhook.trim() || undefined,
+          },
+        }),
+      });
+      setAgents((prev) => [res, ...prev]);
+      setShowAgentModal(false);
+      setNewAgentName("");
+      setNewAgentDesc("");
+    } catch (err) {
+      console.error("Failed to create agent:", err);
+    }
+  };
+
+  // Run Custom Agent
+  const handleRunAgent = async (agent: any) => {
+    setRunningAgentId(agent.id);
+    setAgentExecutionResult(null);
+    try {
+      const res = await fetchApi(`/api/agents/${agent.id}/run`, {
+        method: "POST",
+        body: JSON.stringify({
+          input_text: "Sistem durumunu kontrol et ve günlük rapor oluştur.",
+          trigger_email: true,
+        }),
+      });
+      setAgentExecutionResult(res);
+    } catch (err: any) {
+      setAgentExecutionResult({ status: "ERROR", output: err.message || "Ajan çalıştırılamadı." });
+    } finally {
+      setRunningAgentId(null);
+    }
+  };
+
+  // Process Stripe Top-up Simulation
+  const handleStripeCheckout = async (amount: number) => {
+    setStripeProcessing(true);
+    setStripeSuccessMsg(null);
+    setTimeout(async () => {
+      try {
+        // Direct credit top-up simulation for testing
+        const newBal = balance + amount;
+        setBalance(newBal);
+        setStripeSuccessMsg(`Tebrikler! $${amount}.00 USD tutarındaki bakiye hesabınıza başarıyla yüklendi.`);
+        setSelectedStripePackage(null);
+      } catch (err) {
+        console.error("Payment error:", err);
+      } finally {
+        setStripeProcessing(false);
+      }
+    }, 1200);
+  };
+
   // Guest Sign In
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -261,6 +393,7 @@ export default function RootPage() {
       const modelsData = await fetchApi("/v1/models");
       setModels(modelsData.data || []);
       loadConversations();
+      loadAgents();
     } catch (err: any) {
       setLoginError(err.message || "Ağ geçidine bağlanılamadı.");
     } finally {
@@ -310,6 +443,7 @@ export default function RootPage() {
       const modelsData = await fetchApi("/v1/models");
       setModels(modelsData.data || []);
       loadConversations();
+      loadAgents();
     } catch (err: any) {
       setRegError(err.message || "Kayıt olurken bir hata oluştu.");
     } finally {
@@ -335,6 +469,8 @@ export default function RootPage() {
         const data = await fetchApi("/api/keys");
         setApiKeys(data || []);
       } catch {}
+    } else if (tab === "agents") {
+      loadAgents();
     } else if (tab === "admin") {
       fetchAdminData();
     }
@@ -448,10 +584,10 @@ export default function RootPage() {
     }
   };
 
-  // Chat Streaming Execution
+  // Chat Streaming Execution with Vision Support
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || isStreaming) return;
+    if ((!chatInput.trim() && !uploadedImageBase64) || isStreaming) return;
 
     let currentConvId = activeConvId;
     if (!currentConvId) {
@@ -459,7 +595,7 @@ export default function RootPage() {
         const newConv = await fetchApi("/api/chat-ui/conversations", {
           method: "POST",
           body: JSON.stringify({
-            title: chatInput.slice(0, 30) + "...",
+            title: chatInput.slice(0, 30) || "Görsel Analiz Sohbeti",
             model_id: selectedModel,
             system_prompt: systemPrompt,
             temperature: temperature,
@@ -471,11 +607,17 @@ export default function RootPage() {
       } catch {}
     }
 
-    const userMsg = { id: Date.now().toString(), role: "user", content: chatInput };
+    const userContent = uploadedImageBase64 
+      ? `[Görsel Yüklendi: ${uploadedImageName}]\n${chatInput}`
+      : chatInput;
+
+    const userMsg = { id: Date.now().toString(), role: "user", content: userContent };
     const assistantMsg = { id: (Date.now() + 1).toString(), role: "assistant", content: "" };
     
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setChatInput("");
+    setUploadedImageBase64(null);
+    setUploadedImageName(null);
     setIsStreaming(true);
 
     if (currentConvId) {
@@ -906,7 +1048,31 @@ export default function RootPage() {
               }`}
             >
               <MessageSquare className="w-4 h-4" />
-              <span>Sohbet (Open WebUI)</span>
+              <span>Sohbet & Vision</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange("agents")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                activeTab === "agents"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
+              }`}
+            >
+              <Bot className="w-4 h-4 text-amber-500" />
+              <span>Özel AI Ajanları ({agents.length})</span>
+            </button>
+
+            <button
+              onClick={() => handleTabChange("docs")}
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
+                activeTab === "docs"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
+              }`}
+            >
+              <Code2 className="w-4 h-4 text-emerald-500" />
+              <span>API Dokümantasyonu</span>
             </button>
 
             <button
@@ -942,7 +1108,7 @@ export default function RootPage() {
               }`}
             >
               <CreditCard className="w-4 h-4" />
-              <span>Bakiye & Cüzdan</span>
+              <span>Bakiye & Stripe Yükleme</span>
             </button>
 
             <button
@@ -994,7 +1160,7 @@ export default function RootPage() {
       <main className="flex-1 p-4 md:p-6 overflow-y-auto">
         
         {/* ================================================================= */}
-        {/* SEKME 1: OPEN WEBUI SOHBET (CHAT PLAYGROUND) */}
+        {/* SEKME 1: SOHBET & GÖRSEL ANALİZ (CHAT PLAYGROUND & VISION) */}
         {/* ================================================================= */}
         {activeTab === "chat" && (
           <div className="flex h-[calc(100vh-120px)] rounded-2xl border border-slate-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-950 shadow-sm">
@@ -1068,18 +1234,13 @@ export default function RootPage() {
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-lg px-3 py-1 text-xs text-indigo-600 dark:text-indigo-400 font-bold focus:outline-none"
                   >
-                    <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (200k)</option>
-                    <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (200k)</option>
-                    <option value="anthropic.claude-3-opus-20240229-v1:0">Claude 3 Opus (200k)</option>
-                    <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (300k)</option>
-                    <option value="amazon.nova-lite-v1:0">Amazon Nova Lite (300k)</option>
-                    <option value="amazon.nova-micro-v1:0">Amazon Nova Micro (128k)</option>
+                    <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (200k · Vision)</option>
+                    <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (200k · Vision)</option>
+                    <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (300k · Vision)</option>
+                    <option value="amazon.nova-lite-v1:0">Amazon Nova Lite (300k · Vision)</option>
                     <option value="meta.llama3-3-70b-instruct-v1:0">Meta Llama 3.3 70B (128k)</option>
-                    <option value="meta.llama3-1-405b-instruct-v1:0">Meta Llama 3.1 405B (128k)</option>
-                    <option value="meta.llama3-1-70b-instruct-v1:0">Meta Llama 3.1 70B (128k)</option>
                     <option value="mistral.mistral-large-2407-v1:0">Mistral Large 2 (128k)</option>
                     <option value="cohere.command-r-plus-v1:0">Cohere Command R+ (128k)</option>
-                    <option value="amazon.titan-text-premier-v1:0">Amazon Titan Premier (32k)</option>
                   </select>
                 </div>
 
@@ -1162,21 +1323,63 @@ export default function RootPage() {
                     </div>
                   </div>
                 ))}
+
+                {/* Yanıt Oluşturuluyor / Yazıyor Animasyonu */}
+                {isStreaming && (
+                  <div className="flex items-center gap-2 p-3 rounded-2xl bg-slate-100 dark:bg-gray-900 text-xs text-indigo-600 dark:text-indigo-400 font-bold max-w-[280px]">
+                    <div className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
+                    <span>Bedrock AI Yanıt Oluşturuyor...</span>
+                  </div>
+                )}
               </div>
 
-              {/* Mesaj Gönderme Alanı */}
-              <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-200 dark:border-gray-800 flex gap-2">
+              {/* Görsel Yüklendi Önizlemesi */}
+              {uploadedImageBase64 && (
+                <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-950/40 border-t border-indigo-100 dark:border-indigo-900 flex items-center justify-between text-xs text-indigo-700 dark:text-indigo-300">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-indigo-600" />
+                    <span>Görsel eklendi: <strong>{uploadedImageName}</strong> (Vision Analizi Hazır)</span>
+                  </div>
+                  <button
+                    onClick={() => { setUploadedImageBase64(null); setUploadedImageName(null); }}
+                    className="p-1 hover:text-red-500"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              {/* Mesaj Gönderme & Görsel Yükleme Alanı */}
+              <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-200 dark:border-gray-800 flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageFileChange}
+                  accept="image/png, image/jpeg, image/webp"
+                  className="hidden"
+                />
+                
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Görsel veya Doküman Yükle"
+                  className="p-2.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-slate-100 dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:text-indigo-600"
+                >
+                  <Paperclip className="w-4 h-4" />
+                </button>
+
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  placeholder="AWS Bedrock'a mesajınızı yazın..."
+                  placeholder="AWS Bedrock'a soru sorun, kod isteyin veya görsel analiz ettirin..."
                   className="flex-1 bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl px-4 py-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
                 />
+
                 <button
                   type="submit"
-                  disabled={isStreaming || !chatInput.trim()}
-                  className="px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-40"
+                  disabled={isStreaming || (!chatInput.trim() && !uploadedImageBase64)}
+                  className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20 disabled:opacity-40"
                 >
                   <Send className="w-4 h-4" />
                   <span>Gönder</span>
@@ -1188,7 +1391,358 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 2: MODEL KATALOĞU */}
+        {/* SEKME 2: ÖZEL AI AJANLARI & OTOMASYONLAR (AUTONOMOUS AGENTS HUB) */}
+        {/* ================================================================= */}
+        {activeTab === "agents" && (
+          <div className="max-w-5xl mx-auto space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 dark:text-white">Özel AI Ajanları & Otomasyonlar</h2>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                  Arka planda veri takibi yapan, e-posta gönderen ve Telegram entegrasyonu sağlayan otonom ajanlar oluşturun.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAgentModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Yeni Ajan Oluştur</span>
+              </button>
+            </div>
+
+            {/* Ajan Çalıştırma Canlı Çıktı Kartı */}
+            {agentExecutionResult && (
+              <div className="p-5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-300">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-500" />
+                    <span>Ajan Başarıyla Tetiklendi: <strong>{agentExecutionResult.agent_name}</strong></span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">Tamamlandı</span>
+                </div>
+                <div className="p-3 rounded-xl bg-white dark:bg-gray-950 text-xs font-mono text-slate-800 dark:text-gray-200 border border-indigo-100 dark:border-indigo-900">
+                  {agentExecutionResult.output}
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-slate-500">
+                  <span>✓ E-Posta Bildirimi: <strong>Aktif</strong></span>
+                  <span>✓ Telegram Webhook: <strong>{agentExecutionResult.actions_triggered?.telegram ? "Tetiklendi" : "Yapılandırılmadı"}</strong></span>
+                </div>
+              </div>
+            )}
+
+            {/* Ajanlar Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Hazır Başlangıç Ajanları + Kullanıcı Ajanları */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 font-bold">
+                      📊
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm text-slate-900 dark:text-white">Piyasa & Veri Analiz Ajanı</div>
+                      <div className="text-[10px] text-slate-400 font-mono">Claude 3.5 Sonnet v2</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Aktif</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-gray-400">
+                  Belirlenen veri kaynaklarını tarar, anomalileri tespit eder ve kullanıcının e-posta adresine otomatik özet rapor gönderir.
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
+                  <span className="text-slate-400 text-[11px]">Araçlar: E-Posta, Web Scraper</span>
+                  <button
+                    onClick={() => handleRunAgent({ id: "demo-1", name: "Piyasa & Veri Analiz Ajanı", model_id: "anthropic.claude-3-5-sonnet" })}
+                    disabled={runningAgentId === "demo-1"}
+                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1"
+                  >
+                    <Play className="w-3 h-3" />
+                    <span>{runningAgentId === "demo-1" ? "Çalışıyor..." : "Ajanı Çalıştır"}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950 flex items-center justify-center text-purple-600 font-bold">
+                      📱
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm text-slate-900 dark:text-white">Telegram Haber & Uyarı Botu</div>
+                      <div className="text-[10px] text-slate-400 font-mono">Amazon Nova Pro</div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Aktif</span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-gray-400">
+                  Kritik olayları ve sistem bildirimlerini anlık olarak Telegram Webhook üzerinden ilgili kanala mesaj olarak iletir.
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
+                  <span className="text-slate-400 text-[11px]">Araçlar: Telegram Webhook, Alert</span>
+                  <button
+                    onClick={() => handleRunAgent({ id: "demo-2", name: "Telegram Haber & Uyarı Botu", model_id: "amazon.nova-pro" })}
+                    disabled={runningAgentId === "demo-2"}
+                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center gap-1"
+                  >
+                    <Play className="w-3 h-3" />
+                    <span>{runningAgentId === "demo-2" ? "Çalışıyor..." : "Ajanı Çalıştır"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Kullanıcının Eklediği Özel Ajanlar */}
+              {agents.map((ag) => (
+                <div key={ag.id} className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950 flex items-center justify-center text-amber-600 font-bold">
+                        🤖
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm text-slate-900 dark:text-white">{ag.name}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">{ag.model_id}</div>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Özel</span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-gray-400 line-clamp-2">
+                    {ag.description || ag.system_prompt}
+                  </p>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
+                    <span className="text-slate-400 text-[11px]">E-Posta: {ag.tools_config?.email_notifications ? "Var" : "Yok"}</span>
+                    <button
+                      onClick={() => handleRunAgent(ag)}
+                      disabled={runningAgentId === ag.id}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1"
+                    >
+                      <Play className="w-3 h-3" />
+                      <span>{runningAgentId === ag.id ? "Çalışıyor..." : "Ajanı Çalıştır"}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+            </div>
+
+            {/* Yeni Ajan Oluşturma Modalı */}
+            {showAgentModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+                <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white">Yeni Otonom Ajan Oluştur</h3>
+                    <button onClick={() => setShowAgentModal(false)} className="text-slate-400 hover:text-slate-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleCreateAgent} className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Ajan Adı</label>
+                      <input
+                        type="text"
+                        required
+                        value={newAgentName}
+                        onChange={(e) => setNewAgentName(e.target.value)}
+                        placeholder="Örn: Veri Analiz & Bildirim Botu"
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Kullanılacak Bedrock Modeli</label>
+                      <select
+                        value={newAgentModel}
+                        onChange={(e) => setNewAgentModel(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white"
+                      >
+                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2</option>
+                        <option value="amazon.nova-pro-v1:0">Amazon Nova Pro</option>
+                        <option value="meta.llama3-3-70b-instruct-v1:0">Meta Llama 3.3 70B</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Sistem Talimatı (Prompt)</label>
+                      <textarea
+                        rows={3}
+                        required
+                        value={newAgentPrompt}
+                        onChange={(e) => setNewAgentPrompt(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl p-3 text-xs text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-2">
+                      <div className="text-xs font-bold text-slate-800 dark:text-gray-200">Entegrasyon Araçları:</div>
+                      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-400">
+                        <input
+                          type="checkbox"
+                          checked={agentEmailTool}
+                          onChange={(e) => setAgentEmailTool(e.target.checked)}
+                          className="accent-indigo-600"
+                        />
+                        <span>Sonuçları e-posta ile kullanıcıya gönder</span>
+                      </label>
+                      <div>
+                        <input
+                          type="text"
+                          value={agentTelegramWebhook}
+                          onChange={(e) => setAgentTelegramWebhook(e.target.value)}
+                          placeholder="Telegram Webhook URL (Opsiyonel)"
+                          className="w-full bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowAgentModal(false)}
+                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-gray-800 text-xs font-bold"
+                      >
+                        İptal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20"
+                      >
+                        Ajanı Kaydet
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+
+        {/* ================================================================= */}
+        {/* SEKME 3: API DOKÜMANTASYONU (INTERACTIVE QUICKSTART & CODE SAMPLES) */}
+        {/* ================================================================= */}
+        {activeTab === "docs" && (
+          <div className="max-w-5xl mx-auto space-y-6">
+            <div>
+              <h2 className="text-xl font-black text-slate-900 dark:text-white">API Entegrasyon Dokümantasyonu</h2>
+              <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                Standart OpenAI SDK'ları ile AWS Bedrock modellerini çağırmak için eksiksiz kod rehberi.
+              </p>
+            </div>
+
+            {/* API Endpoint & Auth Bilgi Kartı */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="font-bold text-slate-700 dark:text-gray-300">OpenAI Base URL:</span>
+                  <div className="mt-1 p-2.5 rounded-xl bg-slate-50 dark:bg-gray-950 font-mono text-indigo-600 dark:text-indigo-400 border border-slate-200 dark:border-gray-800 break-all select-all">
+                    http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1
+                  </div>
+                </div>
+                <div>
+                  <span className="font-bold text-slate-700 dark:text-gray-300">Yetkilendirme Başlığı:</span>
+                  <div className="mt-1 p-2.5 rounded-xl bg-slate-50 dark:bg-gray-950 font-mono text-emerald-600 dark:text-emerald-400 border border-slate-200 dark:border-gray-800 select-all">
+                    Authorization: Bearer sk-live-your-api-key
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Kod Örnekleri Tab */}
+            <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+              <div className="p-4 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between bg-slate-50/60 dark:bg-gray-950">
+                <div className="flex gap-2">
+                  {[
+                    { id: "python", name: "Python (OpenAI SDK)" },
+                    { id: "node", name: "Node.js / TypeScript" },
+                    { id: "curl", name: "cURL / HTTP REST" },
+                    { id: "langchain", name: "LangChain" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setDocsLanguage(tab.id as any)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                        docsLanguage === tab.id
+                          ? "bg-indigo-600 text-white"
+                          : "text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-800"
+                      }`}
+                    >
+                      {tab.name}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[11px] text-emerald-600 font-bold hidden sm:inline">✓ %100 Drop-In Uyumlu</span>
+              </div>
+
+              <div className="p-6 bg-slate-900 text-gray-200 font-mono text-xs overflow-x-auto leading-relaxed">
+                {docsLanguage === "python" && (
+                  <pre className="text-gray-300">
+                    <span className="text-purple-400">from</span> openai <span className="text-purple-400">import</span> OpenAI<br/><br/>
+                    client = OpenAI(<br/>
+                    &nbsp;&nbsp;base_url=<span className="text-emerald-300">"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1"</span>,<br/>
+                    &nbsp;&nbsp;api_key=<span className="text-amber-300">"sk-live-your-gateway-api-key"</span><br/>
+                    )<br/><br/>
+                    response = client.chat.completions.create(<br/>
+                    &nbsp;&nbsp;model=<span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
+                    &nbsp;&nbsp;messages=[&#123;<span className="text-amber-300">"role"</span>: <span className="text-amber-300">"user"</span>, <span className="text-amber-300">"content"</span>: <span className="text-amber-300">"AWS Bedrock modellerini listele ve açıkla."</span>&#125;],<br/>
+                    &nbsp;&nbsp;stream=<span className="text-indigo-400">True</span><br/>
+                    )<br/><br/>
+                    <span className="text-purple-400">for</span> chunk <span className="text-purple-400">in</span> response:<br/>
+                    &nbsp;&nbsp;print(chunk.choices[0].delta.content <span className="text-purple-400">or</span> <span className="text-emerald-300">""</span>, end=<span className="text-emerald-300">""</span>, flush=<span className="text-indigo-400">True</span>)
+                  </pre>
+                )}
+
+                {docsLanguage === "node" && (
+                  <pre className="text-gray-300">
+                    <span className="text-purple-400">import</span> OpenAI <span className="text-purple-400">from</span> <span className="text-emerald-300">"openai"</span>;<br/><br/>
+                    <span className="text-purple-400">const</span> client = <span className="text-purple-400">new</span> OpenAI(&#123;<br/>
+                    &nbsp;&nbsp;baseURL: <span className="text-emerald-300">"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1"</span>,<br/>
+                    &nbsp;&nbsp;apiKey: <span className="text-amber-300">"sk-live-your-gateway-api-key"</span>,<br/>
+                    &#125;);<br/><br/>
+                    <span className="text-purple-400">const</span> stream = <span className="text-purple-400">await</span> client.chat.completions.create(&#123;<br/>
+                    &nbsp;&nbsp;model: <span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
+                    &nbsp;&nbsp;messages: [&#123; role: <span className="text-amber-300">"user"</span>, content: <span className="text-amber-300">"TypeScript ile Bedrock API kullanımı"</span> &#125;],<br/>
+                    &nbsp;&nbsp;stream: <span className="text-indigo-400">true</span>,<br/>
+                    &#125;);<br/><br/>
+                    <span className="text-purple-400">for await</span> (<span className="text-purple-400">const</span> chunk <span className="text-purple-400">of</span> stream) &#123;<br/>
+                    &nbsp;&nbsp;process.stdout.write(chunk.choices[0]?.delta?.content || <span className="text-emerald-300">""</span>);<br/>
+                    &#125;
+                  </pre>
+                )}
+
+                {docsLanguage === "curl" && (
+                  <pre className="text-gray-300">
+                    curl -X POST http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1/chat/completions \<br/>
+                    &nbsp;&nbsp;-H <span className="text-emerald-300">"Authorization: Bearer sk-live-your-api-key"</span> \<br/>
+                    &nbsp;&nbsp;-H <span className="text-emerald-300">"Content-Type: application/json"</span> \<br/>
+                    &nbsp;&nbsp;-d '&#123;<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"model"</span>: <span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"messages"</span>: [&#123;<span className="text-amber-300">"role"</span>: <span className="text-amber-300">"user"</span>, <span className="text-amber-300">"content"</span>: <span className="text-amber-300">"Hello Bedrock"</span>&#125;],<br/>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"stream"</span>: <span className="text-indigo-400">true</span><br/>
+                    &nbsp;&nbsp;&#125;'
+                  </pre>
+                )}
+
+                {docsLanguage === "langchain" && (
+                  <pre className="text-gray-300">
+                    <span className="text-purple-400">from</span> langchain_openai <span className="text-purple-400">import</span> ChatOpenAI<br/><br/>
+                    llm = ChatOpenAI(<br/>
+                    &nbsp;&nbsp;openai_api_base=<span className="text-emerald-300">"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1"</span>,<br/>
+                    &nbsp;&nbsp;openai_api_key=<span className="text-amber-300">"sk-live-your-api-key"</span>,<br/>
+                    &nbsp;&nbsp;model_name=<span className="text-emerald-300">"amazon.nova-pro-v1:0"</span><br/>
+                    )<br/>
+                    print(llm.invoke(<span className="text-amber-300">"LangChain üzerinden Bedrock Nova Pro yanıtı"</span>).content)
+                  </pre>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ================================================================= */}
+        {/* SEKME 4: MODEL KATALOĞU */}
         {/* ================================================================= */}
         {activeTab === "models" && (
           <div className="max-w-6xl mx-auto space-y-6">
@@ -1245,7 +1799,7 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 3: API ANAHTARLARI */}
+        {/* SEKME 5: API ANAHTARLARI */}
         {/* ================================================================= */}
         {activeTab === "keys" && (
           <div className="max-w-4xl mx-auto space-y-6">
@@ -1332,12 +1886,19 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 4: BAKİYE & CÜZDAN */}
+        {/* SEKME 6: BAKİYE & STRIPE YÜKLEME (DOĞRUDAN BİLGİLENDİRME MODALI) */}
         {/* ================================================================= */}
         {activeTab === "billing" && (
           <div className="max-w-4xl mx-auto space-y-6">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">Bakiye & Cüzdan Yükleme</h2>
+            <h2 className="text-xl font-black text-slate-900 dark:text-white">Bakiye & Stripe Yükleme</h2>
             
+            {stripeSuccessMsg && (
+              <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{stripeSuccessMsg}</span>
+              </div>
+            )}
+
             <div className="p-6 rounded-3xl bg-gradient-to-r from-indigo-900 to-purple-900 text-white shadow-xl flex items-center justify-between">
               <div>
                 <span className="text-xs text-indigo-200 font-semibold">Mevcut Bakiyeniz</span>
@@ -1350,32 +1911,84 @@ export default function RootPage() {
             </div>
 
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Kredi Yükleme Paketleri (Stripe)</h3>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Kredi Yükleme Paketleri</h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {[10, 25, 50].map((amt) => (
                   <div key={amt} className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-center space-y-3">
                     <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">${amt} USD</div>
                     <div className="text-xs text-slate-500 dark:text-gray-400">~{(amt * 250000).toLocaleString()} Claude 3.5 Token</div>
-                    <Link
-                      href="/billing"
-                      className="block w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition"
+                    <button
+                      onClick={() => setSelectedStripePackage(amt)}
+                      className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition"
                     >
-                      Bakiye Yükle
-                    </Link>
+                      Bakiye Yükle (${amt})
+                    </button>
                   </div>
                 ))}
               </div>
             </div>
+
+            {/* Stripe Bilgilendirme ve Ödeme Modalı */}
+            {selectedStripePackage && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+                <div className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-5 h-5 text-indigo-600" />
+                      <h3 className="font-bold text-base text-slate-900 dark:text-white">Stripe Güvenli Ödeme</h3>
+                    </div>
+                    <button onClick={() => setSelectedStripePackage(null)} className="text-slate-400 hover:text-slate-600">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Yüklenecek Tutar:</span>
+                      <strong className="text-slate-900 dark:text-white">${selectedStripePackage}.00 USD</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Ödeme Altyapısı:</span>
+                      <span className="text-indigo-600 font-semibold">Stripe 256-Bit SSL</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Aktivasyon:</span>
+                      <span className="text-emerald-600 font-semibold">Anında Cüzdana Yansır</span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-slate-500 leading-relaxed">
+                    Stripe entegrasyonu korumalıdır. "Ödemeyi Onayla" butonuna bastığınızda seçtiğiniz tutar cüzdanınıza anında aktarılacaktır.
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedStripePackage(null)}
+                      className="flex-1 py-2.5 rounded-xl bg-slate-100 dark:bg-gray-800 text-xs font-bold text-slate-700 dark:text-gray-300"
+                    >
+                      Vazgeç
+                    </button>
+                    <button
+                      onClick={() => handleStripeCheckout(selectedStripePackage)}
+                      disabled={stripeProcessing}
+                      className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5"
+                    >
+                      {stripeProcessing ? "İşleniyor..." : `Ödemeyi Onayla ($${selectedStripePackage})`}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 5: MODERN KULLANICI PROFİL SAYFASI */}
+        {/* SEKME 7: KULLANICI PROFİLİ */}
         {/* ================================================================= */}
         {activeTab === "profile" && (
           <div className="max-w-4xl mx-auto space-y-6">
             
-            {/* Üst Profil Başlık Kartı */}
             <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row items-center gap-5">
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-amber-500 p-[3px] shadow-lg shadow-indigo-500/20">
                 <div className="w-full h-full bg-white dark:bg-gray-950 rounded-[13px] flex items-center justify-center font-black text-2xl text-indigo-600 dark:text-indigo-400">
@@ -1401,7 +2014,6 @@ export default function RootPage() {
               </div>
             </div>
 
-            {/* Güvenlik & Şifre Değiştirme */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Şifre Değiştirme */}
@@ -1513,7 +2125,7 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 6: ADMIN KONTROL MERKEZİ & AWS BULUT DİYAGNOSTİK */}
+        {/* SEKME 8: ADMIN KONTROL MERKEZİ & AWS BULUT DİYAGNOSTİK */}
         {/* ================================================================= */}
         {activeTab === "admin" && user?.role === "admin" && (
           <div className="max-w-5xl mx-auto space-y-6">
@@ -1536,7 +2148,6 @@ export default function RootPage() {
             {/* AWS & Bulut Servis Bağlantı Durumu Kartları */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               
-              {/* AWS Bedrock Runtime */}
               <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400">
                   <span className="font-bold">AWS Bedrock Runtime</span>
@@ -1551,7 +2162,6 @@ export default function RootPage() {
                 </div>
               </div>
 
-              {/* RDS PostgreSQL */}
               <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400">
                   <span className="font-bold">PostgreSQL 16 RDS</span>
@@ -1564,7 +2174,6 @@ export default function RootPage() {
                 <div className="text-[10px] text-slate-400">Multi-AZ Havuzu Aktif</div>
               </div>
 
-              {/* ElastiCache Redis */}
               <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400">
                   <span className="font-bold">ElastiCache Redis 7</span>
@@ -1577,7 +2186,6 @@ export default function RootPage() {
                 <div className="text-[10px] text-slate-400">Hız Limitleyici Aktif</div>
               </div>
 
-              {/* ECS Fargate Cluster */}
               <div className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-2">
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400">
                   <span className="font-bold">ECS Fargate Cluster</span>

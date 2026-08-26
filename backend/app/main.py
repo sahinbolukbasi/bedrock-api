@@ -10,7 +10,7 @@ from app.core.redis import init_redis, close_redis
 from app.core.seed import seed_database
 from app.core.errors import GatewayAPIException
 from app.api.v1 import chat, models, images
-from app.api import auth, api_keys, wallet, usage, admin, chat_ui
+from app.api import auth, api_keys, wallet, usage, admin, chat_ui, agents
 from loguru import logger
 
 
@@ -126,3 +126,4 @@ app.include_router(wallet.router, prefix="/api/wallet", tags=["Wallet & Stripe B
 app.include_router(usage.router, prefix="/api/usage", tags=["Usage & Analytics"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin & Margins"])
 app.include_router(chat_ui.router, prefix="/api/chat-ui", tags=["Dashboard Chat Persistence"])
+app.include_router(agents.router, prefix="/api/agents", tags=["AI Agents & Telegram/Email Tools"])
