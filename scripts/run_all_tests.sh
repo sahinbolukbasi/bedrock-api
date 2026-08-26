@@ -16,9 +16,13 @@ echo ""
 echo "🎨 2. VALIDATING FRONTEND NEXT.JS PRODUCTION BUILD..."
 cd frontend
 npm run build
+
+echo ""
+echo "🎭 3. RUNNING PLAYWRIGHT E2E CHAT SUITE..."
+npx playwright test tests/chat-e2e.spec.ts
 cd "$WORKSPACE_DIR"
 
 echo ""
 echo "========================================================"
-echo "✅ ALL AUTOMATED TESTS & BUILDS PASSED SUCCESSFULLY (100%)"
+echo "✅ ALL AUTOMATED TESTS, BUILDS & E2E PASSED (100%)"
 echo "========================================================"
