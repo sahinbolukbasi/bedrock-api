@@ -3,7 +3,7 @@ import time
 import uuid
 import base64
 from decimal import Decimal
-from typing import AsyncGenerator, Dict, Any, List, Tuple, Optional
+from typing import AsyncGenerator, Dict, Any, List, Tuple, Optional, Union
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from app.core.config import settings
