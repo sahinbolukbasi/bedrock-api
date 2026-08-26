@@ -51,5 +51,8 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str = "admin@bedrockgateway.com"
     ADMIN_PASSWORD: str = "AdminPassword123!"
 
+    # Telegram Bot
+    TELEGRAM_BOT_TOKEN: Optional[str] = "REDACTED_TELEGRAM_BOT_TOKEN"
+
 
 settings = Settings()
