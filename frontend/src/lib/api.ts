@@ -1,12 +1,4 @@
-export const API_BASE = (() => {
-  if (typeof window !== "undefined") {
-    // On AWS ALB or production domain, use same-origin relative path for path routing
-    if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-      return "";
-    }
-  }
-  return process.env.NEXT_PUBLIC_API_URL || "http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com";
-})();
+export const API_BASE = "";
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
