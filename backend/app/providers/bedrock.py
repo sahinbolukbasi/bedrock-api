@@ -58,19 +58,15 @@ class AWSBedrockProvider(IModelProvider):
             self._client = None
 
     def _convert_openai_messages_to_bedrock_converse(
-        self, messages: List[Any]
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """
-        Converts OpenAI message list to Bedrock Converse format:
-        system: list of dicts [{"text": "..."}]
-        messages: list of dicts [{"role": "user"|"assistant", "content": [{"text": "..."}]}]
-        """
+        self,
+        messages: List[Union[ChatMessage, Dict[str, Any]]]
+    ) -> Tuple[List[Dict[str, str]], List[Dict[str, Any]]]:
         system_prompts = []
         converse_messages = []
 
         for msg in messages:
             role = msg.role if hasattr(msg, "role") else msg.get("role")
-            content = msg.content if hasattr(msg, "content") else msg.get("content")
+            content = msg.content if hasattr(msg, "content") else msg.get("content", "")
 
             text_content = ""
             if isinstance(content, str):
@@ -83,13 +79,26 @@ class AWSBedrockProvider(IModelProvider):
                     elif hasattr(part, "type") and part.type == "text":
                         text_content += part.text or ""
 
+            clean_text = text_content.strip()
+            if not clean_text:
+                continue
+
             if role == "system":
-                system_prompts.append({"text": text_content})
+                system_prompts.append({"text": clean_text})
             elif role in ("user", "assistant"):
-                converse_messages.append({
-                    "role": role,
-                    "content": [{"text": text_content}]
-                })
+                if converse_messages and converse_messages[-1]["role"] == role:
+                    converse_messages[-1]["content"][0]["text"] += f"\n\n{clean_text}"
+                else:
+                    converse_messages.append({
+                        "role": role,
+                        "content": [{"text": clean_text}]
+                    })
+
+        # Ensure first message is user and list is not empty
+        if not converse_messages:
+            converse_messages = [{"role": "user", "content": [{"text": "Merhaba"}]}]
+        elif converse_messages[0]["role"] == "assistant":
+            converse_messages.insert(0, {"role": "user", "content": [{"text": "Sohbete devam et."}]})
 
         return system_prompts, converse_messages
 

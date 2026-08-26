@@ -666,6 +666,15 @@ export default function RootPage() {
 
     try {
       const fullSystemInstruction = `${systemPrompt}\n[Kullanıcı Hafızası]: ${userMemoryCache}`;
+      
+      const payloadMessages = [
+        { role: "system", content: fullSystemInstruction },
+        ...messages
+          .filter((m) => m.id !== "welcome" && m.content && m.content.trim() !== "")
+          .map((m) => ({ role: m.role, content: m.content })),
+        { role: "user", content: userContent }
+      ];
+
       const response = await fetch(`${API_BASE}/v1/chat/completions`, {
         method: "POST",
         headers: {
@@ -674,18 +683,15 @@ export default function RootPage() {
         },
         body: JSON.stringify({
           model: selectedModel,
-          messages: [
-            { role: "system", content: fullSystemInstruction },
-            ...messages.filter((m) => m.id !== "welcome"),
-            userMsg
-          ].map((m) => ({ role: m.role, content: m.content })),
+          messages: payloadMessages,
           temperature: temperature,
           stream: true,
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`API Hatası: ${response.status}`);
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson?.error?.message || errJson?.detail || `API Hatası: ${response.status}`);
       }
 
       const reader = response.body?.getReader();
@@ -696,19 +702,22 @@ export default function RootPage() {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value);
+          const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split("\n");
           for (const line of lines) {
-            if (line.startsWith("data: ") && line !== "data: [DONE]") {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
               try {
-                const parsed = JSON.parse(line.slice(6));
-                const content = parsed.choices[0]?.delta?.content || "";
-                fullText += content;
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  updated[updated.length - 1].content = fullText;
-                  return updated;
-                });
+                const parsed = JSON.parse(trimmed.slice(6));
+                const content = parsed.choices?.[0]?.delta?.content || "";
+                if (content) {
+                  fullText += content;
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    updated[updated.length - 1].content = fullText;
+                    return updated;
+                  });
+                }
               } catch {}
             }
           }
