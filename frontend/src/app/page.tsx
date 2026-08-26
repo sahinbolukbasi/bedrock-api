@@ -680,10 +680,16 @@ export default function RootPage() {
     }
   };
 
-  // Chat Streaming Execution with Vision & User Memory
+  // Chat Execution with Resilient Streaming and Instant Non-Streaming Fallback
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!chatInput.trim() && !uploadedFileBase64) || isStreaming) return;
+
+    const tokenToUse = getAuthToken() || token;
+    if (!tokenToUse) {
+      alert("Oturum süreniz dolmuş olabilir. Lütfen sayfayı yenileyip tekrar giriş yapın.");
+      return;
+    }
 
     let currentConvId = activeConvId;
     if (!currentConvId) {
@@ -691,16 +697,20 @@ export default function RootPage() {
         const newConv = await fetchApi("/api/chat-ui/conversations", {
           method: "POST",
           body: JSON.stringify({
-            title: chatInput.slice(0, 30) || (uploadedFileName ? `Dosya: ${uploadedFileName}` : "Yeni Sohbet"),
+            title: chatInput.slice(0, 35) || (uploadedFileName ? `Dosya: ${uploadedFileName}` : "Yeni Sohbet"),
             model_id: selectedModel,
-            system_prompt: `${systemPrompt}\n[Kullanıcı Hafızası & Profil]: ${userMemoryCache}`,
+            system_prompt: `${systemPrompt}\n[Kullanıcı Hafızası]: ${userMemoryCache}`,
             temperature: temperature,
           }),
         });
-        setConversations((prev) => [newConv, ...prev]);
-        setActiveConvId(newConv.id);
-        currentConvId = newConv.id;
-      } catch {}
+        if (newConv && newConv.id) {
+          setConversations((prev) => [newConv, ...prev]);
+          setActiveConvId(newConv.id);
+          currentConvId = newConv.id;
+        }
+      } catch (err) {
+        console.warn("Could not save conversation to database:", err);
+      }
     }
 
     const userContent = uploadedFileBase64 
@@ -724,22 +734,25 @@ export default function RootPage() {
       }).catch(() => {});
     }
 
-    try {
-      const fullSystemInstruction = `${systemPrompt}\n[Kullanıcı Hafızası]: ${userMemoryCache}`;
-      
-      const payloadMessages = [
-        { role: "system", content: fullSystemInstruction },
-        ...messages
-          .filter((m) => m.id !== "welcome" && m.content && m.content.trim() !== "")
-          .map((m) => ({ role: m.role, content: m.content })),
-        { role: "user", content: userContent }
-      ];
+    // Build alternating message array for Bedrock compatibility
+    const cleanHistory = messages
+      .filter((m) => m.id !== "welcome" && m.content && m.content.trim() !== "")
+      .map((m) => ({ role: m.role, content: m.content }));
 
+    const payloadMessages = [
+      ...cleanHistory,
+      { role: "user", content: userContent }
+    ];
+
+    let fullText = "";
+
+    try {
+      // 1. Try Streaming SSE Endpoint
       const response = await fetch(`${API_BASE}/v1/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${tokenToUse}`,
         },
         body: JSON.stringify({
           model: selectedModel,
@@ -749,32 +762,31 @@ export default function RootPage() {
         }),
       });
 
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson?.error?.message || errJson?.detail || `API Hatası: ${response.status}`);
-      }
+      if (response.ok && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
 
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-
-      if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
           for (const line of lines) {
             const trimmed = line.trim();
             if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
               try {
                 const parsed = JSON.parse(trimmed.slice(6));
-                const content = parsed.choices?.[0]?.delta?.content || "";
-                if (content) {
-                  fullText += content;
+                const deltaContent = parsed.choices?.[0]?.delta?.content || "";
+                if (deltaContent) {
+                  fullText += deltaContent;
                   setMessages((prev) => {
                     const updated = [...prev];
-                    updated[updated.length - 1].content = fullText;
+                    if (updated.length > 0) {
+                      updated[updated.length - 1].content = fullText;
+                    }
                     return updated;
                   });
                 }
@@ -782,8 +794,38 @@ export default function RootPage() {
             }
           }
         }
+      } else {
+        // 2. If Streaming fails or returns non-200, fallback to direct non-streaming JSON
+        const nonStreamRes = await fetch(`${API_BASE}/v1/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokenToUse}`,
+          },
+          body: JSON.stringify({
+            model: selectedModel,
+            messages: payloadMessages,
+            temperature: temperature,
+            stream: false,
+          }),
+        });
+
+        const nonStreamJson = await nonStreamRes.json();
+        if (!nonStreamRes.ok) {
+          throw new Error(nonStreamJson?.error?.message || nonStreamJson?.detail || "AI modeli çağrılırken bir hata oluştu.");
+        }
+
+        fullText = nonStreamJson.choices?.[0]?.message?.content || "";
+        setMessages((prev) => {
+          const updated = [...prev];
+          if (updated.length > 0) {
+            updated[updated.length - 1].content = fullText;
+          }
+          return updated;
+        });
       }
 
+      // Persist assistant response to DB
       if (currentConvId && fullText) {
         fetchApi(`/api/chat-ui/conversations/${currentConvId}/messages`, {
           method: "POST",
@@ -791,14 +833,19 @@ export default function RootPage() {
         }).catch(() => {});
       }
     } catch (err: any) {
+      console.error("Chat Generation Error:", err);
       setMessages((prev) => {
         const updated = [...prev];
-        updated[updated.length - 1].content = `⚠️ Yanıt alınamadı: ${err.message || "Bilinmeyen hata"}`;
+        if (updated.length > 0) {
+          updated[updated.length - 1].content = `⚠️ Model Yanıtı Alınamadı: ${err.message || "Bilinmeyen bir hata oluştu."}`;
+        }
         return updated;
       });
     } finally {
       setIsStreaming(false);
-      fetchApi("/api/wallet").then((w) => setBalance(Number(w.balance_usd))).catch(() => {});
+      fetchApi("/api/wallet").then((w) => {
+        if (w && w.balance_usd !== undefined) setBalance(Number(w.balance_usd));
+      }).catch(() => {});
     }
   };
 
@@ -1321,27 +1368,52 @@ export default function RootPage() {
             <div className="flex-1 flex flex-col bg-white dark:bg-gray-950">
               
               {/* Üst Model, Hafıza ve Parametre Barı */}
-              <div className="p-3 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between bg-slate-50/50 dark:bg-gray-900/30">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-xs font-bold text-slate-700 dark:text-gray-300">Model:</span>
-                  <select
-                    value={selectedModel}
-                    onChange={(e) => setSelectedModel(e.target.value)}
-                    className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-lg px-3 py-1 text-xs text-indigo-600 dark:text-indigo-400 font-bold focus:outline-none"
-                  >
-                    <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (200k · Vision · Voice)</option>
-                    <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (200k · Hızlı)</option>
-                    <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (300k · Multimodal)</option>
-                    <option value="amazon.nova-lite-v1:0">Amazon Nova Lite (300k · Ultra Hızlı)</option>
-                    <option value="meta.llama3-3-70b-instruct-v1:0">Meta Llama 3.3 70B (128k)</option>
-                    <option value="mistral.mistral-large-2407-v1:0">Mistral Large 2 (128k)</option>
-                  </select>
+              <div className="p-3 border-b border-slate-200 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 dark:bg-gray-900/40">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value)}
+                      className="bg-transparent text-xs text-indigo-600 dark:text-indigo-400 font-bold focus:outline-none cursor-pointer"
+                    >
+                      <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (Vision · Code)</option>
+                      <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (Ultra Hızlı)</option>
+                      <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (Multimodal)</option>
+                      <option value="amazon.nova-lite-v1:0">Amazon Nova Lite (Ekonomik)</option>
+                      <option value="amazon.nova-micro-v1:0">Amazon Nova Micro (En Ucuz · $0.035/M)</option>
+                      <option value="meta.llama3-8b-instruct-v1:0">Meta Llama 3 8B (Açık Kaynak)</option>
+                    </select>
+                  </div>
+
+                  {/* Hızlı Model Seçim Hapları */}
+                  <div className="hidden sm:flex items-center gap-1 text-[11px]">
+                    {[
+                      { id: "anthropic.claude-3-5-sonnet-20241022-v2:0", label: "Claude 3.5" },
+                      { id: "amazon.nova-pro-v1:0", label: "Nova Pro" },
+                      { id: "amazon.nova-lite-v1:0", label: "Nova Lite" },
+                      { id: "amazon.nova-micro-v1:0", label: "Nova Micro" },
+                      { id: "meta.llama3-8b-instruct-v1:0", label: "Llama 3" }
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSelectedModel(m.id)}
+                        className={`px-2.5 py-1 rounded-lg font-bold transition ${
+                          selectedModel === m.id
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-600 dark:text-gray-400 hover:text-indigo-600"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <button
                   onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-slate-600 dark:text-gray-400 hover:text-indigo-600"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-slate-700 dark:text-gray-300 hover:text-indigo-600 shadow-sm transition"
                 >
                   <BrainCircuit className="w-3.5 h-3.5 text-purple-500" />
                   <span>Kullanıcı Hafızası & Ayarlar</span>
