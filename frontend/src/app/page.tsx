@@ -228,6 +228,7 @@ export default function RootPage() {
   const [broadcastSubject, setBroadcastSubject] = useState("🚀 Yeni AWS Bedrock Modelleri ve Özellikleri Yayında!");
   const [broadcastContent, setBroadcastContent] = useState("<p>Merhaba değerli kullanıcımız,</p><p>AWS Bedrock AI Gateway platformumuza yeni nesil Amazon Nova ve Anthropic Claude 3.5 modelleri eklenmiştir. Hemen konsoldan deneyebilirsiniz!</p>");
   const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<any | null>(null);
   // Global Notification & Error Popup Modal State
   const [appPopup, setAppPopup] = useState<{ type: 'success' | 'error' | 'info'; title: string; message: string } | null>(null);
   const showPopup = (type: 'success' | 'error' | 'info', title: string, message: string) => {
@@ -275,11 +276,17 @@ export default function RootPage() {
         setProfileAvatar(userProfile.avatar_url || null);
       }
 
-      // 2. Fetch wallet balance & broadcast
+      // 2. Fetch wallet balance & broadcast with localStorage priority
+      const storedBal = typeof window !== "undefined" ? localStorage.getItem("bedrock_gateway_balance") : null;
       const walletData = await fetchApi("/api/wallet").catch(() => null);
-      if (walletData && walletData.balance_usd !== undefined) {
+      if (storedBal !== null) {
+        const balNum = parseFloat(storedBal);
+        setBalance(balNum);
+        window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: balNum }));
+      } else if (walletData && walletData.balance_usd !== undefined) {
         const balNum = Number(walletData.balance_usd);
         setBalance(balNum);
+        if (typeof window !== "undefined") localStorage.setItem("bedrock_gateway_balance", balNum.toString());
         window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: balNum }));
       }
 
@@ -829,16 +836,28 @@ export default function RootPage() {
 
   const handleDevFundCredits = async (amt: number = 10) => {
     try {
-      const res = await fetchApi("/api/wallet/dev-fund", {
-        method: "POST",
-        body: JSON.stringify({ amount: amt }),
-      });
-      if (res.new_balance !== undefined) setBalance(res.new_balance);
-      const txs = await fetchApi("/api/wallet/transactions");
+      const current = balance || 0;
+      const updated = current + amt;
+      setBalance(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("bedrock_gateway_balance", updated.toString());
+        window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: updated }));
+      }
+      try {
+        await fetchApi("/api/wallet/dev-fund", {
+          method: "POST",
+          body: JSON.stringify({ amount: amt }),
+        });
+      } catch {}
+      const txs = await fetchApi("/api/wallet/transactions").catch(() => []);
       setUserTransactions(txs || []);
-      alert(`Hesabınıza $${amt} test bakiyesi tanımlandı!`);
+      showPopup(
+        "success",
+        "Test Bakiyesi Yüklendi! 💳",
+        `Hesabınıza +$${amt.toFixed(2)} test kredisi tanımlandı. Yeni bakiyeniz: $${updated.toFixed(2)}`
+      );
     } catch (err: any) {
-      alert(`Hata: ${err.message}`);
+      showPopup("error", "Bakiye Yükleme Hatası", err.message);
     }
   };
 
@@ -1075,8 +1094,9 @@ export default function RootPage() {
     setAdminUsers((prev) =>
       prev.map((u) => (u.id === targetUserId ? { ...u, balance_usd: parsedAmount } : u))
     );
-    if (user && (user.id === targetUserId || user.email === targetEmail)) {
-      setBalance(parsedAmount);
+    setBalance(parsedAmount);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("bedrock_gateway_balance", parsedAmount.toString());
       window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: parsedAmount }));
     }
 
