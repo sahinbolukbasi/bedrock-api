@@ -1483,15 +1483,15 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 2: ÖZEL AI AJANLARI (AUTONOMOUS AGENTS HUB) */}
+        {/* SEKME 2: OTONOM BOT ÇALIŞTIRMA PLATFORMU (AUTONOMOUS AGENTS HUB) */}
         {/* ================================================================= */}
         {activeTab === "agents" && (
           <div className="max-w-5xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">Özel AI Ajanları & Otomasyonlar</h2>
+                <h2 className="text-xl font-black text-slate-900 dark:text-white">Otonom Bot & Ajan Çalıştırma Platformu</h2>
                 <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                  Telegram'dan tetiklenen, periyodik veri taraması yapan ve e-posta raporu gönderen otonom ajanlar oluşturun.
+                  Telegram, SMS, E-Posta ve Zamanlanmış Cron görevleriyle çalışan, kendini geliştiren otonom AI botları.
                 </p>
               </div>
               <button
@@ -1499,7 +1499,7 @@ export default function RootPage() {
                 className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
               >
                 <Plus className="w-4 h-4" />
-                <span>Yeni Ajan Oluştur</span>
+                <span>Yeni Otonom Bot Kur</span>
               </button>
             </div>
 
@@ -1508,29 +1508,29 @@ export default function RootPage() {
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-amber-500" />
                 <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-                  AI Ajan Çalışma Mimarisi, Tetikleme & Fiyatlandırma
+                  Bot Çalışma Mimarisi, Zamanlayıcı & Kendini Geliştiren Bellek
                 </h3>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
-                  <div className="font-bold text-indigo-600 dark:text-indigo-400">1. Tetikleme & Veri Girişi</div>
+                  <div className="font-bold text-indigo-600 dark:text-indigo-400">1. Tetikleme & Scheduler</div>
                   <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
-                    Ajanlar <strong>Telegram Botu</strong> (`/run &lt;ajan&gt;`), zamanlanmış <strong>Cron</strong> veya harici <strong>REST API Webhook</strong> ile tetiklenir. İlgili metin veya log verisi girdisi alınır.
+                    Botlar <strong>Telegram Botu</strong> (`/run`), <strong>Periyodik Zamanlayıcı</strong> (Saatlik, Günlük) veya REST API ile otomatik çalışır.
                   </p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
-                  <div className="font-bold text-purple-600 dark:text-purple-400">2. AWS Bedrock AI Analizi</div>
+                  <div className="font-bold text-purple-600 dark:text-purple-400">2. Düşük Maliyet & Öğrenen Bellek</div>
                   <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
-                    Ajan seçilen foundation modeliyle (Claude 3.5, Nova Pro) veriyi analiz eder, özet çıkarır ve aksiyon kararları üretir.
+                    <strong>Nova Micro</strong> ($0.000035/1k) gibi ultra ucuz modellerle çalışır; her görevden edindiği tecrübeyi <strong>Reflection Cache</strong> hafızasına kaydeder.
                   </p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
-                  <div className="font-bold text-emerald-600 dark:text-emerald-400">3. Eylemler & Fiyatlandırma</div>
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400">3. Çoklu Kanal Bildirimi</div>
                   <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
-                    Sonuçlar anında <strong>E-Posta</strong> veya <strong>Telegram</strong> mesajı olarak iletilir. Harcanan model token ücreti + $0.002 çalıştırma payı cüzdan bakiyesinden otomatik düşülür.
+                    Sonuçlar anında <strong>Telegram</strong> kanalına, <strong>SMS</strong> (AWS SNS) ile cep telefonuna veya <strong>HTML E-Posta</strong> ile gönderilir.
                   </p>
                 </div>
               </div>
@@ -1541,10 +1541,10 @@ export default function RootPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <SendHorizontal className="w-4 h-4 text-blue-500" />
-                  <span className="font-bold text-xs text-slate-900 dark:text-white">Telegram Botu ile Uzaktan Ajan Yönetimi</span>
+                  <span className="font-bold text-xs text-slate-900 dark:text-white">Telegram Botu ile Uzaktan Bot Yönetimi</span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-gray-300">
-                  Telegram'dan <code>/agents</code> yazarak ajanlarınızı listeleyebilir, <code>/run &lt;ajan&gt; &lt;metin&gt;</code> ile uzaktan analiz başlatabilirsiniz.
+                  Bot Token: <code>REDACTED_TELEGRAM_BOT_TOKEN</code> (AWS Secrets Manager ile korunmaktadır). Telegram'dan <code>/run &lt;bot_adı&gt;</code> ile uzaktan çalıştırın.
                 </p>
               </div>
               <div className="p-2.5 rounded-xl bg-white dark:bg-gray-950 border border-blue-300 dark:border-blue-700 font-mono text-[11px] text-blue-600 dark:text-blue-300 flex-shrink-0">
@@ -1558,13 +1558,18 @@ export default function RootPage() {
                 <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-300">
                   <div className="flex items-center gap-1.5">
                     <CheckCircle className="w-4 h-4 text-emerald-500" />
-                    <span>Ajan Başarıyla Tetiklendi: <strong>{agentExecutionResult.agent_name}</strong></span>
+                    <span>Bot Başarıyla Tetiklendi: <strong>{agentExecutionResult.agent_name}</strong></span>
                   </div>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">Tamamlandı</span>
                 </div>
-                <div className="p-3 rounded-xl bg-white dark:bg-gray-950 text-xs font-mono text-slate-800 dark:text-gray-200 border border-indigo-100 dark:border-indigo-900">
+                <div className="p-3 rounded-xl bg-white dark:bg-gray-950 text-xs font-mono text-slate-800 dark:text-gray-200 border border-indigo-100 dark:border-indigo-900 whitespace-pre-wrap">
                   {agentExecutionResult.output}
                 </div>
+                {agentExecutionResult.learned_insight && (
+                  <div className="text-[11px] text-purple-600 font-semibold pt-1">
+                    🧠 Öğrenilen Yeni Deneyim (Reflection): "{agentExecutionResult.learned_insight}"
+                  </div>
+                )}
               </div>
             )}
 
@@ -1575,27 +1580,27 @@ export default function RootPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 font-bold">
-                      📊
+                      ⚡
                     </div>
                     <div>
-                      <div className="font-bold text-sm text-slate-900 dark:text-white">Piyasa & Veri Analiz Ajanı</div>
-                      <div className="text-[10px] text-slate-400 font-mono">Claude 3.5 Sonnet v2</div>
+                      <div className="font-bold text-sm text-slate-900 dark:text-white">Ekonomik Veri & Fiyat Takip Botu</div>
+                      <div className="text-[10px] text-slate-400 font-mono">Amazon Nova Micro ($0.000035/1k)</div>
                     </div>
                   </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Aktif</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Saatlik Cron</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-gray-400">
-                  Belirlenen veri kaynaklarını tarar, anomalileri tespit eder ve kullanıcının e-posta adresine otomatik özet rapor gönderir.
+                  Ultra düşük maliyetli Nova Micro modeliyle saat başı veri kaynaklarını tarar, anomalileri SMS ve E-Posta ile iletir.
                 </p>
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
-                  <span className="text-slate-400 text-[11px]">Araçlar: E-Posta, Web Scraper</span>
+                  <span className="text-slate-400 text-[11px]">Araçlar: SMS, E-Posta, Cron</span>
                   <button
-                    onClick={() => handleRunAgent({ id: "demo-1", name: "Piyasa & Veri Analiz Ajanı", model_id: "anthropic.claude-3-5-sonnet" })}
+                    onClick={() => handleRunAgent({ id: "demo-1", name: "Ekonomik Veri Takip Botu", model_id: "amazon.nova-micro-v1:0" })}
                     disabled={runningAgentId === "demo-1"}
                     className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1"
                   >
                     <Play className="w-3 h-3" />
-                    <span>{runningAgentId === "demo-1" ? "Çalışıyor..." : "Ajanı Çalıştır"}</span>
+                    <span>{runningAgentId === "demo-1" ? "Çalışıyor..." : "Botu Çalıştır"}</span>
                   </button>
                 </div>
               </div>
@@ -1608,23 +1613,23 @@ export default function RootPage() {
                     </div>
                     <div>
                       <div className="font-bold text-sm text-slate-900 dark:text-white">Telegram Haber & Uyarı Botu</div>
-                      <div className="text-[10px] text-slate-400 font-mono">Amazon Nova Pro</div>
+                      <div className="text-[10px] text-slate-400 font-mono">Amazon Nova Lite ($0.00008/1k)</div>
                     </div>
                   </div>
                   <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Aktif</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-gray-400">
-                  Kritik olayları ve sistem bildirimlerini anlık olarak Telegram Webhook üzerinden ilgili kanala mesaj olarak iletir.
+                  Kritik olayları ve sistem bildirimlerini anlık olarak Telegram Webhook ve Bot üzerinden ilgili kanala iletir.
                 </p>
                 <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
-                  <span className="text-slate-400 text-[11px]">Araçlar: Telegram Webhook, Alert</span>
+                  <span className="text-slate-400 text-[11px]">Araçlar: Telegram Bot, Webhook</span>
                   <button
-                    onClick={() => handleRunAgent({ id: "demo-2", name: "Telegram Haber & Uyarı Botu", model_id: "amazon.nova-pro" })}
+                    onClick={() => handleRunAgent({ id: "demo-2", name: "Telegram Haber & Uyarı Botu", model_id: "amazon.nova-lite-v1:0" })}
                     disabled={runningAgentId === "demo-2"}
                     className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center gap-1"
                   >
                     <Play className="w-3 h-3" />
-                    <span>{runningAgentId === "demo-2" ? "Çalışıyor..." : "Ajanı Çalıştır"}</span>
+                    <span>{runningAgentId === "demo-2" ? "Çalışıyor..." : "Botu Çalıştır"}</span>
                   </button>
                 </div>
               </div>
@@ -1641,20 +1646,24 @@ export default function RootPage() {
                         <div className="text-[10px] text-slate-400 font-mono">{ag.model_id}</div>
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Özel</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold">
+                      {ag.total_runs || 0} Kez Çalıştı
+                    </span>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-gray-400 line-clamp-2">
                     {ag.description || ag.system_prompt}
                   </p>
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
-                    <span className="text-slate-400 text-[11px]">E-Posta: {ag.tools_config?.email_notifications ? "Var" : "Yok"}</span>
+                    <span className="text-slate-400 text-[11px]">
+                      Zamanlayıcı: {ag.schedule_enabled ? "Aktif" : "Manuel"}
+                    </span>
                     <button
                       onClick={() => handleRunAgent(ag)}
                       disabled={runningAgentId === ag.id}
                       className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1"
                     >
                       <Play className="w-3 h-3" />
-                      <span>{runningAgentId === ag.id ? "Çalışıyor..." : "Ajanı Çalıştır"}</span>
+                      <span>{runningAgentId === ag.id ? "Çalışıyor..." : "Botu Çalıştır"}</span>
                     </button>
                   </div>
                 </div>
@@ -1662,12 +1671,12 @@ export default function RootPage() {
 
             </div>
 
-            {/* Yeni Ajan Oluşturma Modalı */}
+            {/* Yeni Bot Kurulum Modalı */}
             {showAgentModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-                <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4">
+                <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-base text-slate-900 dark:text-white">Yeni Otonom Ajan Oluştur</h3>
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white">Yeni Otonom Bot & Ajan Yapılandır</h3>
                     <button onClick={() => setShowAgentModal(false)} className="text-slate-400 hover:text-slate-600">
                       <X className="w-4 h-4" />
                     </button>
@@ -1675,13 +1684,13 @@ export default function RootPage() {
 
                   <form onSubmit={handleCreateAgent} className="space-y-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Ajan Adı</label>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Bot Adı</label>
                       <input
                         type="text"
                         required
                         value={newAgentName}
                         onChange={(e) => setNewAgentName(e.target.value)}
-                        placeholder="Örn: Veri Analiz & Bildirim Botu"
+                        placeholder="Örn: 24/7 Finans & Sistem İzleme Botu"
                         className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white"
                       />
                     </div>
@@ -1691,11 +1700,25 @@ export default function RootPage() {
                       <select
                         value={newAgentModel}
                         onChange={(e) => setNewAgentModel(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white font-bold"
+                      >
+                        <option value="amazon.nova-micro-v1:0">⚡ Amazon Nova Micro ($0.000035/1k - En Ucuz & Ultra Hızlı)</option>
+                        <option value="amazon.nova-lite-v1:0">🚀 Amazon Nova Lite ($0.00008/1k - 300k Context)</option>
+                        <option value="anthropic.claude-3-haiku-20240307-v1:0">🎯 Claude 3 Haiku ($0.00025/1k - Hızlı & Güvenilir)</option>
+                        <option value="meta.llama3-8b-instruct-v1:0">🦙 Meta Llama 3 8B ($0.0002/1k - Hafif Model)</option>
+                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">🧠 Claude 3.5 Sonnet v2 ($0.003/1k - İleri Düzey Akıl Yürütme)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Zamanlayıcı / Scheduler (Cron)</label>
+                      <select
                         className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white"
                       >
-                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2</option>
-                        <option value="amazon.nova-pro-v1:0">Amazon Nova Pro</option>
-                        <option value="meta.llama3-3-70b-instruct-v1:0">Meta Llama 3.3 70B</option>
+                        <option value="">Manuel / Sadece Tetiklendiğinde</option>
+                        <option value="0 * * * *">Her Saat Başı Otomatik Çalıştır (0 * * * *)</option>
+                        <option value="0 9 * * *">Her Sabah Saat 09:00'da Çalıştır (0 9 * * *)</option>
+                        <option value="0 9 * * 1">Her Pazartesi 09:00'da Haftalık Rapor (0 9 * * 1)</option>
                       </select>
                     </div>
 
@@ -1706,12 +1729,13 @@ export default function RootPage() {
                         required
                         value={newAgentPrompt}
                         onChange={(e) => setNewAgentPrompt(e.target.value)}
+                        placeholder="Sen verilen verileri tarayıp özetleyen ve anomali tespit eden bir otonom asistansın."
                         className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl p-3 text-xs text-slate-900 dark:text-white"
                       />
                     </div>
 
                     <div className="p-3 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-2">
-                      <div className="text-xs font-bold text-slate-800 dark:text-gray-200">Entegrasyon Araçları:</div>
+                      <div className="text-xs font-bold text-slate-800 dark:text-gray-200">Entegrasyon ve Bildirim Kanalları:</div>
                       <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-400">
                         <input
                           type="checkbox"
@@ -1726,7 +1750,7 @@ export default function RootPage() {
                           type="text"
                           value={agentTelegramWebhook}
                           onChange={(e) => setAgentTelegramWebhook(e.target.value)}
-                          placeholder="Telegram Webhook URL (Opsiyonel)"
+                          placeholder="Telegram Webhook / Bot Entegrasyon URL (Opsiyonel)"
                           className="w-full bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white"
                         />
                       </div>
@@ -1744,7 +1768,7 @@ export default function RootPage() {
                         type="submit"
                         className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20"
                       >
-                        Ajanı Kaydet
+                        Botu Kaydet & Başlat
                       </button>
                     </div>
                   </form>

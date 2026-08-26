@@ -253,9 +253,32 @@ class CustomAgent(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(128), nullable=False)
     description = Column(Text, nullable=True)
-    model_id = Column(String(128), default="anthropic.claude-3-5-sonnet-20241022-v2:0", nullable=False)
+    model_id = Column(String(128), default="amazon.nova-micro-v1:0", nullable=False)
     system_prompt = Column(Text, nullable=False)
-    tools_config = Column(JSON, default=dict, nullable=False)  # {"email_notifications": true, "telegram_webhook": "...", "data_tracking": true}
+    schedule_cron = Column(String(64), nullable=True)  # e.g., "0 * * * *" (hourly), "0 9 * * *" (daily)
+    schedule_enabled = Column(Boolean, default=False, nullable=False)
+    learned_memory_cache = Column(Text, default="", nullable=False)  # Self-improving reflection & training cache
+    tools_config = Column(JSON, default=dict, nullable=False)  # {"email": true, "sms": "+905...", "telegram": true}
     is_active = Column(Boolean, default=True, nullable=False)
+    total_runs = Column(Integer, default=0, nullable=False)
+    last_run_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    execution_logs = relationship("AgentExecutionLog", back_populates="agent", cascade="all, delete-orphan")
+
+
+class AgentExecutionLog(Base):
+    __tablename__ = "agent_execution_logs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    agent_id = Column(UUID(as_uuid=True), ForeignKey("custom_agents.id", ondelete="CASCADE"), nullable=False, index=True)
+    trigger_type = Column(String(50), default="MANUAL", nullable=False)  # "MANUAL", "TELEGRAM", "SCHEDULE_CRON", "WEBHOOK"
+    input_text = Column(Text, nullable=False)
+    output_text = Column(Text, nullable=False)
+    learned_insight = Column(Text, nullable=True)
+    status = Column(String(50), default="COMPLETED", nullable=False)
+    cost_usd = Column(Numeric(10, 6), default=Decimal("0.002000"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+    agent = relationship("CustomAgent", back_populates="execution_logs")

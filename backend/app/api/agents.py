@@ -14,12 +14,18 @@ from loguru import logger
 router = APIRouter()
 
 
+from app.services.scheduler import AgentAutonomousEngine
+from app.models.entities import AgentExecutionLog
+
 class AgentCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     description: Optional[str] = None
-    model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+    model_id: str = "amazon.nova-micro-v1:0"
     system_prompt: str = Field(min_length=5)
-    tools_config: Dict[str, Any] = Field(default_factory=dict)  # email_alerts, telegram_webhook, schedule_interval
+    schedule_cron: Optional[str] = None
+    schedule_enabled: bool = False
+    learned_memory_cache: Optional[str] = ""
+    tools_config: Dict[str, Any] = Field(default_factory=dict)  # {"email": true, "sms": "+905...", "telegram_webhook": "..."}
 
 
 class AgentRunRequest(BaseModel):
@@ -50,6 +56,9 @@ async def create_agent(
         description=body.description,
         model_id=body.model_id,
         system_prompt=body.system_prompt,
+        schedule_cron=body.schedule_cron,
+        schedule_enabled=body.schedule_enabled,
+        learned_memory_cache=body.learned_memory_cache or "",
         tools_config=body.tools_config
     )
     db.add(agent)
@@ -79,7 +88,6 @@ async def delete_agent(
 async def execute_agent(
     agent_id: uuid.UUID,
     body: AgentRunRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -89,39 +97,61 @@ async def execute_agent(
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
 
-    # Generate response
-    response_text = f"🤖 [{agent.name}]: İşlem tamamlandı. Veri analizi başarıyla sonuçlandı: '{body.input_text[:100]}'."
+    result = await AgentAutonomousEngine.run_agent(
+        agent=agent,
+        input_text=body.input_text,
+        trigger_type="MANUAL_API",
+        db=db
+    )
+    return result
 
-    # Dispatch Email Tool
-    if body.trigger_email or agent.tools_config.get("email_notifications"):
-        background_tasks.add_task(
-            EmailService.send_email_async,
-            current_user.email,
-            f"Ajan Raporu: {agent.name}",
-            f"<h2>Ajan Görev Özeti: {agent.name}</h2><p>{response_text}</p>"
-        )
 
-    # Dispatch Telegram Webhook Tool
-    telegram_webhook = agent.tools_config.get("telegram_webhook")
-    if (body.telegram_notify or telegram_webhook) and telegram_webhook:
-        async def _notify_tg():
-            try:
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    await client.post(telegram_webhook, json={"text": response_text})
-            except Exception as e:
-                logger.error(f"Telegram webhook failed: {e}")
-        background_tasks.add_task(_notify_tg)
+@router.put("/{agent_id}/schedule")
+async def update_agent_schedule(
+    agent_id: uuid.UUID,
+    cron: Optional[str] = None,
+    enabled: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(CustomAgent).where(CustomAgent.id == agent_id, CustomAgent.user_id == current_user.id)
+    res = await db.execute(stmt)
+    agent = res.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
 
-    return {
-        "status": "COMPLETED",
-        "agent_name": agent.name,
-        "model_id": agent.model_id,
-        "output": response_text,
-        "actions_triggered": {
-            "email": body.trigger_email or bool(agent.tools_config.get("email_notifications")),
-            "telegram": bool(telegram_webhook)
-        }
-    }
+    agent.schedule_cron = cron or agent.schedule_cron
+    agent.schedule_enabled = enabled
+    await db.commit()
+    return {"message": "Schedule updated successfully", "schedule_cron": agent.schedule_cron, "enabled": agent.schedule_enabled}
+
+
+@router.post("/{agent_id}/reset-memory")
+async def reset_agent_memory(
+    agent_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(CustomAgent).where(CustomAgent.id == agent_id, CustomAgent.user_id == current_user.id)
+    res = await db.execute(stmt)
+    agent = res.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    agent.learned_memory_cache = ""
+    await db.commit()
+    return {"message": "Agent reflection memory cache reset successfully"}
+
+
+@router.get("/{agent_id}/logs")
+async def get_agent_logs(
+    agent_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(AgentExecutionLog).where(AgentExecutionLog.agent_id == agent_id).order_by(AgentExecutionLog.created_at.desc()).limit(20)
+    res = await db.execute(stmt)
+    return res.scalars().all()
 
 
 @router.post("/telegram/webhook")
@@ -130,10 +160,7 @@ async def telegram_bot_webhook(
     bot_token: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Receives incoming updates from Telegram and triggers autonomous agents.
-    """
     from app.services.telegram_bot import TelegramBotService
-    token_to_use = bot_token or "DEMO_TELEGRAM_BOT_TOKEN"
+    token_to_use = bot_token or "REDACTED_TELEGRAM_BOT_TOKEN"
     result = await TelegramBotService.process_webhook_update(token_to_use, update, db)
     return result
