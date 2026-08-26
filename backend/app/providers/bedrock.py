@@ -13,6 +13,7 @@ from app.domain.schemas import (
     ChatCompletionResponse,
     ChatChoice,
     ChatChoiceMessage,
+    ChatMessage,
     UsageInfo,
     ChatCompletionChunk,
     ChatChunkChoice,
