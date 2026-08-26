@@ -227,7 +227,18 @@ export default function RootPage() {
   const [broadcastSubject, setBroadcastSubject] = useState("🚀 Yeni AWS Bedrock Modelleri ve Özellikleri Yayında!");
   const [broadcastContent, setBroadcastContent] = useState("<p>Merhaba değerli kullanıcımız,</p><p>AWS Bedrock AI Gateway platformumuza yeni nesil Amazon Nova ve Anthropic Claude 3.5 modelleri eklenmiştir. Hemen konsoldan deneyebilirsiniz!</p>");
   const [broadcastSending, setBroadcastSending] = useState(false);
-  const [broadcastResult, setBroadcastResult] = useState<any | null>(null);
+  // Global Notification & Error Popup Modal State
+  const [appPopup, setAppPopup] = useState<{ type: 'success' | 'error' | 'info'; title: string; message: string } | null>(null);
+  const showPopup = (type: 'success' | 'error' | 'info', title: string, message: string) => {
+    setAppPopup({ type, title, message });
+  };
+
+  // Direct User Notification Modal State
+  const [selectedUserForNotify, setSelectedUserForNotify] = useState<any | null>(null);
+  const [notifySubject, setNotifySubject] = useState("Önemli Bilgilendirme: Bedrock AI Gateway");
+  const [notifyMessage, setNotifyMessage] = useState("Hesabınıza yeni özellikler ve kullanım hakları tanımlanmıştır.");
+  const [notifySending, setNotifySending] = useState(false);
+
   const [auditLogsList, setAuditLogsList] = useState<any[]>([]);
   const [systemSettings, setSystemSettings] = useState<any>({
     maintenance_mode: false,
@@ -1012,16 +1023,65 @@ export default function RootPage() {
     }
   };
 
-  // Admin: Adjust User Balance
+  // Admin: Adjust User Balance with Instant Optimistic UI & Popup
   const handleAdjustBalance = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserForBalance) return;
+    const targetUserId = selectedUserForBalance.id;
+    const targetEmail = selectedUserForBalance.email;
+    const parsedAmount = parseFloat(newBalanceAmount) || 0;
+
+    // Optimistic UI update
+    setAdminUsers((prev) =>
+      prev.map((u) => (u.id === targetUserId ? { ...u, balance_usd: parsedAmount } : u))
+    );
+    if (user && (user.id === targetUserId || user.email === targetEmail)) {
+      setBalance(parsedAmount);
+      window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: parsedAmount }));
+    }
+
     try {
-      await fetchApi(`/api/admin/users/${selectedUserForBalance.id}/balance?new_balance_usd=${newBalanceAmount}`, { method: "POST" });
+      await fetchApi(`/api/admin/users/${targetUserId}/balance`, {
+        method: "POST",
+        body: JSON.stringify({ new_balance_usd: parsedAmount }),
+      });
       setSelectedUserForBalance(null);
+      showPopup(
+        "success",
+        "Bakiye Başarıyla Güncellendi",
+        `${targetEmail} kullanıcısının bakiyesi $${parsedAmount.toFixed(2)} olarak tanımlandı.`
+      );
       fetchAdminData();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to adjust balance:", err);
+      showPopup("error", "Bakiye Güncelleme Hatası", err.message || "Bakiye güncellenirken bir hata oluştu.");
+    }
+  };
+
+  // Admin: Send Direct Notification to User
+  const handleSendUserNotify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserForNotify) return;
+    setNotifySending(true);
+    try {
+      await fetchApi(`/api/admin/users/${selectedUserForNotify.id}/notify`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: notifySubject,
+          message: notifyMessage,
+          channel: "EMAIL",
+        }),
+      });
+      showPopup(
+        "success",
+        "Bildirim Gönderildi",
+        `${selectedUserForNotify.email} kullanıcısına e-posta bildirimi başarıyla iletildi.`
+      );
+      setSelectedUserForNotify(null);
+    } catch (err: any) {
+      showPopup("error", "Bildirim Gönderilemedi", err.message || "Bildirim iletilirken bir hata oluştu.");
+    } finally {
+      setNotifySending(false);
     }
   };
 
@@ -3333,6 +3393,72 @@ export default function RootPage() {
                   </div>
                 )}
 
+                {/* Kullanıcıya Doğrudan Bildirim Gönderme Modalı */}
+                {selectedUserForNotify && (
+                  <div className="p-6 rounded-3xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-bold text-sm text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-indigo-600" />
+                          <span>Kullanıcıya Bildirim Gönder: {selectedUserForNotify.email}</span>
+                        </h4>
+                        <p className="text-xs text-indigo-700 dark:text-indigo-400">
+                          Kullanıcının e-posta adresine anında resmi sistem bildirimi iletilir.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedUserForNotify(null)}
+                        className="text-xs font-bold text-indigo-700 dark:text-indigo-300 hover:underline"
+                      >
+                        Kapat
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSendUserNotify} className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          Bildirim Başlığı
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={notifySubject}
+                          onChange={(e) => setNotifySubject(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-950 border border-indigo-200 dark:border-indigo-800 rounded-xl px-4 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          Mesaj İçeriği
+                        </label>
+                        <textarea
+                          rows={3}
+                          required
+                          value={notifyMessage}
+                          onChange={(e) => setNotifyMessage(e.target.value)}
+                          className="w-full bg-white dark:bg-gray-950 border border-indigo-200 dark:border-indigo-800 rounded-xl p-3 text-xs text-slate-900 dark:text-white resize-none"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedUserForNotify(null)}
+                          className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800"
+                        >
+                          İptal
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={notifySending}
+                          className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-50"
+                        >
+                          {notifySending ? "Gönderiliyor..." : "Bildirimi İlet 🚀"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
                 {/* Kullanıcı Yönetim Tablosu */}
                 <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
                   <div className="p-5 border-b border-slate-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3412,6 +3538,15 @@ export default function RootPage() {
                                   className="px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 font-bold"
                                 >
                                   Bakiye Yükle
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedUserForNotify(u);
+                                    setNotifySubject(`Bedrock AI Gateway Bilgilendirme - Sayın ${u.full_name || u.email.split('@')[0]}`);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 hover:bg-purple-100 font-bold"
+                                >
+                                  Bildirim Gönder
                                 </button>
                                 <button
                                   onClick={() => handleToggleUserStatus(u.id, u.is_active)}
@@ -3913,11 +4048,52 @@ export default function RootPage() {
               </div>
             )}
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* GLOBAL NOTIFICATION & ERROR POPUP MODAL */}
+      {appPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-3xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
+                appPopup.type === "error" 
+                  ? "bg-red-50 dark:bg-red-950/60 text-red-600 border border-red-200 dark:border-red-800" 
+                  : appPopup.type === "success" 
+                  ? "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 border border-emerald-200 dark:border-emerald-800" 
+                  : "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 border border-indigo-200 dark:border-indigo-800"
+              }`}>
+                {appPopup.type === "error" ? (
+                  <AlertCircle className="w-5 h-5" />
+                ) : appPopup.type === "success" ? (
+                  <CheckCircle2 className="w-5 h-5" />
+                ) : (
+                  <Sparkles className="w-5 h-5" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1">
+                <h4 className="font-black text-sm text-slate-900 dark:text-white">
+                  {appPopup.title}
+                </h4>
+                <p className="text-xs text-slate-600 dark:text-gray-300 leading-relaxed">
+                  {appPopup.message}
+                </p>
               </div>
             </div>
-
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setAppPopup(null)}
+                className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-xs hover:opacity-90 transition"
+              >
+                Tamam
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
       </main>
     </div>

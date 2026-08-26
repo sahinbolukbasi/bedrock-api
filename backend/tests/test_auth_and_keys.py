@@ -33,3 +33,23 @@ def test_api_key_generation_and_hashing():
     assert hash_api_key(full_key) == hashed_secret
     # Ensure hashing the prefix alone fails
     assert hash_api_key(prefix) != hashed_secret
+
+
+@pytest.mark.asyncio
+async def test_email_verification_flow_logic():
+    import secrets
+    from app.services.email_service import EmailService
+    
+    # 1. Generate 6-digit OTP
+    otp = str(secrets.randbelow(900000) + 100000)
+    assert len(otp) == 6
+    assert otp.isdigit()
+
+    # 2. Render email template
+    html = EmailService._render_base_template(
+        "Doğrulama Kodu",
+        "Güvenlik Kodunuz",
+        f"<p>Kod: {otp}</p>"
+    )
+    assert otp in html
+    assert "Bedrock" in html

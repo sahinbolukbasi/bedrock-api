@@ -97,32 +97,99 @@ async def update_user_status(
     )
     db.add(audit)
     await db.commit()
+class AdminBalanceAdjustRequest(BaseModel):
+    new_balance_usd: Optional[Decimal] = None
+    amount: Optional[Decimal] = None
+    balance: Optional[Decimal] = None
+
+
+class AdminNotifyUserRequest(BaseModel):
+    title: str = "Sistem Bildirimi"
+    message: str
+    channel: str = "EMAIL"
+
+
 @router.post("/users/{user_id}/balance")
 async def adjust_user_balance(
     user_id: uuid.UUID,
-    new_balance_usd: Decimal,
+    body: Optional[AdminBalanceAdjustRequest] = None,
+    new_balance_usd: Optional[Decimal] = None,
     admin_user: User = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
+    target_balance = Decimal("0.0")
+    if body and body.new_balance_usd is not None:
+        target_balance = Decimal(str(body.new_balance_usd))
+    elif body and body.amount is not None:
+        target_balance = Decimal(str(body.amount))
+    elif body and body.balance is not None:
+        target_balance = Decimal(str(body.balance))
+    elif new_balance_usd is not None:
+        target_balance = Decimal(str(new_balance_usd))
+
     stmt = select(Wallet).where(Wallet.user_id == user_id)
     res = await db.execute(stmt)
     wallet = res.scalar_one_or_none()
     if not wallet:
-        wallet = Wallet(user_id=user_id, balance_usd=new_balance_usd)
+        wallet = Wallet(user_id=user_id, balance_usd=target_balance)
         db.add(wallet)
     else:
-        wallet.balance_usd = new_balance_usd
+        wallet.balance_usd = target_balance
 
     audit = AuditLog(
         user_id=admin_user.id,
         action="USER_BALANCE_ADJUSTED",
         resource_type="WALLET",
         resource_id=str(user_id),
-        details={"new_balance": float(new_balance_usd)}
+        details={"new_balance": float(target_balance)}
     )
     db.add(audit)
     await db.commit()
-    return {"message": f"User balance updated to ${float(new_balance_usd):.2f}"}
+    return {
+        "success": True,
+        "message": f"Kullanıcı bakiyesi başarıyla ${float(target_balance):.2f} olarak güncellendi.",
+        "new_balance": float(target_balance)
+    }
+
+
+@router.post("/users/{user_id}/notify")
+async def send_user_direct_notification(
+    user_id: uuid.UUID,
+    body: AdminNotifyUserRequest,
+    admin_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(User).where(User.id == user_id)
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+
+    # Send email notification asynchronously
+    try:
+        from app.services.email_service import EmailService
+        import asyncio
+        html = EmailService._render_base_template(
+            body.title,
+            "Yönetici Bildirimi",
+            f"<h2 style='color:#ffffff;margin-top:0;'>{body.title} 📢</h2><div class='card'><p style='margin:0;font-size:14px;color:#cbd5e1;'>{body.message}</p></div>"
+        )
+        asyncio.create_task(EmailService.send_email_async(user.email, f"[Bedrock Gateway] {body.title}", html))
+    except Exception:
+        pass
+
+    # Record Audit Log
+    audit = AuditLog(
+        user_id=admin_user.id,
+        action="USER_NOTIFICATION_SENT",
+        resource_type="USER",
+        resource_id=str(user_id),
+        details={"title": body.title, "message": body.message, "recipient": user.email}
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {"success": True, "message": f"{user.email} kullanıcısına bildirim başarıyla iletildi."}
 
 
 @router.post("/users/{user_id}/role")
