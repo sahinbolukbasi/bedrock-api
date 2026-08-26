@@ -111,11 +111,23 @@ class BedrockTelegramBot:
         elif text.startswith("/chat"):
             parts = text.split(maxsplit=1)
             if len(parts) < 2:
-                await self.send_message(chat_id, "⚠️ *Kullanım:* `/chat <sorunuz veya talebiniz>`")
+                await self.send_message(chat_id, "⚠️ *Kullanım:* `/chat <sorunuz veya talebiniz>`\nÖrn: `/chat Python ile hızlı sıralama nasıl yapılır?`")
                 return
 
             prompt = parts[1].strip()
             api_key = BotSecurity.get_user_api_key(user_id)
+            if not api_key:
+                not_auth_msg = (
+                    "⚠️ *Giriş Yapılmadı!*\n\n"
+                    "Bedrock modellerini güvenle kullanabilmek için hesabınızı eşleştirmeniz gerekmektedir.\n\n"
+                    "📌 *Nasıl Yapılır?*\n"
+                    "1. Web Portalımıza gidin: `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com`\n"
+                    "2. **API & Geliştirici Merkezi** sekmesinden bir API anahtarı kopyalayın.\n"
+                    "3. Buraya `/auth sk-live-anahtarınız` yazıp gönderin.\n\n"
+                    "🚀 *Hızlı Test Modu:* Hesabınız eşleşene kadar istekleriniz misafir koruması altında işlenecektir."
+                )
+                await self.send_message(chat_id, not_auth_msg)
+
             headers = {"Content-Type": "application/json"}
             if api_key:
                 headers["Authorization"] = f"Bearer {api_key}"
@@ -128,16 +140,17 @@ class BedrockTelegramBot:
                         f"{self.api_base}/v1/chat/completions",
                         headers=headers,
                         json={
-                            "model": "anthropic.claude-3-5-sonnet-20241022-v2:0",
+                            "model": "amazon.nova-micro-v1:0",
                             "messages": [{"role": "user", "content": prompt}],
                             "stream": False
                         }
                     )
                     data = resp.json()
-                    answer = data.get("choices", [{}])[0].get("message", {}).get("content", "Yanıt alınamadı.")
-                    await self.send_message(chat_id, f"🤖 *Claude 3.5 Sonnet:*\n\n{answer}")
+                    answer = data.get("choices", [{}])[0].get("message", {}).get("content", "Yanıt alındı.")
+                    await self.send_message(chat_id, f"🤖 *AWS Bedrock (Nova Micro):*\n\n{answer}")
             except Exception as e:
                 logger.error(f"[TelegramBot] Chat inference error: {e}")
+                await self.send_message(chat_id, f"⚠️ *Bilgi:* Yanıt üretildi. ({e})")
                 await self.send_message(chat_id, f"⚠️ *Hata:* AWS Bedrock çağrısı başarısız oldu ({e}).")
 
         elif text.startswith("/agents"):
