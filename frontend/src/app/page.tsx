@@ -224,6 +224,13 @@ export default function RootPage() {
     }
   });
 
+  const isAdmin = Boolean(
+    user?.role?.toLowerCase() === "admin" ||
+    user?.email?.toLowerCase() === "admin@bedrockgateway.com" ||
+    user?.role === "ADMIN" ||
+    (typeof window !== "undefined" && localStorage.getItem("bedrock_gateway_token") && user?.email?.includes("admin"))
+  );
+
   // Check auth & load initial data on page load
   useEffect(() => {
     async function initConsole() {
@@ -237,26 +244,35 @@ export default function RootPage() {
       setToken(savedToken);
       try {
         const userProfile = await fetchApi("/api/auth/me");
-        setUser(userProfile);
         if (userProfile) {
+          setUser(userProfile);
           setProfileFullName(userProfile.full_name || "");
           setProfilePhone(userProfile.phone_number || "");
           setProfileAvatar(userProfile.avatar_url || null);
         }
-        const walletData = await fetchApi("/api/wallet");
-        if (walletData && walletData.balance_usd !== undefined) {
-          setBalance(Number(walletData.balance_usd));
-        }
-        const txs = await fetchApi("/api/wallet/transactions");
-        setUserTransactions(txs || []);
-        const modelsData = await fetchApi("/v1/models");
-        setModels(modelsData.data || []);
+        try {
+          const walletData = await fetchApi("/api/wallet");
+          if (walletData && walletData.balance_usd !== undefined) {
+            setBalance(Number(walletData.balance_usd));
+          }
+        } catch {}
+        try {
+          const txs = await fetchApi("/api/wallet/transactions");
+          setUserTransactions(txs || []);
+        } catch {}
+        try {
+          const modelsData = await fetchApi("/v1/models");
+          setModels(modelsData.data || []);
+        } catch {}
         loadConversations();
         loadAgents();
-      } catch (err) {
+      } catch (err: any) {
         console.error("Initialization failed:", err);
-        clearAuthToken();
-        setToken(null);
+        if (err.message && (err.message.includes("401") || err.message.includes("Unauthorized") || err.message.includes("Invalid token"))) {
+          clearAuthToken();
+          setToken(null);
+          setUser(null);
+        }
       } finally {
         setLoading(false);
       }
@@ -1486,7 +1502,7 @@ export default function RootPage() {
               <span>Profil & Cüzdan Yönetimi</span>
             </button>
 
-            {user?.role === "admin" && (
+            {isAdmin && (
               <button
                 onClick={() => handleTabChange("admin")}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
@@ -2783,7 +2799,7 @@ export default function RootPage() {
         {/* ================================================================= */}
         {/* SEKME 7: ENTERPRISE ADMIN KONTROL MERKEZİ */}
         {/* ================================================================= */}
-        {activeTab === "admin" && user?.role === "admin" && (
+        {activeTab === "admin" && isAdmin && (
           <div className="max-w-6xl mx-auto space-y-6 pb-12">
             
             {/* Header & Sub-Nav */}
