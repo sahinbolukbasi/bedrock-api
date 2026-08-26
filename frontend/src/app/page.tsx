@@ -347,23 +347,15 @@ export default function RootPage() {
     }
   };
 
-  // Process Stripe Top-up Simulation
+  // Process Stripe Top-up (Disabled for Maintenance)
   const handleStripeCheckout = async (amount: number) => {
     setStripeProcessing(true);
     setStripeSuccessMsg(null);
-    setTimeout(async () => {
-      try {
-        // Direct credit top-up simulation for testing
-        const newBal = balance + amount;
-        setBalance(newBal);
-        setStripeSuccessMsg(`Tebrikler! $${amount}.00 USD tutarındaki bakiye hesabınıza başarıyla yüklendi.`);
-        setSelectedStripePackage(null);
-      } catch (err) {
-        console.error("Payment error:", err);
-      } finally {
-        setStripeProcessing(false);
-      }
-    }, 1200);
+    setTimeout(() => {
+      setStripeProcessing(false);
+      setStripeSuccessMsg("⚠️ Çevrim İçi Bakiye Yükleme Geçici Olarak Kapalıdır. Stripe canlı ödeme altyapısı bakım ve güvenlik güncellemesi aşamasındadır. Test kredisi veya bakiye talepleriniz için lütfen sistem yöneticisi ile iletişime geçiniz.");
+      setSelectedStripePackage(null);
+    }, 800);
   };
 
   // Guest Sign In
@@ -1430,6 +1422,55 @@ export default function RootPage() {
                 </div>
               </div>
             )}
+
+            {/* Ajan Mimari, Tetikleme & Fiyatlandırma Rehber Kartı */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                  AI Ajan Çalışma Mimarisi, Tetikleme & Fiyatlandırma
+                </h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
+                  <div className="font-bold text-indigo-600 dark:text-indigo-400">1. Tetikleme & Veri Girişi</div>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
+                    Ajanlar <strong>Telegram Botu</strong> (`/run &lt;ajan&gt;`), zamanlanmış <strong>Cron</strong> veya harici <strong>REST API Webhook</strong> ile tetiklenir. İlgili metin veya log verisi girdisi alınır.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
+                  <div className="font-bold text-purple-600 dark:text-purple-400">2. AWS Bedrock AI Analizi</div>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
+                    Ajan seçilen foundation modeliyle (Claude 3.5, Nova Pro) veriyi analiz eder, özet çıkarır ve aksiyon kararları üretir.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400">3. Eylemler & Fiyatlandırma</div>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
+                    Sonuçlar anında <strong>E-Posta</strong> veya <strong>Telegram</strong> mesajı olarak iletilir. Harcanan model token ücreti + $0.002 çalıştırma payı cüzdan bakiyesinden otomatik düşülür.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Telegram Bot Entegrasyon Kartı */}
+            <div className="p-5 rounded-3xl bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-200 dark:border-blue-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <SendHorizontal className="w-4 h-4 text-blue-500" />
+                  <span className="font-bold text-xs text-slate-900 dark:text-white">Telegram Botu ile Uzaktan Ajan Yönetimi</span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-gray-300">
+                  Telegram'dan <code>/agents</code> yazarak ajanlarınızı listeleyebilir, <code>/run &lt;ajan&gt; &lt;metin&gt;</code> ile uzaktan analiz başlatabilirsiniz.
+                </p>
+              </div>
+              <div className="p-2.5 rounded-xl bg-white dark:bg-gray-950 border border-blue-300 dark:border-blue-700 font-mono text-[11px] text-blue-600 dark:text-blue-300 flex-shrink-0">
+                Webhook: <code>/api/agents/telegram/webhook</code>
+              </div>
+            </div>
 
             {/* Ajanlar Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

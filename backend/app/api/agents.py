@@ -122,3 +122,18 @@ async def execute_agent(
             "telegram": bool(telegram_webhook)
         }
     }
+
+
+@router.post("/telegram/webhook")
+async def telegram_bot_webhook(
+    update: Dict[str, Any],
+    bot_token: Optional[str] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Receives incoming updates from Telegram and triggers autonomous agents.
+    """
+    from app.services.telegram_bot import TelegramBotService
+    token_to_use = bot_token or "DEMO_TELEGRAM_BOT_TOKEN"
+    result = await TelegramBotService.process_webhook_update(token_to_use, update, db)
+    return result
