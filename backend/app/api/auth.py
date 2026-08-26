@@ -155,6 +155,10 @@ async def update_profile(
 ):
     if body.full_name is not None:
         current_user.full_name = body.full_name
+    if body.phone_number is not None:
+        current_user.phone_number = body.phone_number
+    if body.avatar_url is not None:
+        current_user.avatar_url = body.avatar_url
     await db.commit()
     await db.refresh(current_user)
     return current_user

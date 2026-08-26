@@ -33,7 +33,9 @@ class TokenResponse(BaseModel):
 class UserProfileResponse(BaseModel):
     id: uuid.UUID
     email: str
-    full_name: Optional[str]
+    full_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    avatar_url: Optional[str] = None
     is_active: bool
     is_verified: bool
     role: str
@@ -60,6 +62,8 @@ class UserPasswordChangeRequest(BaseModel):
 
 class UserProfileUpdateRequest(BaseModel):
     full_name: Optional[str] = None
+    phone_number: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 
 # ==========================================

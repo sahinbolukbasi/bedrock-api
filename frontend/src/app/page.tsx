@@ -161,14 +161,20 @@ export default function RootPage() {
   const [stripeSuccessMsg, setStripeSuccessMsg] = useState<string | null>(null);
 
   // ==========================================
-  // User Profile State
+  // User Profile & Financial Hub State
   // ==========================================
+  const [profileFullName, setProfileFullName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+  const [profileSavedMsg, setProfileSavedMsg] = useState<string | null>(null);
+  const [userTransactions, setUserTransactions] = useState<any[]>([]);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [pwdMessage, setPwdMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [mfaData, setMfaData] = useState<{ secret: string; provisioning_uri: string } | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaStatus, setMfaStatus] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // ==========================================
   // Admin & AWS Infrastructure State (Enterprise Dashboard)
@@ -211,8 +217,17 @@ export default function RootPage() {
       try {
         const userProfile = await fetchApi("/api/auth/me");
         setUser(userProfile);
+        if (userProfile) {
+          setProfileFullName(userProfile.full_name || "");
+          setProfilePhone(userProfile.phone_number || "");
+          setProfileAvatar(userProfile.avatar_url || null);
+        }
         const walletData = await fetchApi("/api/wallet");
-        setBalance(Number(walletData.balance_usd));
+        if (walletData && walletData.balance_usd !== undefined) {
+          setBalance(Number(walletData.balance_usd));
+        }
+        const txs = await fetchApi("/api/wallet/transactions");
+        setUserTransactions(txs || []);
         const modelsData = await fetchApi("/v1/models");
         setModels(modelsData.data || []);
         loadConversations();
@@ -526,8 +541,76 @@ export default function RootPage() {
       } catch {}
     } else if (tab === "agents") {
       loadAgents();
+    } else if (tab === "profile") {
+      try {
+        const p = await fetchApi("/api/auth/me");
+        setUser(p);
+        if (p) {
+          setProfileFullName(p.full_name || "");
+          setProfilePhone(p.phone_number || "");
+          setProfileAvatar(p.avatar_url || null);
+        }
+        const w = await fetchApi("/api/wallet");
+        if (w && w.balance_usd !== undefined) setBalance(Number(w.balance_usd));
+        const txs = await fetchApi("/api/wallet/transactions");
+        setUserTransactions(txs || []);
+      } catch {}
     } else if (tab === "admin") {
       fetchAdminData();
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSavedMsg("Kaydediliyor...");
+    try {
+      const updated = await fetchApi("/api/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          full_name: profileFullName,
+          phone_number: profilePhone,
+          avatar_url: profileAvatar,
+        }),
+      });
+      setUser(updated);
+      setProfileSavedMsg("Profil bilgileri başarıyla güncellendi!");
+      setTimeout(() => setProfileSavedMsg(null), 3000);
+    } catch (err: any) {
+      setProfileSavedMsg(`Hata: ${err.message}`);
+    }
+  };
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      setProfileAvatar(base64);
+      try {
+        await fetchApi("/api/auth/profile", {
+          method: "PATCH",
+          body: JSON.stringify({ avatar_url: base64 }),
+        });
+        setProfileSavedMsg("Profil fotoğrafı güncellendi!");
+        setTimeout(() => setProfileSavedMsg(null), 3000);
+      } catch {}
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDevFundCredits = async (amt: number = 10) => {
+    try {
+      const res = await fetchApi("/api/wallet/dev-fund", {
+        method: "POST",
+        body: JSON.stringify({ amount: amt }),
+      });
+      if (res.new_balance !== undefined) setBalance(res.new_balance);
+      const txs = await fetchApi("/api/wallet/transactions");
+      setUserTransactions(txs || []);
+      alert(`Hesabınıza $${amt} test bakiyesi tanımlandı!`);
+    } catch (err: any) {
+      alert(`Hata: ${err.message}`);
     }
   };
 
@@ -1243,18 +1326,6 @@ export default function RootPage() {
             </button>
 
             <button
-              onClick={() => handleTabChange("billing")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                activeTab === "billing"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
-              }`}
-            >
-              <CreditCard className="w-4 h-4" />
-              <span>Bakiye & Cüzdan</span>
-            </button>
-
-            <button
               onClick={() => handleTabChange("profile")}
               className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
                 activeTab === "profile"
@@ -1263,7 +1334,7 @@ export default function RootPage() {
               }`}
             >
               <UserIcon className="w-4 h-4" />
-              <span>Kullanıcı Profili</span>
+              <span>Profil & Cüzdan Yönetimi</span>
             </button>
 
             {user?.role === "admin" && (
@@ -2149,115 +2220,253 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 5: BAKİYE & CÜZDAN */}
-        {/* ================================================================= */}
-        {activeTab === "billing" && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white">Bakiye & Cüzdan</h2>
-            
-            {stripeSuccessMsg && (
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 font-bold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{stripeSuccessMsg}</span>
-              </div>
-            )}
-
-            <div className="p-6 rounded-3xl bg-gradient-to-r from-indigo-900 to-purple-900 text-white shadow-xl flex items-center justify-between">
-              <div>
-                <span className="text-xs text-indigo-200 font-semibold">Mevcut Bakiyeniz</span>
-                <div className="text-3xl font-black mt-1">${balance.toFixed(2)} USD</div>
-              </div>
-              <div className="text-right text-xs text-indigo-200">
-                <div>Hesap Türü: <strong>{user?.role?.toUpperCase()}</strong></div>
-                <div className="text-emerald-300 font-semibold mt-1">✓ Bakiye Bittiğinde Otomatik Kesme Koruması</div>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Kredi Yükleme Paketleri</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[10, 25, 50].map((amt) => (
-                  <div key={amt} className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-center space-y-3">
-                    <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">${amt} USD</div>
-                    <div className="text-xs text-slate-500 dark:text-gray-400">~{(amt * 250000).toLocaleString()} Claude 3.5 Token</div>
-                    <button
-                      onClick={() => setSelectedStripePackage(amt)}
-                      className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition"
-                    >
-                      Bakiye Yükle (${amt})
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Bakiye Yükleme Bakım Modalı */}
-            {selectedStripePackage && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-                <div className="w-full max-w-md rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-5 h-5 text-amber-500" />
-                      <h3 className="font-bold text-base text-slate-900 dark:text-white">Bakiye Yükleme Bilgilendirmesi</h3>
-                    </div>
-                    <button onClick={() => setSelectedStripePackage(null)} className="text-slate-400 hover:text-slate-600">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 leading-relaxed space-y-2">
-                    <p className="font-bold">⚠️ Çevrim İçi Bakiye Yükleme Geçici Olarak Kapalıdır</p>
-                    <p>
-                      Stripe canlı ödeme altyapısı bakım ve güvenlik güncellemesi aşamasındadır. Kredi yükleme talepleriniz veya kurumsal faturalandırma için lütfen sistem yöneticisi ile iletişime geçiniz.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => setSelectedStripePackage(null)}
-                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold"
-                    >
-                      Anladım
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
-        )}
-
-        {/* ================================================================= */}
-        {/* SEKME 6: KULLANICI PROFİLİ */}
+        {/* SEKME 6: KULLANICI PROFİLİ, CÜZDAN, GÜVENLİK & HARCAMA RAPORU (CSV) */}
         {/* ================================================================= */}
         {activeTab === "profile" && (
-          <div className="max-w-4xl mx-auto space-y-6">
+          <div className="max-w-5xl mx-auto space-y-6 pb-12">
             
-            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row items-center gap-5">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-amber-500 p-[3px] shadow-lg shadow-indigo-500/20">
-                <div className="w-full h-full bg-white dark:bg-gray-950 rounded-[13px] flex items-center justify-center font-black text-2xl text-indigo-600 dark:text-indigo-400">
-                  {user?.email?.charAt(0).toUpperCase() || "U"}
+            {/* Header: Kullanıcı Profil & Avatar Başlığı */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row items-center gap-6">
+              <div className="relative group">
+                <input
+                  type="file"
+                  ref={avatarInputRef}
+                  onChange={handleAvatarFileChange}
+                  accept="image/png, image/jpeg, image/webp"
+                  className="hidden"
+                />
+                <div 
+                  onClick={() => avatarInputRef.current?.click()}
+                  className="w-24 h-24 rounded-3xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-amber-500 p-[3px] shadow-xl shadow-indigo-500/20 cursor-pointer overflow-hidden transition transform group-hover:scale-105"
+                >
+                  <div className="w-full h-full bg-white dark:bg-gray-950 rounded-[21px] flex items-center justify-center font-black text-3xl text-indigo-600 dark:text-indigo-400 overflow-hidden relative">
+                    {profileAvatar ? (
+                      <img src={profileAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{profileFullName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U"}</span>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold transition">
+                      Değiştir
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex-1 text-center sm:text-left space-y-1">
+              <div className="flex-1 text-center sm:text-left space-y-1.5">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                  <h2 className="text-lg font-black text-slate-900 dark:text-white">{user?.email}</h2>
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                    {profileFullName || user?.email}
+                  </h2>
                   <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                     {user?.role} Seviyesi
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-gray-400 font-mono">ID: {user?.id}</p>
-                <div className="flex items-center justify-center sm:justify-start gap-3 pt-1 text-[11px] text-slate-500">
-                  <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                <p className="text-xs text-slate-500 dark:text-gray-400 font-mono">Hesap ID: {user?.id}</p>
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 pt-1 text-xs text-slate-500">
+                  <span className="flex items-center gap-1 text-emerald-600 font-bold">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Doğrulanmış Hesap
                   </span>
                   <span>•</span>
-                  <span>Bakiye: <strong>${balance.toFixed(2)} USD</strong></span>
+                  <span>Mevcut Cüzdan: <strong className="text-emerald-600 dark:text-emerald-400 font-black">${balance.toFixed(2)} USD</strong></span>
                 </div>
+              </div>
+
+              <div className="shrink-0">
+                <a
+                  href="/api/wallet/export/transactions.csv"
+                  download
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 text-xs font-bold shadow-sm transition"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Harcama Raporu (CSV)</span>
+                </a>
               </div>
             </div>
 
+            {/* BİLGİ KAYDEDİLDİ BİLDİRİMİ */}
+            {profileSavedMsg && (
+              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" />
+                <span>{profileSavedMsg}</span>
+              </div>
+            )}
+
+            {/* İKİLİ IZGARA: KİŞİSEL BİLGİLER & BAKİYE YÜKLEME */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* KART 1: KİŞİSEL BİLGİLER FORMU */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                <div className="flex items-center gap-2 border-b border-slate-100 dark:border-gray-800 pb-3">
+                  <UserIcon className="w-4 h-4 text-indigo-600" />
+                  <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                    Kişisel Bilgiler & İletişim
+                  </h3>
+                </div>
+
+                <form onSubmit={handleSaveProfile} className="space-y-3.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      Ad Soyad
+                    </label>
+                    <input
+                      type="text"
+                      value={profileFullName}
+                      onChange={(e) => setProfileFullName(e.target.value)}
+                      placeholder="Örn: Ahmet Yılmaz"
+                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      E-Posta Adresi (Kayıtlı & Doğrulanmış)
+                    </label>
+                    <input
+                      type="email"
+                      readOnly
+                      value={user?.email || ""}
+                      className="w-full bg-slate-100 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-500 dark:text-gray-400 cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      Telefon Numarası (SMS Bildirimleri İçin)
+                    </label>
+                    <input
+                      type="tel"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
+                      placeholder="+90 555 123 4567"
+                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition"
+                  >
+                    Profil Bilgilerini Kaydet
+                  </button>
+                </form>
+              </div>
+
+              {/* KART 2: BAKİYE & CÜZDAN YÖNETİMİ */}
+              <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-emerald-600" />
+                    <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                      Cüzdan & Bakiye Yükleme
+                    </h3>
+                  </div>
+                  <span className="font-black text-sm text-emerald-600 dark:text-emerald-400">
+                    ${balance.toFixed(2)} USD
+                  </span>
+                </div>
+
+                {/* Bakiye Paketleri */}
+                <div className="space-y-2">
+                  <span className="text-[11px] font-bold text-slate-500">Hızlı Kredi Yükleme Paketleri</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[10, 25, 50].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setSelectedStripePackage(amt)}
+                        className="p-3 rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-950 hover:border-indigo-500 text-center transition"
+                      >
+                        <div className="text-sm font-black text-indigo-600 dark:text-indigo-400">${amt}</div>
+                        <div className="text-[9px] text-slate-400">Claude / Nova</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hızlı Bakiye Ekleme / Test */}
+                <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="font-bold text-xs text-indigo-900 dark:text-indigo-200">Geliştirici Test Kredisi</div>
+                    <div className="text-[10px] text-indigo-700 dark:text-indigo-400">Anında hesabınıza $10 yükler.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDevFundCredits(10)}
+                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-sm"
+                  >
+                    +$10 Yükle
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            {/* SATIN ALMA VE HARCAMA GEÇMİŞİ TABLOSU */}
+            <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+              <div className="p-5 border-b border-slate-200 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Bakiye Kullanım & Harcama Geçmişi</h3>
+                  <p className="text-xs text-slate-400">Tüm API çağrıları, bakiye yüklemeleri ve kesintiler.</p>
+                </div>
+                <a
+                  href="/api/wallet/export/transactions.csv"
+                  download
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-800 text-xs font-bold text-slate-700 dark:text-gray-300 hover:text-indigo-600"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Raporu CSV Olarak İndir</span>
+                </a>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 dark:bg-gray-950 text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-gray-800">
+                    <tr>
+                      <th className="p-4">Tarih</th>
+                      <th className="p-4">İşlem Türü</th>
+                      <th className="p-4">Tutar</th>
+                      <th className="p-4">Kalan Bakiye</th>
+                      <th className="p-4">Açıklama</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
+                    {userTransactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400">
+                          Henüz bir harcama veya işlem kaydı bulunmamaktadır.
+                        </td>
+                      </tr>
+                    ) : (
+                      userTransactions.map((t) => (
+                        <tr key={t.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/40">
+                          <td className="p-4 text-slate-500 font-mono">{new Date(t.created_at).toLocaleString()}</td>
+                          <td className="p-4">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              t.type === "USAGE_DEDUCTION"
+                                ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                                : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                            }`}>
+                              {t.type}
+                            </span>
+                          </td>
+                          <td className={`p-4 font-black ${
+                            Number(t.amount_usd) < 0 ? "text-red-500" : "text-emerald-500"
+                          }`}>
+                            {Number(t.amount_usd) < 0 ? "" : "+"}${Number(t.amount_usd).toFixed(4)}
+                          </td>
+                          <td className="p-4 font-mono text-slate-700 dark:text-gray-300">
+                            ${Number(t.balance_after).toFixed(4)}
+                          </td>
+                          <td className="p-4 text-slate-500 max-w-xs truncate">{t.description || t.reference_id || "-"}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* GÜVENLİK, ŞİFRE DEĞİŞTİRME & 2FA BÖLÜMÜ */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
               {/* Şifre Değiştirme */}

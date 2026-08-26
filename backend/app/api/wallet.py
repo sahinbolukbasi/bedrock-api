@@ -114,3 +114,35 @@ async def dev_fund_wallet(
         "message": f"Successfully added ${amount} in test credits.",
         "new_balance": float(wallet.balance_usd)
     }
+
+
+from fastapi.responses import Response
+
+@router.get("/export/transactions.csv")
+async def export_my_transactions_csv(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    wallet = await CreditService.get_or_create_wallet(db, current_user.id)
+    stmt = (
+        select(WalletTransaction)
+        .where(WalletTransaction.wallet_id == wallet.id)
+        .order_by(WalletTransaction.created_at.desc())
+        .limit(500)
+    )
+    res = await db.execute(stmt)
+    txs = res.scalars().all()
+
+    csv_lines = ["Transaction ID,Type,Amount USD,Balance After USD,Description,Reference ID,Date"]
+    for t in txs:
+        csv_lines.append(
+            f'"{t.id}","{t.type}","{float(t.amount_usd):.4f}","{float(t.balance_after):.4f}","{t.description or ""}","{t.reference_id or ""}","{t.created_at}"'
+        )
+
+    csv_data = "\n".join(csv_lines)
+    return Response(
+        content=csv_data,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=my_bedrock_spending_report.csv"}
+    )
+
