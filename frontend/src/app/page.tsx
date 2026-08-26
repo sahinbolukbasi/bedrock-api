@@ -99,6 +99,16 @@ export default function RootPage() {
   const [regSuccess, setRegSuccess] = useState("");
   const [regLoading, setRegLoading] = useState(false);
 
+  // Email Verification OTP Code State
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+  const [verifySuccess, setVerifySuccess] = useState("");
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState("");
+
   // Guest Forgot Password state
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSubmitted, setForgotSubmitted] = useState(false);
@@ -562,7 +572,7 @@ export default function RootPage() {
     }
   };
 
-  // Guest Registration Submit
+  // Guest Registration Submit -> triggers email verification OTP
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setRegError("");
@@ -591,24 +601,86 @@ export default function RootPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data?.detail || data?.message || "Kayıt işlemi başarısız.");
+        throw new Error(data?.detail || data?.error?.message || data?.message || "Kayıt işlemi başarısız.");
+      }
+
+      setVerificationEmail(regEmail);
+      setIsVerifyingEmail(true);
+      setVerifySuccess(data?.message || "6 haneli doğrulama kodu e-posta adresinize gönderildi.");
+    } catch (err: any) {
+      setRegError(err.message || "Kayıt olurken bir hata oluştu.");
+    } finally {
+      setRegLoading(false);
+    }
+  };
+
+  // Verify Email OTP Code -> logs into the system!
+  const handleVerifyEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVerifyError("");
+    setVerifySuccess("");
+
+    if (!verificationCode.trim()) {
+      setVerifyError("Lütfen 6 haneli doğrulama kodunu giriniz.");
+      return;
+    }
+
+    setVerifyLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/verify-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: verificationEmail,
+          code: verificationCode.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.detail || data?.error?.message || "Doğrulama kodu geçersiz.");
       }
 
       setAuthToken(data.access_token);
       setToken(data.access_token);
       setUser({ email: data.email, role: data.role, id: data.user_id });
-      setRegSuccess("Hesabınız oluşturuldu! $1.00 başlangıç kredisi tanımlandı.");
+      setIsVerifyingEmail(false);
 
-      const walletData = await fetchApi("/api/wallet");
-      setBalance(Number(walletData.balance_usd));
-      const modelsData = await fetchApi("/v1/models");
-      setModels(modelsData.data || []);
+      try {
+        const walletData = await fetchApi("/api/wallet");
+        if (walletData?.balance_usd !== undefined) setBalance(Number(walletData.balance_usd));
+      } catch {}
+      try {
+        const modelsData = await fetchApi("/v1/models");
+        setModels(modelsData?.data || []);
+      } catch {}
       loadConversations();
       loadAgents();
     } catch (err: any) {
-      setRegError(err.message || "Kayıt olurken bir hata oluştu.");
+      setVerifyError(err.message || "Doğrulama işlemi başarısız.");
     } finally {
-      setRegLoading(false);
+      setVerifyLoading(false);
+    }
+  };
+
+  // Resend OTP code
+  const handleResendCode = async () => {
+    setResendLoading(true);
+    setResendSuccess("");
+    setVerifyError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/resend-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verificationEmail }),
+      });
+      const data = await res.json();
+      setResendSuccess(data?.message || "Yeni doğrulama kodu e-postanıza gönderildi.");
+      setTimeout(() => setResendSuccess(""), 4000);
+    } catch {
+      setVerifyError("Kod gönderilirken bir hata oluştu.");
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -1385,101 +1457,191 @@ export default function RootPage() {
               </>
             )}
 
-            {/* TAB 2: REGISTER FORM */}
+            {/* TAB 2: REGISTER FORM & EMAIL VERIFICATION */}
             {authMode === "register" && (
               <>
-                {regError && (
-                  <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                    <span>{regError}</span>
-                  </div>
-                )}
+                {isVerifyingEmail ? (
+                  <div className="space-y-4">
+                    <div className="text-center space-y-1">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mx-auto mb-2">
+                        <Mail className="w-6 h-6" />
+                      </div>
+                      <h3 className="text-base font-black text-slate-900 dark:text-white">
+                        E-Posta Doğrulama Kodu
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-gray-400">
+                        <strong className="text-indigo-600 dark:text-indigo-400 font-semibold">{verificationEmail}</strong> adresine 6 haneli güvenlik kodu gönderildi.
+                      </p>
+                    </div>
 
-                {regSuccess && (
-                  <div className="mb-4 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
-                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                    <span>{regSuccess}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handleRegisterSubmit} className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                      Ad Soyad (Opsiyonel)
-                    </label>
-                    <input
-                      type="text"
-                      value={regFullName}
-                      onChange={(e) => setRegFullName(e.target.value)}
-                      placeholder="Ahmet Yılmaz"
-                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                      E-Posta Adresi *
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={regEmail}
-                      onChange={(e) => setRegEmail(e.target.value)}
-                      placeholder="adiniz@sirketiniz.com"
-                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                      Şifre (En az 8 karakter) *
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      minLength={8}
-                      value={regPassword}
-                      onChange={(e) => setRegPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                      Şifre Tekrar *
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      minLength={8}
-                      value={regPasswordConfirm}
-                      onChange={(e) => setRegPasswordConfirm(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                    />
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                    <span>Ücretsiz <strong>$1.00 USD</strong> başlangıç kredisi ve Hoş Geldiniz e-postası anında tanımlanır.</span>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={regLoading}
-                    className="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {regLoading ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <span>Ücretsiz Hesabımı Oluştur</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
+                    {verifyError && (
+                      <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <span>{verifyError}</span>
+                      </div>
                     )}
-                  </button>
-                </form>
+
+                    {verifySuccess && (
+                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                        <span>{verifySuccess}</span>
+                      </div>
+                    )}
+
+                    {resendSuccess && (
+                      <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-800 flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400">
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                        <span>{resendSuccess}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleVerifyEmailSubmit} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1.5 text-center">
+                          6 Haneli Doğrulama Kodu
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={6}
+                          required
+                          autoFocus
+                          value={verificationCode}
+                          onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ""))}
+                          placeholder="• • • • • •"
+                          className="w-full text-center tracking-[10px] text-xl font-mono font-bold bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 transition"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={verifyLoading}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {verifyLoading ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <span>Doğrula ve Sisteme Giriş Yap</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </form>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsVerifyingEmail(false)}
+                        className="text-slate-500 hover:text-slate-800 dark:hover:text-white transition font-medium"
+                      >
+                        ← Bilgileri Değiştir
+                      </button>
+                      <button
+                        type="button"
+                        disabled={resendLoading}
+                        onClick={handleResendCode}
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold"
+                      >
+                        {resendLoading ? "Gönderiliyor..." : "Kodu Tekrar Gönder"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {regError && (
+                      <div className="mb-4 p-3.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 flex items-center gap-2 text-xs text-red-600 dark:text-red-400">
+                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                        <span>{regError}</span>
+                      </div>
+                    )}
+
+                    {regSuccess && (
+                      <div className="mb-4 p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                        <span>{regSuccess}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleRegisterSubmit} className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          Ad Soyad (Opsiyonel)
+                        </label>
+                        <input
+                          type="text"
+                          value={regFullName}
+                          onChange={(e) => setRegFullName(e.target.value)}
+                          placeholder="Ahmet Yılmaz"
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          E-Posta Adresi *
+                        </label>
+                        <input
+                          type="email"
+                          required
+                          value={regEmail}
+                          onChange={(e) => setRegEmail(e.target.value)}
+                          placeholder="adiniz@sirketiniz.com"
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          Şifre (En az 8 karakter) *
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          minLength={8}
+                          value={regPassword}
+                          onChange={(e) => setRegPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          Şifre Tekrar *
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          minLength={8}
+                          value={regPasswordConfirm}
+                          onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                          placeholder="••••••••••••"
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                        />
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-[11px] text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                        <span>Kayıt butonuna tıkladığınızda e-posta adresinize 6 haneli güvenlik kodu iletilir.</span>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={regLoading}
+                        className="w-full mt-2 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {regLoading ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <span>Doğrulama Kodu Gönder</span>
+                            <ArrowRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  </>
+                )}
               </>
             )}
 

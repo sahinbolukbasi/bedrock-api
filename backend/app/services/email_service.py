@@ -112,6 +112,24 @@ class EmailService:
         return True
 
     @classmethod
+    async def send_verification_code_email(cls, to_email: str, code: str, full_name: Optional[str] = None):
+        name = full_name or to_email.split("@")[0]
+        content = f"""
+        <h2 style="color:#ffffff; margin-top:0;">Hesabınızı Doğrulayın ✉️</h2>
+        <p>Merhaba <strong>{name}</strong>, Bedrock AI Gateway platformuna kaydınızı tamamlamak için aşağıdaki 6 haneli güvenlik kodunu giriniz:</p>
+        
+        <div class="card" style="text-align:center;">
+          <div style="font-size:12px; color:#94a3b8; margin-bottom:6px;">E-POSTA DOĞRULAMA KODU</div>
+          <div style="font-size:36px; font-weight:900; letter-spacing:10px; color:#6366f1; font-family:monospace;">{code}</div>
+          <div style="font-size:11px; color:#64748b; margin-top:6px;">Bu kod 10 dakika boyunca geçerlidir.</div>
+        </div>
+
+        <p style="font-size:12px; color:#94a3b8;">Eğer bu kaydı siz başlatmadıysanız bu e-postayı güvenle silebilirsiniz.</p>
+        """
+        html = cls._render_base_template("E-Posta Doğrulama Kodu", "Güvenlik kodunuz", content)
+        return await cls.send_email_async(to_email, f"Bedrock Gateway E-Posta Doğrulama Kodu: {code}", html)
+
+    @classmethod
     async def send_welcome_email(cls, to_email: str, full_name: Optional[str] = None):
         name = full_name or to_email.split("@")[0]
         content = f"""

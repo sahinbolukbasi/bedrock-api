@@ -14,6 +14,22 @@ class UserRegisterRequest(BaseModel):
     full_name: Optional[str] = None
 
 
+class EmailVerificationRequest(BaseModel):
+    email: EmailStr
+    code: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+
+class RegisterInitResponse(BaseModel):
+    status: str = "verification_required"
+    email: str
+    message: str
+    code_preview: Optional[str] = None
+
+
 class UserLoginRequest(BaseModel):
     email: EmailStr
     password: str
