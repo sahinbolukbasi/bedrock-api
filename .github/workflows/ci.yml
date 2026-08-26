@@ -53,6 +53,7 @@ jobs:
 
       - name: Run Backend Tests
         env:
+          PYTHONPATH: backend
           DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@localhost:5432/bedrock_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: ci-secret-key-32-characters-minimum
@@ -60,7 +61,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: mock_secret
         run: |
           cd backend
-          pytest -v tests/
+          python -m pytest -v tests/
 
   frontend-build:
     name: Frontend Lint & Build
@@ -74,13 +75,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: "npm"
-          cache-dependency-path: frontend/package.json
 
       - name: Install Dependencies
         run: |
           cd frontend
-          npm ci
+          npm install
 
       - name: Next.js Build
         run: |
