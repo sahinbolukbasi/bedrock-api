@@ -16,6 +16,7 @@ import {
   ChevronDown
 } from "lucide-react";
 import { API_BASE, getAuthToken, fetchApi } from "../../lib/api";
+import AuthGuard from "../../components/AuthGuard";
 
 interface Message {
   id: string;
@@ -26,6 +27,14 @@ interface Message {
 }
 
 export default function ChatPlayground() {
+  return (
+    <AuthGuard>
+      <ChatPlaygroundContent />
+    </AuthGuard>
+  );
+}
+
+function ChatPlaygroundContent() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",

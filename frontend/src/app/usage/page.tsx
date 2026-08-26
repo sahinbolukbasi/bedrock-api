@@ -3,8 +3,17 @@
 import React, { useState, useEffect } from "react";
 import { BarChart3, Activity, Coins, Layers, Zap } from "lucide-react";
 import { fetchApi } from "../../lib/api";
+import AuthGuard from "../../components/AuthGuard";
 
 export default function UsagePage() {
+  return (
+    <AuthGuard>
+      <UsagePageContent />
+    </AuthGuard>
+  );
+}
+
+function UsagePageContent() {
   const [summary, setSummary] = useState<any>({
     total_spent_usd: 0,
     total_requests: 0,

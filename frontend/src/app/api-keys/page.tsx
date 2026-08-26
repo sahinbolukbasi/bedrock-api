@@ -13,8 +13,17 @@ import {
   Coins
 } from "lucide-react";
 import { fetchApi } from "../../lib/api";
+import AuthGuard from "../../components/AuthGuard";
 
 export default function ApiKeysPage() {
+  return (
+    <AuthGuard>
+      <ApiKeysPageContent />
+    </AuthGuard>
+  );
+}
+
+function ApiKeysPageContent() {
   const [keys, setKeys] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [keyName, setKeyName] = useState("");

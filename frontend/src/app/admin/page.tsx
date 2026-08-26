@@ -13,8 +13,17 @@ import {
   XCircle
 } from "lucide-react";
 import { fetchApi } from "../../lib/api";
+import AuthGuard from "../../components/AuthGuard";
 
 export default function AdminPage() {
+  return (
+    <AuthGuard adminOnly={true}>
+      <AdminPageContent />
+    </AuthGuard>
+  );
+}
+
+function AdminPageContent() {
   const [overview, setOverview] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);

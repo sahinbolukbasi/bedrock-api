@@ -12,8 +12,17 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { fetchApi } from "../../lib/api";
+import AuthGuard from "../../components/AuthGuard";
 
 export default function BillingPage() {
+  return (
+    <AuthGuard>
+      <BillingPageContent />
+    </AuthGuard>
+  );
+}
+
+function BillingPageContent() {
   const [balance, setBalance] = useState<number>(0);
   const [packages, setPackages] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);

@@ -15,7 +15,10 @@ import {
   Wallet,
   PlusCircle,
   Menu,
-  X
+  X,
+  Sparkles,
+  LogIn,
+  UserPlus
 } from "lucide-react";
 import { getAuthToken, clearAuthToken, fetchApi } from "../lib/api";
 
@@ -23,50 +26,75 @@ export default function Navigation() {
   const pathname = usePathname();
   const router = useRouter();
   const [balance, setBalance] = useState<number | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string>("user");
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    async function loadWallet() {
+    async function loadUserState() {
       const token = getAuthToken();
-      if (!token) return;
+      if (!token) {
+        setIsLoggedIn(false);
+        setBalance(null);
+        setUserEmail(null);
+        return;
+      }
+      setIsLoggedIn(true);
       try {
         const walletData = await fetchApi("/api/wallet");
         setBalance(Number(walletData.balance_usd));
         const userProfile = await fetchApi("/api/auth/me");
         setUserRole(userProfile.role || "user");
+        setUserEmail(userProfile.email || null);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("bedrock_gateway_user", JSON.stringify(userProfile));
+        }
       } catch (err) {
         console.error("Failed to load user info:", err);
       }
     }
-    loadWallet();
+    loadUserState();
   }, [pathname]);
 
   const handleLogout = () => {
     clearAuthToken();
+    setIsLoggedIn(false);
+    setBalance(null);
+    setUserEmail(null);
     router.push("/login");
   };
 
-  const navItems = [
-    { name: "Chat Playground", href: "/chat", icon: MessageSquare },
-    { name: "Models", href: "/models", icon: Cpu },
-    { name: "API Keys", href: "/api-keys", icon: Key },
-    { name: "Usage & Analytics", href: "/usage", icon: BarChart3 },
-    { name: "Billing & Credits", href: "/billing", icon: CreditCard },
-    { name: "API Docs", href: "/docs", icon: BookOpen },
-  ];
-
-  if (userRole === "admin") {
-    navItems.push({ name: "Admin Console", href: "/admin", icon: ShieldAlert });
-  }
-
-  // Hide nav on login/register pages
+  // Hide nav entirely on login/register pages
   if (pathname === "/login" || pathname === "/register") {
     return null;
   }
 
+  // Define logged-in navigation items
+  const authenticatedNavItems = [
+    { name: "Chat Playground", href: "/chat", icon: MessageSquare },
+    { name: "Models", href: "/models", icon: Cpu },
+    { name: "API Keys", href: "/api-keys", icon: Key },
+    { name: "Usage & Analytics", href: "/usage", icon: BarChart3 },
+    { name: "Billing", href: "/billing", icon: CreditCard },
+    { name: "API Docs", href: "/docs", icon: BookOpen },
+  ];
+
+  if (userRole === "admin") {
+    authenticatedNavItems.push({ name: "Admin Console", href: "/admin", icon: ShieldAlert });
+  }
+
+  // Define public/unauthenticated navigation items
+  const publicNavItems = [
+    { name: "Home", href: "/", icon: Sparkles },
+    { name: "Models Catalog", href: "/models", icon: Cpu },
+    { name: "API Docs", href: "/docs", icon: BookOpen },
+  ];
+
+  const activeItems = isLoggedIn ? authenticatedNavItems : publicNavItems;
+
   return (
-    <nav className="border-b border-gray-800 bg-gray-950/80 backdrop-blur-md sticky top-0 z-50">
+    <nav className="border-b border-gray-800/80 bg-gray-950/90 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           
@@ -90,7 +118,7 @@ export default function Navigation() {
 
             {/* Desktop Navigation Links */}
             <div className="hidden md:flex items-center ml-8 space-x-1">
-              {navItems.map((item) => {
+              {activeItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
                 return (
@@ -113,36 +141,55 @@ export default function Navigation() {
 
           {/* Right Action Bar */}
           <div className="hidden md:flex items-center gap-4">
-            {balance !== null ? (
-              <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-full">
-                <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-xs font-medium text-gray-300">
-                  Balance: <strong className="text-emerald-400">${balance.toFixed(2)}</strong>
-                </span>
-                <Link
-                  href="/billing"
-                  className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5 ml-1"
+            {isLoggedIn ? (
+              <>
+                {balance !== null && (
+                  <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 px-3 py-1.5 rounded-full">
+                    <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-xs font-medium text-gray-300">
+                      Balance: <strong className="text-emerald-400">${balance.toFixed(2)}</strong>
+                    </span>
+                    <Link
+                      href="/billing"
+                      className="text-[11px] font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5 ml-1"
+                    >
+                      <PlusCircle className="w-3 h-3" /> Add
+                    </Link>
+                  </div>
+                )}
+
+                {userEmail && (
+                  <span className="text-xs text-gray-400 font-mono bg-gray-900/60 px-2 py-1 rounded border border-gray-800">
+                    {userEmail}
+                  </span>
+                )}
+
+                <button
+                  onClick={handleLogout}
+                  title="Sign Out"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-gray-400 hover:text-red-400 hover:bg-gray-900 transition border border-transparent hover:border-gray-800"
                 >
-                  <PlusCircle className="w-3 h-3" /> Add
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Log Out</span>
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/login"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs text-gray-300 hover:text-white hover:bg-gray-900 transition border border-gray-800 font-medium"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-indigo-400" />
+                  Sign In
+                </Link>
+                <Link
+                  href="/register"
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold transition shadow-md shadow-indigo-600/30"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Get Started
                 </Link>
               </div>
-            ) : (
-              <Link
-                href="/login"
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
-              >
-                Sign In
-              </Link>
-            )}
-
-            {balance !== null && (
-              <button
-                onClick={handleLogout}
-                title="Sign Out"
-                className="p-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-gray-900 transition"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
             )}
           </div>
 
@@ -162,7 +209,7 @@ export default function Navigation() {
       {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-gray-800 bg-gray-950 px-4 pt-2 pb-4 space-y-1">
-          {navItems.map((item) => {
+          {activeItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (
@@ -181,13 +228,31 @@ export default function Navigation() {
               </Link>
             );
           })}
-          {balance !== null && (
+
+          {isLoggedIn ? (
             <button
               onClick={handleLogout}
               className="flex items-center gap-3 w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-red-400 hover:bg-gray-900"
             >
               <LogOut className="w-4 h-4" /> Sign Out
             </button>
+          ) : (
+            <div className="pt-2 border-t border-gray-900 space-y-1">
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:text-white"
+              >
+                <LogIn className="w-4 h-4 text-indigo-400" /> Sign In
+              </Link>
+              <Link
+                href="/register"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-indigo-400 hover:text-indigo-300 font-semibold"
+              >
+                <UserPlus className="w-4 h-4" /> Get Started Free
+              </Link>
+            </div>
           )}
         </div>
       )}
