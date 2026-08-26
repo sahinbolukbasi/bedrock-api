@@ -97,11 +97,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 # Health check endpoint for ALB / ECS / CloudWatch
-@app.get("/health", tags=["Health"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["Health"])
 async def health_check():
     return {
         "status": "healthy",
-        "service": settings.PROJECT_NAME,
+        "service": "Bedrock AI Gateway",
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT
     }

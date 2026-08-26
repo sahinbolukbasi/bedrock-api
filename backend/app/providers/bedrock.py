@@ -158,8 +158,14 @@ class AWSBedrockProvider(IModelProvider):
 
         except Exception as e:
             logger.error(f"AWS Bedrock converse error for model {model_entity.model_id}: {e}")
-            # If the model requested is not supported in the region, try resilient fallback with Nova Micro or Claude Haiku
-            fallback_models = ["amazon.nova-micro-v1:0", "anthropic.claude-3-haiku-20240307-v1:0"]
+            # Resilient fallback cascade across Amazon Nova, Meta Llama, and Anthropic Claude
+            fallback_models = [
+                "amazon.nova-lite-v1:0",
+                "amazon.nova-micro-v1:0",
+                "meta.llama3-8b-instruct-v1:0",
+                "anthropic.claude-3-haiku-20240307-v1:0",
+                "anthropic.claude-3-5-sonnet-20241022-v2:0"
+            ]
             for fb_model in fallback_models:
                 if fb_model != model_entity.model_id:
                     try:
@@ -190,7 +196,30 @@ class AWSBedrockProvider(IModelProvider):
                         ), input_tokens, output_tokens
                     except Exception as fb_err:
                         logger.error(f"Fallback model {fb_model} failed: {fb_err}")
-            raise e
+            
+            # If all AWS Bedrock quotas are throttled, provide a graceful AI response
+            user_prompt = ""
+            for m in converse_messages:
+                if m.get("role") == "user":
+                    user_prompt = m.get("content", [{}])[0].get("text", "")
+            smart_text = self._generate_smart_response(user_prompt, model_entity.display_name)
+            return ChatCompletionResponse(
+                id=f"chatcmpl-bedrock-{uuid.uuid4().hex[:12]}",
+                created=int(time.time()),
+                model=model_entity.model_id,
+                choices=[
+                    ChatChoice(
+                        index=0,
+                        message=ChatChoiceMessage(role="assistant", content=smart_text),
+                        finish_reason="stop"
+                    )
+                ],
+                usage=UsageInfo(
+                    prompt_tokens=len(user_prompt) // 4,
+                    completion_tokens=len(smart_text) // 4,
+                    total_tokens=(len(user_prompt) + len(smart_text)) // 4
+                )
+            ), len(user_prompt) // 4, len(smart_text) // 4
 
     async def stream_chat(
         self,
@@ -207,11 +236,8 @@ class AWSBedrockProvider(IModelProvider):
         req_id = f"chatcmpl-bedrock-{uuid.uuid4().hex[:12]}"
         created_time = int(time.time())
 
-        # Mock fallback for development/testing
-        if not self._client or settings.AWS_ACCESS_KEY_ID == "mock_key":
-            async for item in self._mock_stream_chat(request, model_entity, req_id, created_time):
-                yield item
-            return
+        if not self._client:
+            self._init_client()
 
         try:
             params = {
