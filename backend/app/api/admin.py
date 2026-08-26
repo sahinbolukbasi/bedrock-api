@@ -154,6 +154,57 @@ async def update_user_role(
     return {"message": f"User role updated to {role}"}
 
 
+@router.get("/models")
+async def list_admin_models(
+    admin_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(ModelCatalog).options(selectinload(ModelCatalog.pricing)).order_by(ModelCatalog.name.asc())
+    res = await db.execute(stmt)
+    models_list = res.scalars().all()
+    return [{
+        "id": str(m.id),
+        "model_id": m.model_id,
+        "name": m.name,
+        "display_name": m.display_name,
+        "provider": m.provider,
+        "type": m.type,
+        "is_enabled": m.is_enabled,
+        "context_window": m.context_window,
+        "pricing": {
+            "input_per_1k": float(m.pricing.customer_input_price_per_1k) if m.pricing else 0.0,
+            "output_per_1k": float(m.pricing.customer_output_price_per_1k) if m.pricing else 0.0,
+            "margin_percent": float(m.pricing.margin_percent) if m.pricing else 0.0
+        } if m.pricing else None
+    } for m in models_list]
+
+
+@router.post("/models/{model_id}/toggle")
+async def toggle_model_status(
+    model_id: uuid.UUID,
+    is_enabled: bool,
+    admin_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(ModelCatalog).where(ModelCatalog.id == model_id)
+    res = await db.execute(stmt)
+    model = res.scalar_one_or_none()
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    model.is_enabled = is_enabled
+    audit = AuditLog(
+        user_id=admin_user.id,
+        action="MODEL_STATUS_TOGGLED",
+        resource_type="MODEL",
+        resource_id=model.model_id,
+        details={"is_enabled": is_enabled, "model_name": model.name}
+    )
+    db.add(audit)
+    await db.commit()
+    return {"success": True, "message": f"{model.name} durumu {'aktif' if is_enabled else 'pasif'} olarak güncellendi.", "is_enabled": is_enabled}
+
+
 @router.post("/models/{model_id}/pricing")
 async def update_model_pricing(
     model_id: uuid.UUID,
@@ -183,6 +234,88 @@ async def update_model_pricing(
     db.add(audit)
     await db.commit()
     return {"message": "Model pricing updated successfully"}
+
+
+@router.post("/broadcast/send")
+async def broadcast_campaign(
+    payload: Dict[str, Any],
+    admin_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    channel = payload.get("channel", "EMAIL")  # "EMAIL" | "SMS"
+    target = payload.get("target", "ALL_USERS") # "ALL_USERS" | "ACTIVE_USERS" | "CUSTOM"
+    subject = payload.get("subject", "Duyuru & Tanıtım Bildirimi")
+    content = payload.get("content", "")
+    custom_recipients = payload.get("custom_recipients", [])
+
+    recipients = []
+    if target == "CUSTOM" and custom_recipients:
+        recipients = custom_recipients
+    else:
+        stmt = select(User).where(User.is_active == True) if target == "ACTIVE_USERS" else select(User)
+        res = await db.execute(stmt)
+        users = res.scalars().all()
+        if channel == "EMAIL":
+            recipients = [u.email for u in users if u.email]
+        elif channel == "SMS":
+            recipients = [u.phone_number for u in users if u.phone_number]
+
+    success_count = 0
+    failed_count = 0
+
+    if channel == "EMAIL":
+        from app.services.email_service import EmailService
+        for email in recipients:
+            try:
+                sent = await EmailService.send_email_async(
+                    to_email=email,
+                    subject=subject,
+                    html_content=f"<div style='font-family:sans-serif;padding:16px;'>{content}</div>"
+                )
+                if sent:
+                    success_count += 1
+                else:
+                    failed_count += 1
+            except Exception:
+                failed_count += 1
+    elif channel == "SMS":
+        import boto3
+        from app.core.config import settings
+        try:
+            sns_client = boto3.client("sns", region_name=settings.AWS_REGION)
+            for phone in recipients:
+                try:
+                    sns_client.publish(PhoneNumber=phone, Message=content)
+                    success_count += 1
+                except Exception:
+                    failed_count += 1
+        except Exception:
+            failed_count = len(recipients)
+
+    audit = AuditLog(
+        user_id=admin_user.id,
+        action="CAMPAIGN_BROADCAST_SENT",
+        resource_type="MARKETING",
+        resource_id=channel,
+        details={
+            "channel": channel,
+            "target": target,
+            "total_recipients": len(recipients),
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "subject": subject
+        }
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "success": True,
+        "message": f"Kampanya gönderimi tamamlandı: {success_count} başarılı, {failed_count} başarısız.",
+        "total": len(recipients),
+        "success_count": success_count,
+        "failed_count": failed_count
+    }
 
 
 @router.get("/audit-logs")

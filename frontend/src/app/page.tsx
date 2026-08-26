@@ -179,9 +179,10 @@ export default function RootPage() {
   // ==========================================
   // Admin & AWS Infrastructure State (Enterprise Dashboard)
   // ==========================================
-  const [adminSubTab, setAdminSubTab] = useState<"users" | "notifications" | "audit" | "system">("users");
+  const [adminSubTab, setAdminSubTab] = useState<"users" | "models" | "broadcast" | "notifications" | "audit" | "system">("users");
   const [adminOverview, setAdminOverview] = useState<any>(null);
   const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [adminModelsList, setAdminModelsList] = useState<any[]>([]);
   const [awsStatus, setAwsStatus] = useState<any>(null);
   const [selectedUserForBalance, setSelectedUserForBalance] = useState<any | null>(null);
   const [newBalanceAmount, setNewBalanceAmount] = useState<string>("100");
@@ -190,6 +191,12 @@ export default function RootPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
   const [testRecipient, setTestRecipient] = useState("admin@bedrockgateway.com");
   const [testNotificationMsg, setTestNotificationMsg] = useState<string | null>(null);
+  const [broadcastChannel, setBroadcastChannel] = useState<"EMAIL" | "SMS">("EMAIL");
+  const [broadcastTarget, setBroadcastTarget] = useState<"ALL_USERS" | "ACTIVE_USERS">("ALL_USERS");
+  const [broadcastSubject, setBroadcastSubject] = useState("🚀 Yeni AWS Bedrock Modelleri ve Özellikleri Yayında!");
+  const [broadcastContent, setBroadcastContent] = useState("<p>Merhaba değerli kullanıcımız,</p><p>AWS Bedrock AI Gateway platformumuza yeni nesil Amazon Nova ve Anthropic Claude 3.5 modelleri eklenmiştir. Hemen konsoldan deneyebilirsiniz!</p>");
+  const [broadcastSending, setBroadcastSending] = useState(false);
+  const [broadcastResult, setBroadcastResult] = useState<any | null>(null);
   const [auditLogsList, setAuditLogsList] = useState<any[]>([]);
   const [systemSettings, setSystemSettings] = useState<any>({
     maintenance_mode: false,
@@ -621,6 +628,8 @@ export default function RootPage() {
       setAdminOverview(overview);
       const usersList = await fetchApi("/api/admin/users");
       setAdminUsers(usersList || []);
+      const modelsData = await fetchApi("/api/admin/models");
+      setAdminModelsList(modelsData || []);
       const awsInfo = await fetchApi("/api/admin/aws-status");
       setAwsStatus(awsInfo);
       const templates = await fetchApi("/api/admin/notifications/templates");
@@ -634,6 +643,43 @@ export default function RootPage() {
       if (settings) setSystemSettings(settings);
     } catch (err) {
       console.error("Failed to load admin data:", err);
+    }
+  };
+
+  const handleToggleModel = async (modelId: string, currentStatus: boolean) => {
+    try {
+      await fetchApi(`/api/admin/models/${modelId}/toggle`, {
+        method: "POST",
+        body: JSON.stringify({ is_enabled: !currentStatus }),
+      });
+      setAdminModelsList((prev) =>
+        prev.map((m) => (m.id === modelId ? { ...m, is_enabled: !currentStatus } : m))
+      );
+    } catch (err: any) {
+      alert(`Model durumu güncellenemedi: ${err.message}`);
+    }
+  };
+
+  const handleSendBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastContent.trim()) return;
+    setBroadcastSending(true);
+    setBroadcastResult(null);
+    try {
+      const res = await fetchApi("/api/admin/broadcast/send", {
+        method: "POST",
+        body: JSON.stringify({
+          channel: broadcastChannel,
+          target: broadcastTarget,
+          subject: broadcastSubject,
+          content: broadcastContent,
+        }),
+      });
+      setBroadcastResult(res);
+    } catch (err: any) {
+      setBroadcastResult({ success: false, message: `Hata: ${err.message}` });
+    } finally {
+      setBroadcastSending(false);
     }
   };
 
@@ -2633,6 +2679,30 @@ export default function RootPage() {
               </button>
 
               <button
+                onClick={() => setAdminSubTab("models")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                  adminSubTab === "models"
+                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
+                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <Cpu className="w-4 h-4" />
+                <span>Model Aç / Kapat ({adminModelsList.length})</span>
+              </button>
+
+              <button
+                onClick={() => setAdminSubTab("broadcast")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                  adminSubTab === "broadcast"
+                    ? "bg-white dark:bg-gray-800 text-purple-600 dark:text-purple-400 shadow-sm"
+                    : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white"
+                }`}
+              >
+                <SendHorizontal className="w-4 h-4" />
+                <span>Toplu Tanıtım & SMS/Mail</span>
+              </button>
+
+              <button
                 onClick={() => setAdminSubTab("notifications")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                   adminSubTab === "notifications"
@@ -2665,7 +2735,7 @@ export default function RootPage() {
                 }`}
               >
                 <Sliders className="w-4 h-4" />
-                <span>Sistem Sağlığı & Feature Flags</span>
+                <span>Sistem & Prometheus</span>
               </button>
             </div>
 
@@ -2850,6 +2920,193 @@ export default function RootPage() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB 2: MODEL AÇMA / KAPATMA & FİYAT KONTROLÜ */}
+            {adminSubTab === "models" && (
+              <div className="space-y-6">
+                <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+                  <div className="p-5 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between">
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                        AWS Bedrock Foundation Modelleri ({adminModelsList.length})
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        İstediğiniz modeli tek tıkla müşterilerin kullanımına açıp kapatabilirsiniz.
+                      </p>
+                    </div>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 font-bold">
+                      ● Canlı Bedrock Kataloğu
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 dark:bg-gray-950 text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-gray-800">
+                        <tr>
+                          <th className="p-4">Model Adı</th>
+                          <th className="p-4">Model ID</th>
+                          <th className="p-4">Sağlayıcı</th>
+                          <th className="p-4">Fiyat (In/Out 1k)</th>
+                          <th className="p-4">Durum</th>
+                          <th className="p-4 text-right">Kullanım Anahtarı</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
+                        {adminModelsList.map((m) => (
+                          <tr key={m.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/40">
+                            <td className="p-4 font-bold text-slate-900 dark:text-white">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${m.is_enabled ? "bg-emerald-500" : "bg-red-500"}`} />
+                                <span>{m.name}</span>
+                              </div>
+                            </td>
+                            <td className="p-4 font-mono text-slate-500 text-[11px]">{m.model_id}</td>
+                            <td className="p-4 uppercase font-bold text-indigo-600 dark:text-indigo-400">{m.provider}</td>
+                            <td className="p-4 font-semibold text-slate-700 dark:text-gray-300">
+                              ${m.pricing?.input_per_1k || "0.000"}/1k · ${m.pricing?.output_per_1k || "0.000"}/1k
+                            </td>
+                            <td className="p-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                m.is_enabled
+                                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
+                              }`}>
+                                {m.is_enabled ? "Açık (Aktif)" : "Kapalı (Devre Dışı)"}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleModel(m.id, m.is_enabled)}
+                                className={`px-3 py-1.5 rounded-xl font-bold transition shadow-sm ${
+                                  m.is_enabled
+                                    ? "bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-300"
+                                    : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                                }`}
+                              >
+                                {m.is_enabled ? "Kullanıma Kapat" : "Kullanıma Aç"}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB 3: TOPLU TANITIM, DUYURU & SMS/MAIL GÖNDERİM MOTORU */}
+            {adminSubTab === "broadcast" && (
+              <div className="space-y-6">
+                <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-5">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 pb-3">
+                    <div>
+                      <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2">
+                        <SendHorizontal className="w-5 h-5 text-indigo-600" />
+                        <span>Müşterilere Tanıtım, Kampanya & Duyuru Gönderimi</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Tüm kayıtlı kullanıcılara veya aktif müşterilere AWS SES üzerinden e-posta veya AWS SNS ile toplu SMS gönderin.
+                      </p>
+                    </div>
+                    <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-xs font-bold">
+                      ● AWS SES & SNS Entegre
+                    </span>
+                  </div>
+
+                  {broadcastResult && (
+                    <div className={`p-4 rounded-2xl text-xs font-bold ${
+                      broadcastResult.success
+                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                        : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-800"
+                    }`}>
+                      {broadcastResult.message}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSendBroadcast} className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          Gönderim Kanalı
+                        </label>
+                        <select
+                          value={broadcastChannel}
+                          onChange={(e) => setBroadcastChannel(e.target.value as any)}
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white"
+                        >
+                          <option value="EMAIL">E-Posta (AWS SES)</option>
+                          <option value="SMS">SMS (AWS SNS)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          Hedef Kitle
+                        </label>
+                        <select
+                          value={broadcastTarget}
+                          onChange={(e) => setBroadcastTarget(e.target.value as any)}
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white"
+                        >
+                          <option value="ALL_USERS">Tüm Kayıtlı Kullanıcılar ({adminUsers.length})</option>
+                          <option value="ACTIVE_USERS">Yalnızca Aktif Kullanıcılar ({adminUsers.filter(u => u.is_active).length})</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Kampanya / Duyuru Başlığı
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={broadcastSubject}
+                        onChange={(e) => setBroadcastSubject(e.target.value)}
+                        placeholder="Örn: 🚀 Yeni Amazon Nova Modelleri ve %20 İndirim!"
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Mesaj İçeriği {broadcastChannel === "EMAIL" ? "(HTML / Metin)" : "(SMS Metni)"}
+                      </label>
+                      <textarea
+                        rows={6}
+                        required
+                        value={broadcastContent}
+                        onChange={(e) => setBroadcastContent(e.target.value)}
+                        placeholder="Mesajınızı veya HTML şablonunuzu buraya yazın..."
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl p-3 text-xs font-mono text-slate-900 dark:text-white"
+                      />
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="submit"
+                        disabled={broadcastSending}
+                        className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 flex items-center gap-2 disabled:opacity-50 transition"
+                      >
+                        {broadcastSending ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Kampanya Gönderiliyor...</span>
+                          </>
+                        ) : (
+                          <>
+                            <SendHorizontal className="w-4 h-4" />
+                            <span>Toplu Kampanyayı Başlat</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}
