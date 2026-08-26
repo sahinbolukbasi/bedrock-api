@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   XCircle
 } from "lucide-react";
-import { fetchApi } from "@/lib/api";
+import { fetchApi } from "../../lib/api";
 
 export default function AdminPage() {
   const [overview, setOverview] = useState<any>(null);

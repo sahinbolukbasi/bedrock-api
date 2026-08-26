@@ -15,7 +15,7 @@ import {
   Coins,
   ChevronDown
 } from "lucide-react";
-import { API_BASE, getAuthToken, fetchApi } from "@/lib/api";
+import { API_BASE, getAuthToken, fetchApi } from "../../lib/api";
 
 interface Message {
   id: string;

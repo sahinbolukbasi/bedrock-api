@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, ArrowRight, ShieldCheck } from "lucide-react";
-import { API_BASE, setAuthToken } from "@/lib/api";
+import { API_BASE, setAuthToken } from "../../lib/api";
 
 export default function LoginPage() {
   const router = useRouter();

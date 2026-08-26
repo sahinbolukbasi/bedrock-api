@@ -11,7 +11,7 @@ import {
   PlusCircle,
   ShieldCheck
 } from "lucide-react";
-import { fetchApi } from "@/lib/api";
+import { fetchApi } from "../../lib/api";
 
 export default function BillingPage() {
   const [balance, setBalance] = useState<number>(0);

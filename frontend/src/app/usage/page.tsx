@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { BarChart3, Activity, Coins, Layers, Zap } from "lucide-react";
-import { fetchApi } from "@/lib/api";
+import { fetchApi } from "../../lib/api";
 
 export default function UsagePage() {
   const [summary, setSummary] = useState<any>({

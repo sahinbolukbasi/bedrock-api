@@ -17,7 +17,7 @@ import {
   Menu,
   X
 } from "lucide-react";
-import { getAuthToken, clearAuthToken, fetchApi } from "@/lib/api";
+import { getAuthToken, clearAuthToken, fetchApi } from "../lib/api";
 
 export default function Navigation() {
   const pathname = usePathname();

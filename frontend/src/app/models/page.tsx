@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Cpu, Search, Sparkles, Check, Image as ImageIcon, Eye, Wrench } from "lucide-react";
-import { fetchApi } from "@/lib/api";
+import { fetchApi } from "../../lib/api";
 
 export default function ModelsPage() {
   const [models, setModels] = useState<any[]>([]);

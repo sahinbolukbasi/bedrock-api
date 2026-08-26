@@ -12,7 +12,7 @@ import {
   Clock,
   Coins
 } from "lucide-react";
-import { fetchApi } from "@/lib/api";
+import { fetchApi } from "../../lib/api";
 
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<any[]>([]);
