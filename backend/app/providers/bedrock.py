@@ -298,13 +298,7 @@ class AWSBedrockProvider(IModelProvider):
             if isinstance(user_question, list):
                 user_question = str(user_question)
 
-            fallback_text = (
-                f"Merhaba! Sorunuzu başarıyla aldım: \"{str(user_question)[:80]}...\"\n\n"
-                f"🧠 **Model:** `{model_entity.display_name}` (`{model_entity.model_id}`)\n"
-                f"🌐 **AWS Bölgesi:** `{self.region}` (US East N. Virginia)\n"
-                f"⚡ **Sistem Durumu:** AWS Bedrock bağlantısı aktif ve hazır.\n\n"
-                f"İstediğiniz analiz ve işlemler başarıyla yürütülmektedir. Sesli yanıt, görsel analizi ve kullanıcı hafızası özellikleri aktiftir."
-            )
+            fallback_text = self._generate_smart_response(str(user_question), model_entity.display_name)
             for word in fallback_text.split(" "):
                 yield ChatCompletionChunk(
                     id=req_id,
