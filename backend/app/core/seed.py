@@ -358,6 +358,13 @@ async def seed_database():
             admin_wallet = Wallet(user_id=admin_user.id, balance_usd=Decimal("1000.000000"))
             db.add(admin_wallet)
             logger.info(f"Created admin user: {settings.ADMIN_EMAIL}")
+        else:
+            # Sync admin password and active status on every startup
+            admin_user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
+            admin_user.role = "admin"
+            admin_user.is_active = True
+            admin_user.is_verified = True
+            logger.info(f"Synchronized admin user credentials for: {settings.ADMIN_EMAIL}")
 
         # Seed Models & Pricing
         for m_data in INITIAL_MODELS:
