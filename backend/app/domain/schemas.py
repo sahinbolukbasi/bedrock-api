@@ -53,6 +53,15 @@ class MFAVerifyRequest(BaseModel):
     code: str
 
 
+class UserPasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+class UserProfileUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+
+
 # ==========================================
 # API Key Schemas
 # ==========================================

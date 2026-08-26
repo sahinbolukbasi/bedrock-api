@@ -20,6 +20,12 @@ class ConversationCreate(BaseModel):
     temperature: float = 0.7
 
 
+class ConversationUpdate(BaseModel):
+    title: Optional[str] = None
+    system_prompt: Optional[str] = None
+    temperature: Optional[float] = None
+
+
 class MessageCreate(BaseModel):
     role: str  # "user" | "assistant"
     content: str
@@ -76,6 +82,31 @@ async def get_conversation_messages(
     return res.scalars().all()
 
 
+@router.patch("/conversations/{conv_id}")
+async def update_conversation(
+    conv_id: uuid.UUID,
+    body: ConversationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == current_user.id)
+    res = await db.execute(stmt)
+    conv = res.scalar_one_or_none()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    if body.title is not None:
+        conv.title = body.title
+    if body.system_prompt is not None:
+        conv.system_prompt = body.system_prompt
+    if body.temperature is not None:
+        conv.temperature = body.temperature
+
+    await db.commit()
+    await db.refresh(conv)
+    return conv
+
+
 @router.post("/conversations/{conv_id}/messages")
 async def append_message(
     conv_id: uuid.UUID,
@@ -83,7 +114,6 @@ async def append_message(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    # Verify ownership
     conv_stmt = select(Conversation).where(Conversation.id == conv_id, Conversation.user_id == current_user.id)
     conv_res = await db.execute(conv_stmt)
     conv = conv_res.scalar_one_or_none()

@@ -39,7 +39,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration
+from app.core.metrics import PrometheusMiddleware, get_prometheus_metrics
+
+app.add_middleware(PrometheusMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -103,6 +105,12 @@ async def health_check():
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT
     }
+
+
+@app.get("/metrics", tags=["Monitoring"])
+async def metrics():
+    data, content_type = get_prometheus_metrics()
+    return Response(content=data, media_type=content_type)
 
 
 # Include Routers

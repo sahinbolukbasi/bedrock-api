@@ -20,7 +20,9 @@ from app.domain.schemas import (
     TokenResponse,
     UserProfileResponse,
     MFASetupResponse,
-    MFAVerifyRequest
+    MFAVerifyRequest,
+    UserPasswordChangeRequest,
+    UserProfileUpdateRequest
 )
 from app.models.entities import User, Wallet
 from app.services.credit_service import CreditService
@@ -111,6 +113,33 @@ async def login_user(body: UserLoginRequest, db: AsyncSession = Depends(get_db))
 @router.get("/me", response_model=UserProfileResponse)
 async def get_my_profile(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/profile", response_model=UserProfileResponse)
+async def update_profile(
+    body: UserProfileUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if body.full_name is not None:
+        current_user.full_name = body.full_name
+    await db.commit()
+    await db.refresh(current_user)
+    return current_user
+
+
+@router.post("/change-password")
+async def change_password(
+    body: UserPasswordChangeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise AuthenticationError("Current password incorrect.")
+    
+    current_user.hashed_password = get_password_hash(body.new_password)
+    await db.commit()
+    return {"message": "Password changed successfully."}
 
 
 @router.post("/mfa/setup", response_model=MFASetupResponse)

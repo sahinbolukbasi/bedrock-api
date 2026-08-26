@@ -15,6 +15,7 @@ from app.models.entities import ModelCatalog
 from app.providers.router import provider_router
 from app.services.credit_service import CreditService
 from app.services.usage_service import UsageService
+from app.core.metrics import TOKENS_PROCESSED, WALLET_DEBITS
 from loguru import logger
 
 router = APIRouter()
@@ -138,6 +139,10 @@ async def create_chat_completion(
         api_key_id=auth_ctx.api_key.id if auth_ctx.api_key else None,
         ip_hash=ip_hash
     )
+
+    TOKENS_PROCESSED.labels(model_id=model_entity.model_id, token_type="prompt").inc(in_tokens)
+    TOKENS_PROCESSED.labels(model_id=model_entity.model_id, token_type="completion").inc(out_tokens)
+    WALLET_DEBITS.labels(model_id=model_entity.model_id).inc(float(usage_rec.customer_charged_usd))
 
     if response.usage:
         response.usage.cost_usd = usage_rec.customer_charged_usd
