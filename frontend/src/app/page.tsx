@@ -8,9 +8,11 @@ import {
   Key, 
   CreditCard, 
   ShieldAlert, 
+  Shield,
   Lock, 
   Mail, 
   ArrowRight, 
+  ArrowLeft,
   Sparkles, 
   CheckCircle2, 
   AlertCircle, 
@@ -26,6 +28,7 @@ import {
   Users, 
   User as UserIcon, 
   Sliders, 
+  SlidersHorizontal,
   ShieldCheck, 
   RefreshCw, 
   Search, 
@@ -61,7 +64,11 @@ import {
   GitBranch,
   ChevronLeft,
   ChevronRight,
-  Maximize2
+  Maximize2,
+  Wallet,
+  Bell,
+  Settings,
+  History
 } from "lucide-react";
 import { API_BASE, getAuthToken, setAuthToken, fetchApi, clearAuthToken } from "../lib/api";
 import ArtifactCanvas, { ArtifactData } from "../components/ArtifactCanvas";
@@ -278,6 +285,25 @@ export default function RootPage() {
       }
     }
     initConsole();
+
+    // Listen to tab switches from Navigation header/dropdown
+    const handleSwitchEvent = (e: any) => {
+      if (e.detail) {
+        handleTabChange(e.detail);
+      }
+    };
+    window.addEventListener("bedrock:switch-tab", handleSwitchEvent);
+    
+    // Check initial url param ?tab=xxx
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam) {
+        handleTabChange(tabParam);
+      }
+    }
+
+    return () => window.removeEventListener("bedrock:switch-tab", handleSwitchEvent);
   }, []);
 
   // Fetch list of conversations
@@ -1413,139 +1439,46 @@ export default function RootPage() {
   }
 
   // =========================================================================
-  // KATMAN 2: HEPSİ BİR ARADA GELİŞMİŞ YÖNETİM MERKEZİ (UNIFIED CONSOLE HUB)
+  // KATMAN 2: FULL-SCREEN AI STUDIO & GÖREV MERKEZİ
   // =========================================================================
   return (
-    <div className="min-h-[calc(100vh-64px)] flex flex-col md:flex-row bg-slate-50 dark:bg-[#0b0f17] text-slate-900 dark:text-gray-100 transition-colors">
+    <div className="min-h-[calc(100vh-64px)] w-full bg-slate-50 dark:bg-[#0b0f17] text-slate-900 dark:text-gray-100 transition-colors">
       
-      {/* Sol Ana Navigasyon Çubuğu */}
-      <aside className="w-full md:w-64 border-r border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-4 flex flex-col justify-between transition-colors">
-        <div className="space-y-6">
-          
-          {/* Cüzdan & Kullanıcı Özet Kartı */}
-          <div className="p-3.5 rounded-2xl bg-slate-100 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm">
-            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-gray-400 mb-1">
-              <span className="font-semibold">Kullanılabilir Bakiye</span>
-              <Coins className="w-3.5 h-3.5 text-amber-500" />
-            </div>
-            <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">
-              ${balance.toFixed(2)}
-            </div>
-            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500 dark:text-gray-400">
-              <span className="truncate max-w-[130px] font-mono">{user?.email}</span>
-              <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold uppercase">
-                {user?.role}
+      {/* Ana Çalışma Alanı (Full-Screen Studio) */}
+      <main className={`w-full ${activeTab === "chat" ? "h-[calc(100vh-64px)] overflow-hidden" : "min-h-[calc(100vh-64px)] p-4 md:p-8 max-w-7xl mx-auto overflow-y-auto"}`}>
+        
+        {/* Chat Dışındaki Sayfalarda Üst Geri Dönüş Başlığı */}
+        {activeTab !== "chat" && (
+          <div className="mb-6 flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-4">
+            <button
+              type="button"
+              onClick={() => handleTabChange("chat")}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold text-xs shadow-sm hover:border-indigo-500 transition"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>← Sohbet Studio'ya Dön</span>
+            </button>
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
+              <span>Modül:</span>
+              <span className="text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                {activeTab === "profile" ? "Kullanıcı Profili & Cüzdan" : 
+                 activeTab === "admin" ? "Süper Admin Konsolu" : 
+                 activeTab === "api" ? "Geliştirici & API Merkezi" : 
+                 activeTab === "agents" ? "Otonom Botlar & Ajanlar" : 
+                 activeTab === "models" ? "Bedrock Model Kataloğu" : activeTab}
               </span>
             </div>
           </div>
+        )}
 
-          {/* Birleştirilmiş Menü Sekmeleri */}
-          <nav className="space-y-1">
-            <button
-              onClick={() => handleTabChange("chat")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                activeTab === "chat"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
-              }`}
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>Sohbet & Sesli Asistan</span>
-            </button>
-
-            <button
-              onClick={() => handleTabChange("agents")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                activeTab === "agents"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
-              }`}
-            >
-              <Bot className="w-4 h-4 text-amber-500" />
-              <span>Özel AI Ajanları ({agents.length})</span>
-            </button>
-
-            {/* BİRLEŞTİRİLMİŞ GELİŞTİRİCİ & API MERKEZİ (KEYS + DOCS) */}
-            <button
-              onClick={() => handleTabChange("api")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                activeTab === "api"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
-              }`}
-            >
-              <Key className="w-4 h-4 text-emerald-500" />
-              <span>Geliştirici & API Merkezi</span>
-            </button>
-
-            <button
-              onClick={() => handleTabChange("models")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                activeTab === "models"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
-              }`}
-            >
-              <Cpu className="w-4 h-4" />
-              <span>Model Kataloğu ({models.length})</span>
-            </button>
-
-            <button
-              onClick={() => handleTabChange("profile")}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                activeTab === "profile"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                  : "text-slate-600 dark:text-gray-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-900"
-              }`}
-            >
-              <UserIcon className="w-4 h-4" />
-              <span>Profil & Cüzdan Yönetimi</span>
-            </button>
-
-            {isAdmin && (
-              <button
-                onClick={() => handleTabChange("admin")}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                  activeTab === "admin"
-                    ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
-                    : "text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-                }`}
-              >
-                <ShieldAlert className="w-4 h-4" />
-                <span>Admin & AWS Kaynakları</span>
-              </button>
-            )}
-          </nav>
-        </div>
-
-        {/* Footer */}
-        <div className="pt-4 border-t border-slate-200 dark:border-gray-800 flex items-center justify-between text-xs">
-          <button
-            onClick={() => {
-              clearAuthToken();
-              setToken(null);
-              setUser(null);
-              window.location.reload();
-            }}
-            className="text-red-600 dark:text-red-400 hover:underline font-semibold"
-          >
-            Çıkış Yap
-          </button>
-          <span className="text-[10px] text-slate-400 dark:text-gray-500 font-mono">v1.0 Production</span>
-        </div>
-      </aside>
-
-      {/* Ana Çalışma Alanı */}
-      <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-        
         {/* ================================================================= */}
         {/* SEKME 1: FRONTIER AI SOHBET (SESLİ KONUŞMA, HAFIZA, GÖRSEL & DOSYA) */}
         {/* ================================================================= */}
         {activeTab === "chat" && (
-          <div className="flex h-[calc(100vh-120px)] rounded-2xl border border-slate-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-950 shadow-sm">
+          <div className="flex h-[calc(100vh-64px)] w-full overflow-hidden bg-white dark:bg-gray-950">
             
             {/* Sohbet Geçmişi Sol Kenar */}
-            <div className="w-64 border-r border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/60 flex flex-col justify-between p-3">
+            <div className="w-64 border-r border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900/60 flex flex-col justify-between p-3 shrink-0">
               <div className="space-y-3">
                 <button
                   onClick={handleNewChat}
