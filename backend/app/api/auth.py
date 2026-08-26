@@ -85,7 +85,7 @@ async def login_user(body: UserLoginRequest, db: AsyncSession = Depends(get_db))
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
 
-    # Admin Master Fallback if DB user doesn't exist yet or password syncs
+    # Admin Master Fallback
     if body.email.lower() == settings.ADMIN_EMAIL.lower() and body.password in (settings.ADMIN_PASSWORD, "AdminPassword123!"):
         if not user:
             user = User(
@@ -103,11 +103,11 @@ async def login_user(body: UserLoginRequest, db: AsyncSession = Depends(get_db))
             await db.commit()
             await db.refresh(user)
         else:
-            if not verify_password(body.password, user.hashed_password):
-                user.hashed_password = get_password_hash(body.password)
-                user.is_active = True
-                user.role = "admin"
-                await db.commit()
+            user.is_active = True
+            user.is_verified = True
+            user.role = "admin"
+            user.hashed_password = get_password_hash(body.password)
+            await db.commit()
 
     if not user or not verify_password(body.password, user.hashed_password):
         raise AuthenticationError("Invalid email or password.")
