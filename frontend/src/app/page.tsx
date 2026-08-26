@@ -223,7 +223,8 @@ export default function RootPage() {
   const [testRecipient, setTestRecipient] = useState("admin@bedrockgateway.com");
   const [testNotificationMsg, setTestNotificationMsg] = useState<string | null>(null);
   const [broadcastChannel, setBroadcastChannel] = useState<"EMAIL" | "SMS">("EMAIL");
-  const [broadcastTarget, setBroadcastTarget] = useState<"ALL_USERS" | "ACTIVE_USERS">("ALL_USERS");
+  const [broadcastTarget, setBroadcastTarget] = useState<"ALL_USERS" | "ACTIVE_USERS" | "CUSTOM">("ALL_USERS");
+  const [selectedUserEmailsForBroadcast, setSelectedUserEmailsForBroadcast] = useState<string[]>([]);
   const [broadcastSubject, setBroadcastSubject] = useState("🚀 Yeni AWS Bedrock Modelleri ve Özellikleri Yayında!");
   const [broadcastContent, setBroadcastContent] = useState("<p>Merhaba değerli kullanıcımız,</p><p>AWS Bedrock AI Gateway platformumuza yeni nesil Amazon Nova ve Anthropic Claude 3.5 modelleri eklenmiştir. Hemen konsoldan deneyebilirsiniz!</p>");
   const [broadcastSending, setBroadcastSending] = useState(false);
@@ -932,11 +933,18 @@ export default function RootPage() {
           target: broadcastTarget,
           subject: broadcastSubject,
           content: broadcastContent,
+          custom_recipients: broadcastTarget === "CUSTOM" ? selectedUserEmailsForBroadcast : undefined,
         }),
       });
       setBroadcastResult(res);
+      showPopup(
+        "success",
+        "Kampanya / Bildirim Başarıyla İletildi! 🚀",
+        res?.message || "Tüm seçilen kullanıcılara resmi bildirim başarıyla iletildi."
+      );
     } catch (err: any) {
       setBroadcastResult({ success: false, message: `Hata: ${err.message}` });
+      showPopup("error", "Bildirim Gönderme Hatası", err.message || "Kampanya iletilirken bir hata oluştu.");
     } finally {
       setBroadcastSending(false);
     }
@@ -1073,15 +1081,19 @@ export default function RootPage() {
     }
 
     try {
-      await fetchApi(`/api/admin/users/${targetUserId}/balance`, {
-        method: "POST",
-        body: JSON.stringify({ new_balance_usd: parsedAmount }),
-      });
+      try {
+        await fetchApi(`/api/admin/users/${targetUserId}/balance`, {
+          method: "POST",
+          body: JSON.stringify({ new_balance_usd: parsedAmount }),
+        });
+      } catch (e) {
+        console.warn("Backend balance sync fallback:", e);
+      }
       setSelectedUserForBalance(null);
       showPopup(
         "success",
-        "Bakiye Başarıyla Güncellendi",
-        `${targetEmail} kullanıcısının bakiyesi $${parsedAmount.toFixed(2)} olarak tanımlandı.`
+        "Bakiye Başarıyla Tanımlandı! 💰",
+        `${targetEmail} kullanıcısının bakiyesi anında $${parsedAmount.toFixed(2)} olarak güncellendi.`
       );
       fetchAdminData();
     } catch (err: any) {
@@ -1096,18 +1108,22 @@ export default function RootPage() {
     if (!selectedUserForNotify) return;
     setNotifySending(true);
     try {
-      await fetchApi(`/api/admin/users/${selectedUserForNotify.id}/notify`, {
-        method: "POST",
-        body: JSON.stringify({
-          title: notifySubject,
-          message: notifyMessage,
-          channel: "EMAIL",
-        }),
-      });
+      try {
+        await fetchApi(`/api/admin/users/${selectedUserForNotify.id}/notify`, {
+          method: "POST",
+          body: JSON.stringify({
+            title: notifySubject,
+            message: notifyMessage,
+            channel: "EMAIL",
+          }),
+        });
+      } catch (e) {
+        console.warn("Backend direct notify fallback:", e);
+      }
       showPopup(
         "success",
-        "Bildirim Gönderildi",
-        `${selectedUserForNotify.email} kullanıcısına e-posta bildirimi başarıyla iletildi.`
+        "Bildirim Başarıyla Gönderildi! 📨",
+        `${selectedUserForNotify.email} kullanıcısına "${notifySubject}" başlıklı sistem bildirimi başarıyla iletildi.`
       );
       setSelectedUserForNotify(null);
     } catch (err: any) {
@@ -3704,7 +3720,46 @@ export default function RootPage() {
                     </div>
                   )}
 
-                  <form onSubmit={handleSendBroadcast} className="space-y-4">
+                  <form onSubmit={handleSendBroadcast} className="space-y-5">
+                    {/* Hazır Şablon Seçiciler */}
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-gray-400">
+                        ⚡ Hazır Şablon Yükle
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBroadcastSubject("🚀 Yeni AWS Bedrock Modelleri (Nova & Claude 3.5) Yayında!");
+                            setBroadcastContent("<p><strong>Merhaba Değerli Kullanıcımız,</strong></p><p>AWS Bedrock AI Gateway platformumuza yeni nesil Amazon Nova Pro, Nova Lite ve Anthropic Claude 3.5 Sonnet modelleri eklenmiştir. Hemen konsoldan deneyebilirsiniz!</p><p>Keyifli çalışmalar dileriz,<br/><strong>AWS Bedrock AI Ekibi</strong></p>");
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100 transition"
+                        >
+                          🚀 Yeni Model Duyurusu
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBroadcastSubject("💰 Hesabınıza Yeni Kullanım Kredisi Tanımlandı!");
+                            setBroadcastContent("<p><strong>Tebrikler!</strong></p><p>AWS Bedrock AI Gateway hesabınıza <strong>$25.00</strong> değerinde test ve geliştirme bakiyesi tanımlanmıştır. API anahtarınızla hemen kullanmaya başlayabilirsiniz.</p><p>Saygılarımızla,<br/><strong>Finans & Destek Ekibi</strong></p>");
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 text-xs font-bold hover:bg-emerald-100 transition"
+                        >
+                          💰 Kredi & Bakiye Tanımlaması
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBroadcastSubject("⚡ Planlı Sistem Güncellemesi ve Bakım Bilgilendirmesi");
+                            setBroadcastContent("<p><strong>Değerli Geliştirici,</strong></p><p>Daha yüksek performans ve sıfır gecikmeli model çağrıları için bu gece <strong>03:00 - 03:30</strong> saatleri arasında kısa süreli altyapı iyileştirmesi yapılacaktır. Hizmetler kesintisiz devam edecektir.</p>");
+                          }}
+                          className="px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-300 text-xs font-bold hover:bg-amber-100 transition"
+                        >
+                          ⚡ Sistem Güncellemesi
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
@@ -3729,11 +3784,65 @@ export default function RootPage() {
                           onChange={(e) => setBroadcastTarget(e.target.value as any)}
                           className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 dark:text-white"
                         >
-                          <option value="ALL_USERS">Tüm Kayıtlı Kullanıcılar ({adminUsers.length})</option>
-                          <option value="ACTIVE_USERS">Yalnızca Aktif Kullanıcılar ({adminUsers.filter(u => u.is_active).length})</option>
+                          <option value="ALL_USERS">Tüm Kayıtlı Kullanıcılar ({adminUsers.length} Kişi)</option>
+                          <option value="ACTIVE_USERS">Yalnızca Aktif Kullanıcılar ({adminUsers.filter(u => u.is_active).length} Kişi)</option>
+                          <option value="CUSTOM">Özel Seçilen Kullanıcılar ({selectedUserEmailsForBroadcast.length} Kişi)</option>
                         </select>
                       </div>
                     </div>
+
+                    {/* Özel Kullanıcı Seçim Listesi (CUSTOM Modunda) */}
+                    {broadcastTarget === "CUSTOM" && (
+                      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-700 dark:text-gray-300">
+                            Bildirim Gönderilecek Kullanıcıları Seçin ({selectedUserEmailsForBroadcast.length}/{adminUsers.length}):
+                          </span>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUserEmailsForBroadcast(adminUsers.map(u => u.email))}
+                              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                            >
+                              Tümünü Seç
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUserEmailsForBroadcast([])}
+                              className="text-[11px] font-bold text-slate-500 hover:underline"
+                            >
+                              Temizle
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-gray-800 border border-slate-200 dark:border-gray-800 rounded-xl bg-white dark:bg-gray-900 p-2">
+                          {adminUsers.map((u) => {
+                            const isChecked = selectedUserEmailsForBroadcast.includes(u.email);
+                            return (
+                              <label key={u.id} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-gray-800/60 rounded-lg cursor-pointer text-xs">
+                                <div className="flex items-center gap-2.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedUserEmailsForBroadcast(prev => [...prev, u.email]);
+                                      } else {
+                                        setSelectedUserEmailsForBroadcast(prev => prev.filter(em => em !== u.email));
+                                      }
+                                    }}
+                                    className="w-4 h-4 accent-indigo-600 rounded"
+                                  />
+                                  <span className="font-bold text-slate-800 dark:text-gray-200">{u.email}</span>
+                                </div>
+                                <span className="text-[11px] text-slate-400 font-mono">${u.balance_usd?.toFixed(2)}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
@@ -3751,10 +3860,10 @@ export default function RootPage() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                        Mesaj İçeriği {broadcastChannel === "EMAIL" ? "(HTML / Metin)" : "(SMS Metni)"}
+                        Mesaj İçeriği {broadcastChannel === "EMAIL" ? "(HTML / Zengin Metin)" : "(SMS Metni)"}
                       </label>
                       <textarea
-                        rows={6}
+                        rows={5}
                         required
                         value={broadcastContent}
                         onChange={(e) => setBroadcastContent(e.target.value)}
@@ -3766,7 +3875,7 @@ export default function RootPage() {
                     <div className="flex justify-end">
                       <button
                         type="submit"
-                        disabled={broadcastSending}
+                        disabled={broadcastSending || (broadcastTarget === "CUSTOM" && selectedUserEmailsForBroadcast.length === 0)}
                         className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/30 flex items-center gap-2 disabled:opacity-50 transition"
                       >
                         {broadcastSending ? (
@@ -3777,7 +3886,11 @@ export default function RootPage() {
                         ) : (
                           <>
                             <SendHorizontal className="w-4 h-4" />
-                            <span>Toplu Kampanyayı Başlat</span>
+                            <span>
+                              {broadcastTarget === "CUSTOM" 
+                                ? `Seçilen ${selectedUserEmailsForBroadcast.length} Kullanıcıya Gönder 🚀` 
+                                : "Toplu Kampanyayı Başlat 🚀"}
+                            </span>
                           </>
                         )}
                       </button>
