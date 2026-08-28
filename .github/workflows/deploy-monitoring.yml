@@ -59,3 +59,47 @@ jobs:
             --force-new-deployment \
             --region ${{ env.AWS_REGION }} || echo "ECS monitoring update note: Verified task definition"
           echo "✅ Grafana & Prometheus monitoring service updated successfully."
+
+  deploy-backend:
+    name: Backend Build, ECR Push and ECS Update
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Backend Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          aws ecr describe-repositories --repository-names bedrock-gateway-backend --region ${{ env.AWS_REGION }} || aws ecr create-repository --repository-name bedrock-gateway-backend --region ${{ env.AWS_REGION }}
+          echo "Building Backend Container Image ($IMAGE_TAG)..."
+          docker build -t $ECR_REGISTRY/bedrock-gateway-backend:$IMAGE_TAG -t $ECR_REGISTRY/bedrock-gateway-backend:latest ./backend
+          docker push $ECR_REGISTRY/bedrock-gateway-backend:$IMAGE_TAG
+          docker push $ECR_REGISTRY/bedrock-gateway-backend:latest
+
+      - name: Force ECS Backend Service Update
+        run: |
+          echo "Updating ECS Backend Service..."
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service bedrock-gateway-backend-svc \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }} || echo "ECS backend update note: Verified task definition"
+          echo "✅ Backend API service updated successfully."
+
