@@ -331,19 +331,20 @@ export default function RootPage() {
         setProfileAvatar(userProfile.avatar_url || null);
       }
 
-      // 2. Fetch wallet balance & broadcast with localStorage priority
-      const storedBal = typeof window !== "undefined" ? localStorage.getItem("bedrock_gateway_balance") : null;
+      // 2. Fetch wallet balance from live API & sync everywhere
       const walletData = await fetchApi("/api/wallet").catch(() => null);
-      if (storedBal !== null) {
-        const balNum = parseFloat(storedBal);
-        setBalance(balNum);
-        window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: balNum }));
-      } else if (walletData && walletData.balance_usd !== undefined) {
+      if (walletData && walletData.balance_usd !== undefined) {
         const balNum = Number(walletData.balance_usd);
         setBalance(balNum);
-        if (typeof window !== "undefined") localStorage.setItem("bedrock_gateway_balance", balNum.toString());
-        window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: balNum }));
+        publishLiveSyncEvent("BALANCE_UPDATED", balNum);
+      } else {
+        const storedBal = typeof window !== "undefined" ? localStorage.getItem("bedrock_gateway_balance") : null;
+        if (storedBal !== null) {
+          const balNum = parseFloat(storedBal);
+          setBalance(balNum);
+        }
       }
+
 
       // 3. Fetch models
       const modelsData = await fetchApi("/v1/models").catch(() => null);
@@ -1165,19 +1166,13 @@ export default function RootPage() {
 
   const handleDevFundCredits = async (amt: number = 10) => {
     try {
-      const current = balance || 0;
-      const updated = current + amt;
+      const res = await fetchApi("/api/wallet/dev-fund", {
+        method: "POST",
+        body: JSON.stringify({ amount: amt }),
+      });
+      const updated = Number(res?.new_balance ?? res?.balance_usd ?? ((balance || 0) + amt));
       setBalance(updated);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("bedrock_gateway_balance", updated.toString());
-        window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: updated }));
-      }
-      try {
-        await fetchApi("/api/wallet/dev-fund", {
-          method: "POST",
-          body: JSON.stringify({ amount: amt }),
-        });
-      } catch {}
+      publishLiveSyncEvent("BALANCE_UPDATED", updated);
       const txs = await fetchApi("/api/wallet/transactions").catch(() => []);
       setUserTransactions(txs || []);
       showPopup(
@@ -1189,6 +1184,7 @@ export default function RootPage() {
       showPopup("error", "Bakiye Yükleme Hatası", err.message);
     }
   };
+
 
   // Fetch Admin & AWS Diagnostics Data
   const fetchAdminData = async () => {

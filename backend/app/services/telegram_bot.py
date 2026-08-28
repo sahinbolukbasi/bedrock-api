@@ -19,9 +19,10 @@ from app.domain.schemas import ImageGenerationRequest
 from app.providers.router import provider_router
 from loguru import logger
 
-# Default Telegram Bot Token (Dynamically loaded from Secrets Manager / Environment)
-DEFAULT_TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-DEFAULT_TELEGRAM_BOT_USERNAME = "BedrockGatewayBot"
+# Default Telegram Bot Token & Username (Dynamically loaded from Secrets Manager / Environment)
+DEFAULT_TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8613347978:AAF0oVmP_GYBIA702VFXH4W5cy0BXS7DTbI")
+DEFAULT_TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "BedrocksAiBot")
+
 
 
 
@@ -172,10 +173,15 @@ class TelegramBotService:
         db: AsyncSession
     ) -> Optional[User]:
         clean_code = pairing_code.strip().upper()
-        if not clean_code.startswith("TG-") and len(clean_code) == 6:
-            clean_code = f"TG-{clean_code}"
+        clean_code = re.sub(r"^(?:/START|/PAIR|\?START=|=)\s*", "", clean_code).strip()
 
-        stmt = select(User).where(User.telegram_pairing_code == clean_code)
+        search_codes = [clean_code]
+        if clean_code.startswith("TG-"):
+            search_codes.append(clean_code.replace("TG-", ""))
+        elif len(clean_code) == 6:
+            search_codes.append(f"TG-{clean_code}")
+
+        stmt = select(User).where(User.telegram_pairing_code.in_(search_codes))
         res = await db.execute(stmt)
         user = res.scalar_one_or_none()
 
@@ -304,7 +310,7 @@ class TelegramBotService:
                 msg = (
                     "👋 *AWS Bedrock AI Gateway Botuna Hoş Geldiniz!*\n\n"
                     "Otonom AI ajanlarınızı yönetmek, hatırlatıcı kurmak, web takipçisi başlatmak ve görsel üretmek için hesabınızı bağlayın:\n\n"
-                    "👉 `/pair TG-123456` (Web panelinden kodunuzu alabilirsiniz)"
+                    "👉 `/pair TG-XXXXXX` (Web panelindeki eşleştirme kodunuzu girin)"
                 )
                 await cls.send_message(token, chat_id, msg)
             return {"status": "ok", "command": "start"}
@@ -328,6 +334,19 @@ class TelegramBotService:
             else:
                 await cls.send_message(token, chat_id, "❌ *Eşleştirme Başarısız.* Kod hatalı veya süresi dolmuş.")
                 return {"status": "invalid_code"}
+
+        # Direct pairing code entered without /pair
+        if not user and (text.upper().startswith("TG-") or (len(text.strip()) == 6 and text.strip().isdigit())):
+            paired_user = await cls.pair_user_by_code(text, chat_id, username, db)
+            if paired_user:
+                welcome_text = (
+                    f"🎉 *Tebrikler! AWS Bedrock AI Hesabınız Başarıyla Eşleşti!*\n\n"
+                    f"👤 *Kullanıcı:* `{paired_user.email}`\n"
+                    f"🆔 *Telegram Chat ID:* `{chat_id}`\n\n"
+                    f"⚡ *Hızlı İşlemler İçin Menüyü Kullanabilirsiniz:*"
+                )
+                await cls.send_message(token, chat_id, welcome_text, reply_markup=get_main_menu_keyboard())
+                return {"status": "paired", "user": paired_user.email}
 
         if not user:
             await cls.send_message(

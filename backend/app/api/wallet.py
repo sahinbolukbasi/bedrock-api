@@ -92,28 +92,39 @@ async def stripe_webhook(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+from pydantic import BaseModel
+
+class DevFundBody(BaseModel):
+    amount: Optional[Decimal] = Decimal("10.00")
+
 @router.post("/dev-fund")
 async def dev_fund_wallet(
-    amount: Decimal = Decimal("10.00"),
+    body: Optional[DevFundBody] = None,
+    amount: Optional[Decimal] = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Development endpoint to quickly add test credits to current user wallet without Stripe setup.
     """
+    fund_amt = (body.amount if body and body.amount is not None else amount) or Decimal("10.00")
     tx_ref = f"dev_fund_{uuid.uuid4().hex[:8]}"
     wallet, tx = await CreditService.add_credits(
         db=db,
         user_id=current_user.id,
-        amount_usd=amount,
+        amount_usd=fund_amt,
         reference_id=tx_ref,
         transaction_type="BONUS",
-        description=f"Developer Test Credits (${amount})"
+        description=f"Developer Test Credits (${fund_amt})"
     )
+    bal_float = float(wallet.balance_usd)
     return {
-        "message": f"Successfully added ${amount} in test credits.",
-        "new_balance": float(wallet.balance_usd)
+        "message": f"Successfully added ${fund_amt} in test credits.",
+        "new_balance": bal_float,
+        "balance_usd": bal_float,
+        "wallet_id": str(wallet.id)
     }
+
 
 
 from fastapi.responses import Response

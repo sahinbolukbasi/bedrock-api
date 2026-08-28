@@ -12,6 +12,7 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { fetchApi } from "../../lib/api";
+import { subscribeToLiveSync, publishLiveSyncEvent } from "../../lib/sync-engine";
 import AuthGuard from "../../components/AuthGuard";
 
 export default function BillingPage() {
@@ -31,7 +32,8 @@ function BillingPageContent() {
   const loadBillingData = async () => {
     try {
       const wData = await fetchApi("/api/wallet");
-      setBalance(Number(wData.balance_usd));
+      const numBal = Number(wData.balance_usd);
+      setBalance(numBal);
       const pData = await fetchApi("/api/wallet/packages");
       setPackages(pData);
       const tData = await fetchApi("/api/wallet/transactions");
@@ -43,6 +45,16 @@ function BillingPageContent() {
 
   useEffect(() => {
     loadBillingData();
+    const unsubscribe = subscribeToLiveSync((event) => {
+      if (event.type === "BALANCE_UPDATED") {
+        if (event.payload !== undefined) {
+          setBalance(Number(event.payload));
+        } else {
+          loadBillingData();
+        }
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   const handlePurchase = async (pkgId: string) => {
@@ -64,12 +76,16 @@ function BillingPageContent() {
   const handleDevFund = async () => {
     try {
       const res = await fetchApi("/api/wallet/dev-fund", { method: "POST" });
+      const newBal = Number(res?.new_balance ?? res?.balance_usd ?? (balance + 10));
+      setBalance(newBal);
+      publishLiveSyncEvent("BALANCE_UPDATED", newBal);
       alert(res.message);
       loadBillingData();
     } catch (err: any) {
       alert(err.message);
     }
   };
+
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
