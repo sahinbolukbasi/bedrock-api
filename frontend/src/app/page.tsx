@@ -33,6 +33,9 @@ import {
   RefreshCw, 
   Search, 
   Clock, 
+  Edit3,
+  BarChart3,
+  Filter, 
   QrCode, 
   KeyRound, 
   Server, 
@@ -164,27 +167,62 @@ export default function RootPage() {
   const [isSpeakingIndex, setIsSpeakingIndex] = useState<string | null>(null);
 
   // ==========================================
-  // Unified Developer & API Hub State (Keys + Docs)
+  // Unified Developer & API Hub State (Keys + Budget Limits + Logs + Docs)
   // ==========================================
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
+  const [newKeySpendingLimit, setNewKeySpendingLimit] = useState<string>("");
+  const [newKeyRpm, setNewKeyRpm] = useState<number>(120);
   const [createdSecretKey, setCreatedSecretKey] = useState<string | null>(null);
   const [keyCopied, setKeyCopied] = useState(false);
-  const [docsLanguage, setDocsLanguage] = useState<"python" | "node" | "curl" | "langchain">("python");
+  const [docsLanguage, setDocsLanguage] = useState<"python" | "node" | "curl" | "langchain" | "agent">("python");
+  const [selectedDocsKey, setSelectedDocsKey] = useState<string>("");
+
+  // API Key Edit Modal State
+  const [editingKey, setEditingKey] = useState<any | null>(null);
+  const [editKeyName, setEditKeyName] = useState("");
+  const [editKeySpendingLimit, setEditKeySpendingLimit] = useState<string>("");
+  const [editKeyRpm, setEditKeyRpm] = useState<number>(120);
+
+  // Live Request Logs & Consumption Summary
+  const [apiKeyLogs, setApiKeyLogs] = useState<any[]>([]);
+  const [apiKeySummary, setApiKeySummary] = useState<any | null>(null);
+  const [selectedKeyLogFilter, setSelectedKeyLogFilter] = useState<string>("ALL");
 
   // ==========================================
-  // AI Agents State
+  // AI Agents & Telegram Bot State
   // ==========================================
   const [agents, setAgents] = useState<any[]>([]);
   const [showAgentModal, setShowAgentModal] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<any | null>(null);
   const [newAgentName, setNewAgentName] = useState("");
+  const [newAgentIcon, setNewAgentIcon] = useState("📰");
+  const [newAgentType, setNewAgentType] = useState("news");
   const [newAgentDesc, setNewAgentDesc] = useState("");
-  const [newAgentModel, setNewAgentModel] = useState("anthropic.claude-3-5-sonnet-20241022-v2:0");
-  const [newAgentPrompt, setNewAgentPrompt] = useState("Sen verilen verileri analiz edip özetleyen bir otomasyon ajanısın.");
-  const [agentEmailTool, setAgentEmailTool] = useState(true);
-  const [agentTelegramWebhook, setAgentTelegramWebhook] = useState("");
+  const [newAgentModel, setNewAgentModel] = useState("amazon.nova-micro-v1:0");
+  const [newAgentPrompt, setNewAgentPrompt] = useState("Sen canlı internet haberlerini ve teknoloji gelişmelerini tarayan, özetleyen ve Telegram üzerinden kullanıcıya ileten otonom bir haber asistanısın.");
+  const [agentWebSearchTool, setAgentWebSearchTool] = useState(true);
+  const [agentTelegramTool, setAgentTelegramTool] = useState(true);
+  const [agentEmailTool, setAgentEmailTool] = useState(false);
+  const [agentScheduleCron, setAgentScheduleCron] = useState("");
+  
+  // Telegram Integration State
+  const [telegramStatus, setTelegramStatus] = useState<any | null>(null);
+  const [loadingTelegram, setLoadingTelegram] = useState(false);
+  const [telegramCopied, setTelegramCopied] = useState(false);
+  const [telegramTestStatus, setTelegramTestStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+
+  // Agent Execution & Interactive Console
+  const [agentRunModal, setAgentRunModal] = useState<any | null>(null);
+  const [agentRunPrompt, setAgentRunPrompt] = useState("");
   const [runningAgentId, setRunningAgentId] = useState<string | null>(null);
+  const [agentRunSteps, setAgentRunSteps] = useState<string[]>([]);
   const [agentExecutionResult, setAgentExecutionResult] = useState<any | null>(null);
+
+  // Agent Logs Modal
+  const [agentLogsModal, setAgentLogsModal] = useState<any | null>(null);
+  const [agentLogsList, setAgentLogsList] = useState<any[]>([]);
+  const [loadingAgentLogs, setLoadingAgentLogs] = useState(false);
 
   // ==========================================
   // Billing & Stripe Modal State
@@ -243,6 +281,14 @@ export default function RootPage() {
   const [notifySending, setNotifySending] = useState(false);
 
   const [auditLogsList, setAuditLogsList] = useState<any[]>([]);
+  // Interactive API Playground & Prompt Template Hub State
+  const [apiTesterModel, setApiTesterModel] = useState("anthropic.claude-3-5-sonnet-20241022-v2:0");
+  const [apiTesterPrompt, setApiTesterPrompt] = useState("Kullanıcı kaydı doğrulama kodu üreten ve e-posta atan bir Python fonksiyonu yaz.");
+  const [apiTesterRunning, setApiTesterRunning] = useState(false);
+  const [apiTesterResult, setApiTesterResult] = useState<any | null>(null);
+  const [promptTemplateCategory, setPromptTemplateCategory] = useState<"rag" | "agent" | "json" | "security">("rag");
+  const [promptCopied, setPromptCopied] = useState(false);
+
   const [systemSettings, setSystemSettings] = useState<any>({
     maintenance_mode: false,
     maintenance_message: "Sistem planlı bakım nedeniyle kısa süreliğine kapalıdır.",
@@ -307,6 +353,12 @@ export default function RootPage() {
       const agentList = await fetchApi("/api/agents").catch(() => null);
       if (agentList && Array.isArray(agentList)) {
         setAgents(agentList);
+      }
+
+      // 6. Fetch Telegram status
+      const tgData = await fetchApi("/api/agents/telegram/status").catch(() => null);
+      if (tgData) {
+        setTelegramStatus(tgData);
       }
     } catch (err) {
       console.warn("Background auto-sync note:", err);
@@ -539,50 +591,253 @@ export default function RootPage() {
     reader.readAsDataURL(file);
   };
 
-  // Create Custom Agent
-  const handleCreateAgent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAgentName.trim()) return;
+  // ==========================================
+  // Telegram Integration Handlers
+  // ==========================================
+  const loadTelegramStatus = async () => {
+    setLoadingTelegram(true);
     try {
-      const res = await fetchApi("/api/agents", {
-        method: "POST",
-        body: JSON.stringify({
-          name: newAgentName,
-          description: newAgentDesc,
-          model_id: newAgentModel,
-          system_prompt: newAgentPrompt,
-          tools_config: {
-            email_notifications: agentEmailTool,
-            telegram_webhook: agentTelegramWebhook.trim() || undefined,
-          },
-        }),
-      });
-      setAgents((prev) => [res, ...prev]);
-      setShowAgentModal(false);
-      setNewAgentName("");
-      setNewAgentDesc("");
+      const data = await fetchApi("/api/agents/telegram/status");
+      setTelegramStatus(data);
     } catch (err) {
-      console.error("Failed to create agent:", err);
+      console.error("Failed to load telegram status:", err);
+    } finally {
+      setLoadingTelegram(false);
     }
   };
 
-  // Run Custom Agent
-  const handleRunAgent = async (agent: any) => {
-    setRunningAgentId(agent.id);
-    setAgentExecutionResult(null);
+  const handleGenerateNewTelegramCode = async () => {
     try {
-      const res = await fetchApi(`/api/agents/${agent.id}/run`, {
+      const data = await fetchApi("/api/agents/telegram/generate-code", { method: "POST" });
+      setTelegramStatus((prev: any) => ({ ...prev, pairing_code: data.pairing_code, deep_link: data.deep_link }));
+    } catch (err: any) {
+      alert(err.message || "Eşleştirme kodu üretilemedi.");
+    }
+  };
+
+  const handleDisconnectTelegram = async () => {
+    if (!confirm("Telegram bağlantısını kaldırmak istediğinize emin misiniz?")) return;
+    try {
+      await fetchApi("/api/agents/telegram/disconnect", { method: "POST" });
+      loadTelegramStatus();
+    } catch (err: any) {
+      alert(err.message || "Bağlantı kaldırılamadı.");
+    }
+  };
+
+  const handleTestTelegram = async () => {
+    setTelegramTestStatus(null);
+    try {
+      await fetchApi("/api/agents/telegram/test", { method: "POST" });
+      setTelegramTestStatus({ type: "success", msg: "✅ Test mesajı Telegram hesabınıza başarıyla iletildi!" });
+      setTimeout(() => setTelegramTestStatus(null), 5000);
+    } catch (err: any) {
+      setTelegramTestStatus({ type: "error", msg: `❌ ${err.message || "Telegram mesajı gönderilemedi."}` });
+    }
+  };
+
+  const handleCopyTelegramCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setTelegramCopied(true);
+    setTimeout(() => setTelegramCopied(false), 2500);
+  };
+
+  // ==========================================
+  // Agent Creator & Templates Handlers
+  // ==========================================
+  const handleSelectAgentTemplate = (tplKey: string) => {
+    if (tplKey === "news") {
+      setNewAgentName("Canlı Haber & Teknoloji Casusu");
+      setNewAgentIcon("📰");
+      setNewAgentType("news");
+      setNewAgentModel("amazon.nova-micro-v1:0");
+      setNewAgentPrompt("Sen canlı internet haberlerini, son dakika gelişmelerini ve yapay zeka/teknoloji trendlerini sürekli tarayan, özetleyen ve Telegram üzerinden kullanıcıya ileten otonom bir haber asistanısın.");
+      setNewAgentDesc("İnternetten güncel haberleri ve AI gelişmelerini anlık tarayıp Telegram'a aktarır.");
+      setAgentWebSearchTool(true);
+      setAgentTelegramTool(true);
+      setAgentEmailTool(false);
+      setAgentScheduleCron("0 9 * * *");
+    } else if (tplKey === "finance") {
+      setNewAgentName("Kripto & Finans Piyasa Takipçisi");
+      setNewAgentIcon("📈");
+      setNewAgentType("finance");
+      setNewAgentModel("meta.llama3-2-3b-instruct-v1:0");
+      setNewAgentPrompt("Sen finansal piyasaları, Bitcoin, Ethereum, hisse senetleri ve altın fiyatlarını internetten tarayan, kritik kırılımları ve fiyat hareketlerini analiz eden uzman bir piyasa botusun.");
+      setNewAgentDesc("Piyasa verilerini ve kripto haberlerini takip edip kritik hareketleri bildirir.");
+      setAgentWebSearchTool(true);
+      setAgentTelegramTool(true);
+      setAgentEmailTool(false);
+      setAgentScheduleCron("0 * * * *");
+    } else if (tplKey === "security") {
+      setNewAgentName("Siber Güvenlik & Zaafiyet Analisti");
+      setNewAgentIcon("🛡️");
+      setNewAgentType("security");
+      setNewAgentModel("anthropic.claude-3-5-sonnet-20241022-v2:0");
+      setNewAgentPrompt("Sen siber güvenlik bültenlerini, yeni çıkan CVE zaafiyetlerini ve sistem yamalarını tarayıp risk puanlarıyla raporlayan ileri düzey güvenlik asistanısın.");
+      setNewAgentDesc("Son çıkan kritik CVE ve güvenlik açıklarını analiz eder.");
+      setAgentWebSearchTool(true);
+      setAgentTelegramTool(true);
+      setAgentEmailTool(true);
+      setAgentScheduleCron("0 9 * * 1");
+    } else {
+      setNewAgentName("");
+      setNewAgentIcon("🤖");
+      setNewAgentType("custom");
+      setNewAgentModel("amazon.nova-micro-v1:0");
+      setNewAgentPrompt("Sen verilen görevleri analiz edip özetleyen bir otonom asistansın.");
+      setNewAgentDesc("");
+      setAgentWebSearchTool(true);
+      setAgentTelegramTool(true);
+      setAgentEmailTool(false);
+      setAgentScheduleCron("");
+    }
+    setEditingAgent(null);
+    setShowAgentModal(true);
+  };
+
+  const handleSaveAgent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAgentName.trim()) return;
+
+    const payload = {
+      name: newAgentName.trim(),
+      icon: newAgentIcon || "🤖",
+      agent_type: newAgentType || "custom",
+      description: newAgentDesc.trim(),
+      model_id: newAgentModel,
+      system_prompt: newAgentPrompt.trim(),
+      schedule_cron: agentScheduleCron || null,
+      schedule_enabled: Boolean(agentScheduleCron),
+      tools_config: {
+        web_search: agentWebSearchTool,
+        telegram: agentTelegramTool,
+        email: agentEmailTool,
+      },
+    };
+
+    try {
+      if (editingAgent) {
+        const res = await fetchApi(`/api/agents/${editingAgent.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        });
+        setAgents((prev) => prev.map((a) => (a.id === editingAgent.id ? res : a)));
+      } else {
+        const res = await fetchApi("/api/agents", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setAgents((prev) => [res, ...prev]);
+      }
+      setShowAgentModal(false);
+      setEditingAgent(null);
+    } catch (err: any) {
+      alert(err.message || "Bot kaydedilemedi.");
+    }
+  };
+
+  const handleOpenEditAgent = (agent: any) => {
+    setEditingAgent(agent);
+    setNewAgentName(agent.name);
+    setNewAgentIcon(agent.icon || "🤖");
+    setNewAgentType(agent.agent_type || "custom");
+    setNewAgentDesc(agent.description || "");
+    setNewAgentModel(agent.model_id);
+    setNewAgentPrompt(agent.system_prompt);
+    const tools = agent.tools_config || {};
+    setAgentWebSearchTool(tools.web_search ?? true);
+    setAgentTelegramTool(tools.telegram ?? true);
+    setAgentEmailTool(tools.email ?? false);
+    setAgentScheduleCron(agent.schedule_cron || "");
+    setShowAgentModal(true);
+  };
+
+  const handleDeleteAgent = async (agentId: string) => {
+    if (!confirm("Bu botu silmek istediğinize emin misiniz?")) return;
+    try {
+      await fetchApi(`/api/agents/${agentId}`, { method: "DELETE" });
+      setAgents((prev) => prev.filter((a) => a.id !== agentId));
+    } catch (err: any) {
+      alert(err.message || "Bot silinemedi.");
+    }
+  };
+
+  // ==========================================
+  // Interactive Agent Runner & Live Execution
+  // ==========================================
+  const handleOpenRunModal = (agent: any) => {
+    setAgentRunModal(agent);
+    setAgentRunPrompt(
+      agent.agent_type === "news" || agent.name.toLowerCase().includes("haber")
+        ? "Bugünkü yapay zeka ve AWS Bedrock haberlerini internetten tara ve özetle"
+        : agent.agent_type === "finance"
+        ? "Bitcoin ve teknoloji hisselerindeki son piyasa durumunu analiz et"
+        : "Son durum kontrolünü yap ve genel durum raporu hazırla"
+    );
+    setAgentExecutionResult(null);
+    setAgentRunSteps([]);
+  };
+
+  const handleExecuteAgentInteractive = async () => {
+    if (!agentRunModal) return;
+    setRunningAgentId(agentRunModal.id);
+    setAgentExecutionResult(null);
+    setAgentRunSteps([
+      "🚀 Görev başlatıldı...",
+      "🔍 Canlı web & haber kaynakları taranıyor (DuckDuckGo / RSS)...",
+    ]);
+
+    try {
+      setTimeout(() => {
+        setAgentRunSteps((prev) => [
+          ...prev,
+          `🧠 AWS Bedrock Modeli (${agentRunModal.model_id}) ile akıl yürütülüyor...`,
+        ]);
+      }, 700);
+
+      const res = await fetchApi(`/api/agents/${agentRunModal.id}/run`, {
         method: "POST",
         body: JSON.stringify({
-          input_text: "Sistem durumunu kontrol et ve günlük rapor oluştur.",
-          trigger_email: true,
+          input_text: agentRunPrompt,
+          telegram_notify: true,
+          trigger_email: false,
         }),
       });
+
+      setAgentRunSteps((prev) => [
+        ...prev,
+        res.channels_triggered?.telegram
+          ? "📱 Telegram hesabınıza anlık rapor başarıyla iletildi!"
+          : "ℹ️ Web çıktısı hazırlandı.",
+        "✅ Görev başarıyla tamamlandı!",
+      ]);
+
       setAgentExecutionResult(res);
+      // Refresh agents total_runs count
+      const updatedList = await fetchApi("/api/agents").catch(() => null);
+      if (updatedList) setAgents(updatedList);
     } catch (err: any) {
-      setAgentExecutionResult({ status: "ERROR", output: err.message || "Ajan çalıştırılamadı." });
+      setAgentExecutionResult({
+        status: "ERROR",
+        output: err.message || "Ajan çalıştırılırken bir hata oluştu.",
+      });
+      setAgentRunSteps((prev) => [...prev, `❌ Hata: ${err.message || "Bilinmeyen hata"}`]);
     } finally {
       setRunningAgentId(null);
+    }
+  };
+
+  const handleOpenAgentLogs = async (agent: any) => {
+    setAgentLogsModal(agent);
+    setLoadingAgentLogs(true);
+    try {
+      const logs = await fetchApi(`/api/agents/${agent.id}/logs`);
+      setAgentLogsList(logs || []);
+    } catch (err) {
+      console.error("Failed to load agent logs:", err);
+      setAgentLogsList([]);
+    } finally {
+      setLoadingAgentLogs(false);
     }
   };
 
@@ -788,14 +1043,27 @@ export default function RootPage() {
     }, 1000);
   };
 
+  // Load API Keys, Logs & Stats
+  const loadApiKeysAndLogs = async () => {
+    try {
+      const [keysData, summaryData, logsData] = await Promise.all([
+        fetchApi("/api/keys").catch(() => []),
+        fetchApi("/api/usage/summary").catch(() => null),
+        fetchApi("/api/usage/recent?limit=50").catch(() => [])
+      ]);
+      setApiKeys(keysData || []);
+      if (summaryData) setApiKeySummary(summaryData);
+      if (logsData) setApiKeyLogs(logsData);
+    } catch (err) {
+      console.warn("Failed to load API hub data:", err);
+    }
+  };
+
   // Switch Tabs & Load Tab Data
   const handleTabChange = async (tab: any) => {
     setActiveTab(tab);
     if (tab === "api") {
-      try {
-        const data = await fetchApi("/api/keys");
-        setApiKeys(data || []);
-      } catch {}
+      loadApiKeysAndLogs();
     } else if (tab === "agents") {
       loadAgents();
     } else if (tab === "profile") {
@@ -1023,31 +1291,123 @@ export default function RootPage() {
     }
   };
 
-  // Create API Key
+  // Create API Key with Budget Limit & Rate Limit
   const handleCreateApiKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKeyName.trim()) return;
     try {
       const res = await fetchApi("/api/keys", {
         method: "POST",
-        body: JSON.stringify({ name: newKeyName, rate_limit_rpm: 120 }),
+        body: JSON.stringify({
+          name: newKeyName.trim(),
+          rate_limit_rpm: Number(newKeyRpm) || 120,
+          spending_limit_usd: newKeySpendingLimit ? Number(newKeySpendingLimit) : null,
+        }),
       });
-      setCreatedSecretKey(res.raw_key);
+      const generatedKey = res.api_key || res.secret_key || res.raw_key || res.key;
+      setCreatedSecretKey(generatedKey);
       setNewKeyName("");
-      const list = await fetchApi("/api/keys");
-      setApiKeys(list || []);
-    } catch (err) {
+      setNewKeySpendingLimit("");
+      await loadApiKeysAndLogs();
+      showPopup("success", "API Anahtarı Başarıyla Üretildi! 🔑", "Yeni anahtarınız oluşturuldu. Lütfen güvenli bir yere kaydedin.");
+    } catch (err: any) {
       console.error("Failed to create key:", err);
+      showPopup("error", "Anahtar Oluşturma Hatası", err.message);
+    }
+  };
+
+  // Open Edit API Key Modal
+  const handleOpenEditKey = (k: any) => {
+    setEditingKey(k);
+    setEditKeyName(k.name || "");
+    setEditKeySpendingLimit(k.spending_limit_usd ? String(Number(k.spending_limit_usd)) : "");
+    setEditKeyRpm(k.rate_limit_rpm || 120);
+  };
+
+  // Update API Key (Spending Limit, Name, RPM)
+  const handleUpdateApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingKey) return;
+    try {
+      await fetchApi(`/api/keys/${editingKey.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: editKeyName.trim() || editingKey.name,
+          rate_limit_rpm: Number(editKeyRpm) || 120,
+          spending_limit_usd: editKeySpendingLimit ? Number(editKeySpendingLimit) : null,
+        }),
+      });
+      setEditingKey(null);
+      await loadApiKeysAndLogs();
+      showPopup("success", "API Anahtarı Güncellendi! ⚙️", "Bütçe kısıtı ve limitler başarıyla kaydedildi.");
+    } catch (err: any) {
+      console.error("Failed to update key:", err);
+      showPopup("error", "Güncelleme Hatası", err.message);
     }
   };
 
   // Revoke API Key
   const handleRevokeKey = async (keyId: string) => {
+    if (!confirm("Bu API anahtarını devre dışı bırakmak istediğinize emin misiniz?")) return;
+    try {
+      await fetchApi(`/api/keys/${keyId}/revoke`, { method: "POST" });
+      await loadApiKeysAndLogs();
+      showPopup("success", "API Anahtarı İptal Edildi", "Seçilen anahtar başarıyla devre dışı bırakıldı.");
+    } catch (err: any) {
+      console.error("Failed to revoke key:", err);
+      showPopup("error", "Anahtar İptal Hatası", err.message);
+    }
+  };
+
+  // Delete API Key permanently
+  const handleDeleteKey = async (keyId: string) => {
+    if (!confirm("Bu API anahtarını kalıcı olarak silmek istediğinize emin misiniz?")) return;
     try {
       await fetchApi(`/api/keys/${keyId}`, { method: "DELETE" });
-      setApiKeys((prev) => prev.filter((k) => k.id !== keyId));
-    } catch (err) {
-      console.error("Failed to revoke key:", err);
+      await loadApiKeysAndLogs();
+      showPopup("success", "API Anahtarı Silindi", "Anahtar sistemden kalıcı olarak silindi.");
+    } catch (err: any) {
+      console.error("Failed to delete key:", err);
+      showPopup("error", "Silme Hatası", err.message);
+    }
+  };
+
+  // Interactive Live API Playground Runner
+  const handleRunApiTest = async () => {
+    setApiTesterRunning(true);
+    setApiTesterResult(null);
+    const start = performance.now();
+    try {
+      const res = await fetch("/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token || "bg-live-session"}`,
+        },
+        body: JSON.stringify({
+          model: apiTesterModel,
+          messages: [{ role: "user", content: apiTesterPrompt }],
+          temperature: 0.7,
+        }),
+      });
+      const data = await res.json();
+      const latency = Math.round(performance.now() - start);
+      setApiTesterResult({
+        status: res.status,
+        latencyMs: latency,
+        data: data,
+        success: res.ok,
+      });
+    } catch (err: any) {
+      const latency = Math.round(performance.now() - start);
+      setApiTesterResult({
+        status: 500,
+        latencyMs: latency,
+        error: err.message,
+        success: false,
+      });
+    } finally {
+      setApiTesterRunning(false);
     }
   };
 
@@ -1258,9 +1618,10 @@ export default function RootPage() {
     ];
 
     let fullText = "";
+    let streamUsage: any = null;
 
     try {
-      // 1. Try Streaming SSE Endpoint
+      // 1. Streaming SSE → real AWS Bedrock backend
       const response = await fetch(`${API_BASE}/v1/chat/completions`, {
         method: "POST",
         signal: abortCtrl.signal,
@@ -1276,7 +1637,14 @@ export default function RootPage() {
         }),
       });
 
-      if (response.ok && response.body) {
+      if (!response.ok) {
+        let errBody: any = {};
+        try { errBody = await response.json(); } catch {}
+        const msg = errBody?.error?.message || errBody?.detail || `HTTP ${response.status}`;
+        throw new Error(msg);
+      }
+
+      if (response.body) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
@@ -1293,6 +1661,8 @@ export default function RootPage() {
             if (trimmed.startsWith("data: ") && trimmed !== "data: [DONE]") {
               try {
                 const parsed = JSON.parse(trimmed.slice(6));
+                // collect usage if present in last chunk
+                if (parsed.usage) streamUsage = parsed.usage;
                 const deltaContent = parsed.choices?.[0]?.delta?.content || "";
                 if (deltaContent) {
                   fullText += deltaContent;
@@ -1308,37 +1678,9 @@ export default function RootPage() {
             }
           }
         }
-      } else {
-        // 2. If Streaming fails or returns non-200, fallback to direct non-streaming JSON
-        const nonStreamRes = await fetch(`${API_BASE}/v1/chat/completions`, {
-          method: "POST",
-          signal: abortCtrl.signal,
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${tokenToUse}`,
-          },
-          body: JSON.stringify({
-            model: selectedModel,
-            messages: payloadMessages,
-            temperature: temperature,
-            stream: false,
-          }),
-        });
-
-        const nonStreamJson = await nonStreamRes.json();
-        if (!nonStreamRes.ok) {
-          throw new Error(nonStreamJson?.error?.message || nonStreamJson?.detail || "AI modeli çağrılırken bir hata oluştu.");
-        }
-
-        fullText = nonStreamJson.choices?.[0]?.message?.content || "";
-        setMessages((prev) => {
-          const updated = [...prev];
-          if (updated.length > 0) {
-            updated[updated.length - 1].content = fullText;
-          }
-          return updated;
-        });
       }
+
+
 
       // Auto-detect artifacts (HTML, SVG, Mermaid) in output
       const detected = extractArtifactFromText(fullText);
@@ -1347,53 +1689,30 @@ export default function RootPage() {
         setIsCanvasOpen(true);
       }
 
-      // Persist assistant response to DB
+      // Persist assistant response to DB with token cost
       if (currentConvId && fullText) {
+        const totalTok = streamUsage?.total_tokens || Math.ceil(fullText.length / 4);
+        const costUsd = streamUsage?.cost_usd || 0;
         fetchApi(`/api/chat-ui/conversations/${currentConvId}/messages`, {
           method: "POST",
-          body: JSON.stringify({ role: "assistant", content: fullText }),
+          body: JSON.stringify({
+            role: "assistant",
+            content: fullText,
+            tokens: totalTok,
+            cost_usd: costUsd,
+          }),
         }).catch(() => {});
       }
     } catch (err: any) {
       if (err.name === "AbortError") {
-        console.log("Stream stopped by user.");
+        // User stopped generation
       } else {
         console.error("Chat Generation Error:", err);
-        const promptLower = userContent.toLowerCase().trim();
-        let directAnswer = "";
-
-        if (promptLower.includes("başkent") || promptLower.includes("baskent")) {
-          if (promptLower.includes("türkiye") || promptLower.includes("turkiye")) {
-            directAnswer = "Türkiye'nin başkenti **Ankara**'dır. 13 Ekim 1923 tarihinde Türkiye Büyük Millet Meclisi kararıyla başkent kabul edilmiştir.";
-          } else if (promptLower.includes("fransa")) {
-            directAnswer = "Fransa'nın başkenti **Paris**'tir.";
-          } else if (promptLower.includes("almanya")) {
-            directAnswer = "Almanya'nın başkenti **Berlin**'dir.";
-          } else if (promptLower.includes("italya")) {
-            directAnswer = "İtalya'nın başkenti **Roma**'dır.";
-          } else if (promptLower.includes("ingiltere") || promptLower.includes("birleşik krallık")) {
-            directAnswer = "İngiltere ve Birleşik Krallık'ın başkenti **Londra**'dır.";
-          } else if (promptLower.includes("japonya")) {
-            directAnswer = "Japonya'nın başkenti **Tokyo**'dur.";
-          } else if (promptLower.includes("abd") || promptLower.includes("amerika")) {
-            directAnswer = "Amerika Birleşik Devletleri'nin (ABD) başkenti **Washington, D.C.**'dir.";
-          }
-        }
-
-        if (!directAnswer) {
-          if (["merhaba", "selam", "selamlar", "günaydın", "iyi günler", "hello", "hi"].includes(promptLower)) {
-            directAnswer = "Merhaba! Size nasıl yardımcı olabilirim? Herhangi bir soru sorabilir, kodlama veya analiz isteğinde bulunabilirsiniz.";
-          } else if (promptLower.includes("python") && (promptLower.includes("sırala") || promptLower.includes("sort") || promptLower.includes("liste"))) {
-            directAnswer = "Python'da listeleri sıralamak için iki temel yöntem kullanılır:\n\n### 1. `sort()` Metodu (Listeyi Yerinde Değiştirir)\n```python\nsayilar = [5, 2, 9, 1, 7]\nsayilar.sort() # Küçükten büyüğe: [1, 2, 5, 7, 9]\nsayilar.sort(reverse=True) # Büyükten küçüğe: [9, 7, 5, 2, 1]\n```\n\n### 2. `sorted()` Fonksiyonu (Yeni Sıralı Liste Döndürür)\n```python\nkelimeler = ['elma', 'muz', 'çilek', 'armut']\nsirali = sorted(kelimeler) # ['armut', 'elma', 'muz', 'çilek']\n```";
-          } else {
-            directAnswer = `Sorunuzla ilgili detaylı yanıt:\n\n${userContent}\n\nİşleminiz başarıyla tamamlanmıştır. Başka bir sorunuz veya eklemek istediğiniz detay varsa yardımcı olmaktan memnuniyet duyarım.`;
-          }
-        }
-
+        const errorMsg = err?.message || "AI modeli yanıt üretemedi. Lütfen tekrar deneyin.";
         setMessages((prev) => {
           const updated = [...prev];
           if (updated.length > 0) {
-            updated[updated.length - 1].content = directAnswer;
+            updated[updated.length - 1].content = `⚠️ ${errorMsg}`;
           }
           return updated;
         });
@@ -1401,8 +1720,16 @@ export default function RootPage() {
     } finally {
       setIsStreaming(false);
       abortControllerRef.current = null;
+      // Refresh balance from backend after every message (backend already deducted cost)
       fetchApi("/api/wallet").then((w) => {
-        if (w && w.balance_usd !== undefined) setBalance(Number(w.balance_usd));
+        if (w && w.balance_usd !== undefined) {
+          const fresh = Number(w.balance_usd);
+          setBalance(fresh);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("bedrock_gateway_balance", fresh.toString());
+            window.dispatchEvent(new CustomEvent("bedrock:balance-updated", { detail: fresh }));
+          }
+        }
       }).catch(() => {});
     }
   };
@@ -1985,23 +2312,56 @@ export default function RootPage() {
                       onChange={(e) => setSelectedModel(e.target.value)}
                       className="bg-transparent text-xs text-indigo-600 dark:text-indigo-400 font-bold focus:outline-none cursor-pointer"
                     >
-                      <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (Vision · Code)</option>
-                      <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (Ultra Hızlı)</option>
-                      <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (Multimodal)</option>
-                      <option value="amazon.nova-lite-v1:0">Amazon Nova Lite (Ekonomik)</option>
-                      <option value="amazon.nova-micro-v1:0">Amazon Nova Micro (En Ucuz · $0.035/M)</option>
-                      <option value="meta.llama3-8b-instruct-v1:0">Meta Llama 3 8B (Açık Kaynak)</option>
+                      <optgroup label="🧠 Anthropic Claude (Frontier)">
+                        <option value="anthropic.claude-3-7-sonnet-20250219-v1:0">Claude 3.7 Sonnet (Hybrid Reasoning · Code)</option>
+                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">Claude 3.5 Sonnet v2 (En Çok Tercih Edilen)</option>
+                        <option value="anthropic.claude-3-5-haiku-20241022-v1:0">Claude 3.5 Haiku (Hızlı & Düşük Maliyet)</option>
+                        <option value="anthropic.claude-3-opus-20240229-v1:0">Claude 3 Opus (Derin Analiz)</option>
+                      </optgroup>
+
+                      <optgroup label="⚡ Amazon Nova (Ultra Bütçe & Agent)">
+                        <option value="amazon.nova-micro-v1:0">⚡ Amazon Nova Micro ($0.000035/1k - En Ucuz)</option>
+                        <option value="amazon.nova-lite-v1:0">⚡ Amazon Nova Lite ($0.00006/1k - Multimodal)</option>
+                        <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (Multimodal & Kurumsal)</option>
+                      </optgroup>
+
+                      <optgroup label="🦙 Meta Llama (Açık Kaynak & Agent)">
+                        <option value="meta.llama3-3-70b-instruct-v1:0">Meta Llama 3.3 70B Instruct</option>
+                        <option value="meta.llama3-2-1b-instruct-v1:0">⚡ Meta Llama 3.2 1B (Mikro Agent LLM)</option>
+                        <option value="meta.llama3-2-3b-instruct-v1:0">⚡ Meta Llama 3.2 3B (Hızlı Agent LLM)</option>
+                        <option value="meta.llama3-2-11b-instruct-v1:0">Meta Llama 3.2 11B Vision</option>
+                        <option value="meta.llama3-1-405b-instruct-v1:0">Meta Llama 3.1 405B (Dev Frontier)</option>
+                      </optgroup>
+
+                      <optgroup label="🌪️ Mistral AI">
+                        <option value="mistral.mistral-large-2407-v1:0">Mistral Large 2 (24.07)</option>
+                        <option value="mistral.mistral-small-2402-v1:0">⚡ Mistral Small (Hızlı & Bütçe)</option>
+                        <option value="mistral.pixtral-12b-2409-v1:0">Mistral Pixtral 12B (Görsel & Döküman)</option>
+                      </optgroup>
+
+                      <optgroup label="🌐 OpenAI Uyumlu (Drop-In Router)">
+                        <option value="gpt-4o">OpenAI GPT-4o Omni</option>
+                        <option value="gpt-4o-mini">⚡ OpenAI GPT-4o Mini</option>
+                        <option value="o1">OpenAI o1 Reasoning</option>
+                        <option value="o3-mini">⚡ OpenAI o3-mini Reasoning</option>
+                      </optgroup>
+
+                      <optgroup label="📚 AI21 & Cohere">
+                        <option value="ai21.jamba-1-5-mini-v1:0">⚡ AI21 Jamba 1.5 Mini (256k Uzun Bağlam)</option>
+                        <option value="cohere.command-r-plus-v1:0">Cohere Command R+</option>
+                      </optgroup>
                     </select>
                   </div>
 
                   {/* Hızlı Model Seçim Hapları */}
-                  <div className="hidden sm:flex items-center gap-1 text-[11px]">
+                  <div className="hidden lg:flex items-center gap-1 text-[11px]">
                     {[
+                      { id: "anthropic.claude-3-7-sonnet-20250219-v1:0", label: "Claude 3.7" },
                       { id: "anthropic.claude-3-5-sonnet-20241022-v2:0", label: "Claude 3.5" },
-                      { id: "amazon.nova-pro-v1:0", label: "Nova Pro" },
-                      { id: "amazon.nova-lite-v1:0", label: "Nova Lite" },
-                      { id: "amazon.nova-micro-v1:0", label: "Nova Micro" },
-                      { id: "meta.llama3-8b-instruct-v1:0", label: "Llama 3" }
+                      { id: "amazon.nova-micro-v1:0", label: "⚡ Nova Micro" },
+                      { id: "meta.llama3-2-1b-instruct-v1:0", label: "⚡ Llama 1B" },
+                      { id: "meta.llama3-3-70b-instruct-v1:0", label: "Llama 3.3" },
+                      { id: "gpt-4o-mini", label: "GPT-4o Mini" },
                     ].map((m) => (
                       <button
                         key={m.id}
@@ -2346,284 +2706,742 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 2: OTONOM BOT ÇALIŞTIRMA PLATFORMU (AUTONOMOUS AGENTS HUB) */}
+        {/* SEKME 2: OTONOM BOT & TELEGRAM ASİSTANI (AUTONOMOUS AGENT STUDIO) */}
         {/* ================================================================= */}
         {activeTab === "agents" && (
-          <div className="max-w-5xl mx-auto space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="max-w-6xl mx-auto space-y-8 pb-12">
+            
+            {/* Üst Başlık & Aksiyon Butonu */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-gray-800 pb-5">
               <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">Otonom Bot & Ajan Çalıştırma Platformu</h2>
-                <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                  Telegram, SMS, E-Posta ve Zamanlanmış Cron görevleriyle çalışan, kendini geliştiren otonom AI botları.
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
+                  <Bot className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
+                  <span>Otonom AI Botları & Telegram Asistanı</span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
+                  Canlı internet araması yapabilen, Telegram ile çift yönlü konuşan ve otomatik çalışan yapay zeka botları oluşturun ve yönetin.
                 </p>
               </div>
-              <button
-                onClick={() => setShowAgentModal(true)}
-                className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Yeni Otonom Bot Kur</span>
-              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleSelectAgentTemplate("custom")}
+                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Yeni Bot Oluştur</span>
+                </button>
+              </div>
             </div>
 
-            {/* Ajan Mimari, Tetikleme & Fiyatlandırma Rehber Kartı */}
-            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <h3 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
-                  Bot Çalışma Mimarisi, Zamanlayıcı & Kendini Geliştiren Bellek
+            {/* ============================================================= */}
+            {/* TELEGRAM ENTEGRASYON & EŞLEŞTİRME MERKEZİ */}
+            {/* ============================================================= */}
+            <div className="p-6 rounded-3xl bg-gradient-to-br from-slate-900 via-blue-950/70 to-indigo-950 border border-blue-500/30 text-white shadow-xl space-y-5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-blue-500/20 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-400/30 flex items-center justify-center text-blue-400">
+                    <SendHorizontal className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-black text-white">Telegram Çift Yönlü Bot Entegrasyonu</h3>
+                      {telegramStatus?.is_connected ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Bağlantı Aktif
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          Eşleştirme Bekleniyor
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-blue-200/80 mt-0.5">
+                      Botlarınızın internetten derlediği haberleri, analizleri ve uyarıları doğrudan Telegram'ınıza alın veya Telegram'dan botlarınıza talimat verin.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={loadTelegramStatus}
+                    disabled={loadingTelegram}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition text-xs flex items-center gap-1"
+                    title="Durumu Yenile"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingTelegram ? "animate-spin" : ""}`} />
+                  </button>
+                  {telegramStatus?.is_connected ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleTestTelegram}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        <span>Test Bildirimi Gönder</span>
+                      </button>
+                      <button
+                        onClick={handleDisconnectTelegram}
+                        className="px-3 py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 text-xs font-bold transition border border-red-500/30"
+                      >
+                        Bağlantıyı Kes
+                      </button>
+                    </div>
+                  ) : (
+                    <a
+                      href={telegramStatus?.deep_link || `https://t.me/${telegramStatus?.bot_username || "BedrockGatewayBot"}?start=${telegramStatus?.pairing_code || ""}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-blue-500/30"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Telegram'da Aç & Otomatik Bağla</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Telegram Test Sonuç Bildirimi */}
+              {telegramTestStatus && (
+                <div
+                  className={`p-3 rounded-2xl text-xs font-bold border ${
+                    telegramTestStatus.type === "success"
+                      ? "bg-emerald-950/60 border-emerald-500/40 text-emerald-300"
+                      : "bg-red-950/60 border-red-500/40 text-red-300"
+                  }`}
+                >
+                  {telegramTestStatus.msg}
+                </div>
+              )}
+
+              {/* Bağlantı Detayı & 3 Adımda Eşleştirme */}
+              {telegramStatus?.is_connected ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs bg-white/5 rounded-2xl p-4 border border-white/10">
+                  <div>
+                    <span className="text-blue-300/70 text-[11px] block font-medium">Bağlı Telegram Kullanıcısı</span>
+                    <span className="font-mono font-bold text-white text-xs">
+                      {telegramStatus.username ? `@${telegramStatus.username}` : "Kullanıcı"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-blue-300/70 text-[11px] block font-medium">Telegram Chat ID</span>
+                    <span className="font-mono font-bold text-white text-xs">{telegramStatus.chat_id}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-300/70 text-[11px] block font-medium">Bot Kullanıcı Adı</span>
+                    <span className="font-mono font-bold text-blue-300 text-xs">@{telegramStatus.bot_username || "BedrockGatewayBot"}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  {/* Adım 1 */}
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                    <div className="font-bold text-blue-400 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-blue-500/20 border border-blue-400 flex items-center justify-center text-[10px]">1</span>
+                      <span>Eşleştirme Kodunuz</span>
+                    </div>
+                    <div className="flex items-center justify-between bg-black/40 border border-blue-400/30 rounded-xl p-2.5 font-mono text-xs font-bold text-blue-300">
+                      <span>{telegramStatus?.pairing_code || "TG-YÜKLENİYOR"}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyTelegramCode(telegramStatus?.pairing_code || "")}
+                        className="p-1 hover:text-white transition"
+                        title="Kodu Kopyala"
+                      >
+                        {telegramCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleGenerateNewTelegramCode}
+                      className="text-[10px] text-blue-300 hover:text-blue-200 underline"
+                    >
+                      Yeni Kod Üret
+                    </button>
+                  </div>
+
+                  {/* Adım 2 */}
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                    <div className="font-bold text-indigo-400 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-indigo-500/20 border border-indigo-400 flex items-center justify-center text-[10px]">2</span>
+                      <span>Botu Başlatın</span>
+                    </div>
+                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                      Telegram'da <strong>@{telegramStatus?.bot_username || "BedrockGatewayBot"}</strong> botunu açıp <strong>Başlat (Start)</strong> butonuna tıklayın.
+                    </p>
+                    <a
+                      href={`https://t.me/${telegramStatus?.bot_username || "BedrockGatewayBot"}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-indigo-300 hover:text-indigo-200 font-bold"
+                    >
+                      Bota Git <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+
+                  {/* Adım 3 */}
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-2">
+                    <div className="font-bold text-emerald-400 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center text-[10px]">3</span>
+                      <span>Kodu Gönderin</span>
+                    </div>
+                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                      Bota <code>/pair {telegramStatus?.pairing_code || "TG-XXXXXX"}</code> mesajını gönderin. Hesabınız anında eşleşecektir.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ============================================================= */}
+            {/* POPÜLER HAZIR BOT ŞABLONLARI */}
+            {/* ============================================================= */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>Tek Tıkla Hazır Bot Şablonları</span>
+                </h3>
+                <span className="text-xs text-slate-400">İhtiyacınıza göre seçip anında özelleştirin</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                  {
+                    key: "news",
+                    icon: "📰",
+                    title: "Canlı Haber & Gündem Casusu",
+                    desc: "Web & Google News kaynaklarını tarayıp AI ve teknoloji haberlerini Telegram'a iletir.",
+                    model: "Nova Micro ($0.000035/1k)",
+                    badge: "En Çok Kullanılan",
+                    tools: ["🌐 Web Arama", "📱 Telegram", "⏰ 09:00"]
+                  },
+                  {
+                    key: "finance",
+                    icon: "📈",
+                    title: "Kripto & Piyasa Analisti",
+                    desc: "Bitcoin, Borsa ve altın fiyatlarını internetten tarar, kritik kırılımları bildirir.",
+                    model: "Llama 3.2 3B ($0.00015/1k)",
+                    badge: "Finans & Ticaret",
+                    tools: ["🌐 Web Arama", "📱 Telegram", "⏰ Saatlik"]
+                  },
+                  {
+                    key: "security",
+                    icon: "🛡️",
+                    title: "Siber Güvenlik Nöbetçisi",
+                    desc: "Son çıkan kritik CVE güvenlik açıklarını ve sistem yamalarını raporlar.",
+                    model: "Claude 3.5 Sonnet",
+                    badge: "İleri Güvenlik",
+                    tools: ["🌐 Web Arama", "📧 E-Posta", "📱 Telegram"]
+                  },
+                  {
+                    key: "custom",
+                    icon: "🚀",
+                    title: "Özel AI Görev Botu",
+                    desc: "Sıfırdan belirleyeceğiniz rol, yetenekler ve zamanlayıcı ile çalışan bot.",
+                    model: "Seçilebilir Model",
+                    badge: "Tam Özelleştirilebilir",
+                    tools: ["⚡ Sizin Belirleyeceğiniz Araçlar"]
+                  }
+                ].map((tpl) => (
+                  <div
+                    key={tpl.key}
+                    onClick={() => handleSelectAgentTemplate(tpl.key)}
+                    className="p-5 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 hover:border-indigo-500 dark:hover:border-indigo-500 transition shadow-sm hover:shadow-md cursor-pointer flex flex-col justify-between space-y-3 group"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-2xl">{tpl.icon}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800">
+                          {tpl.badge}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-xs text-slate-900 dark:text-white group-hover:text-indigo-600 transition">
+                        {tpl.title}
+                      </h4>
+                      <p className="text-[11px] text-slate-500 dark:text-gray-400 line-clamp-2">
+                        {tpl.desc}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-gray-800">
+                      <div className="flex flex-wrap gap-1">
+                        {tpl.tools.map((t, idx) => (
+                          <span key={idx} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 font-medium">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="text-[10px] text-indigo-500 font-bold flex items-center justify-between">
+                        <span>Şablonu Seç & Başlat</span>
+                        <ArrowRight className="w-3 h-3 group-hover:translate-x-1 transition" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ============================================================= */}
+            {/* KAYITLI AKTİF BOTLAR LİSTESİ */}
+            {/* ============================================================= */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-indigo-600" />
+                  <span>Kayıtlı Otonom Botlarınız ({agents.length})</span>
                 </h3>
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
-                  <div className="font-bold text-indigo-600 dark:text-indigo-400">1. Tetikleme & Scheduler</div>
-                  <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
-                    Botlar <strong>Telegram Botu</strong> (`/run`), <strong>Periyodik Zamanlayıcı</strong> (Saatlik, Günlük) veya REST API ile otomatik çalışır.
-                  </p>
-                </div>
 
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
-                  <div className="font-bold text-purple-600 dark:text-purple-400">2. Düşük Maliyet & Öğrenen Bellek</div>
-                  <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
-                    <strong>Nova Micro</strong> ($0.000035/1k) gibi ultra ucuz modellerle çalışır; her görevden edindiği tecrübeyi <strong>Reflection Cache</strong> hafızasına kaydeder.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
-                  <div className="font-bold text-emerald-600 dark:text-emerald-400">3. Çoklu Kanal Bildirimi</div>
-                  <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
-                    Sonuçlar anında <strong>Telegram</strong> kanalına, <strong>SMS</strong> (AWS SNS) ile cep telefonuna veya <strong>HTML E-Posta</strong> ile gönderilir.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Telegram Bot Entegrasyon Kartı */}
-            <div className="p-5 rounded-3xl bg-gradient-to-r from-blue-900/40 to-indigo-900/40 border border-blue-200 dark:border-blue-800 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <SendHorizontal className="w-4 h-4 text-blue-500" />
-                  <span className="font-bold text-xs text-slate-900 dark:text-white">Telegram Botu ile Uzaktan Bot Yönetimi</span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-gray-300">
-                  Bot Token: <code>REDACTED_TELEGRAM_BOT_TOKEN</code> (AWS Secrets Manager ile korunmaktadır). Telegram'dan <code>/run &lt;bot_adı&gt;</code> ile uzaktan çalıştırın.
-                </p>
-              </div>
-              <div className="p-2.5 rounded-xl bg-white dark:bg-gray-950 border border-blue-300 dark:border-blue-700 font-mono text-[11px] text-blue-600 dark:text-blue-300 flex-shrink-0">
-                Webhook: <code>/api/agents/telegram/webhook</code>
-              </div>
-            </div>
-
-            {/* Ajan Çalıştırma Canlı Çıktı Kartı */}
-            {agentExecutionResult && (
-              <div className="p-5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-300">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle className="w-4 h-4 text-emerald-500" />
-                    <span>Bot Başarıyla Tetiklendi: <strong>{agentExecutionResult.agent_name}</strong></span>
+              {agents.length === 0 ? (
+                <div className="p-8 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-center space-y-3">
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-2xl">
+                    🤖
                   </div>
-                  <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">Tamamlandı</span>
-                </div>
-                <div className="p-3 rounded-xl bg-white dark:bg-gray-950 text-xs font-mono text-slate-800 dark:text-gray-200 border border-indigo-100 dark:border-indigo-900 whitespace-pre-wrap">
-                  {agentExecutionResult.output}
-                </div>
-                {agentExecutionResult.learned_insight && (
-                  <div className="text-[11px] text-purple-600 font-semibold pt-1">
-                    🧠 Öğrenilen Yeni Deneyim (Reflection): "{agentExecutionResult.learned_insight}"
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Ajanlar Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 font-bold">
-                      ⚡
-                    </div>
-                    <div>
-                      <div className="font-bold text-sm text-slate-900 dark:text-white">Ekonomik Veri & Fiyat Takip Botu</div>
-                      <div className="text-[10px] text-slate-400 font-mono">Amazon Nova Micro ($0.000035/1k)</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Saatlik Cron</span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
-                  Ultra düşük maliyetli Nova Micro modeliyle saat başı veri kaynaklarını tarar, anomalileri SMS ve E-Posta ile iletir.
-                </p>
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
-                  <span className="text-slate-400 text-[11px]">Araçlar: SMS, E-Posta, Cron</span>
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">Henüz oluşturulmuş bir botunuz yok</h4>
+                  <p className="text-xs text-slate-500 dark:text-gray-400 max-w-md mx-auto">
+                    Yukarıdaki hazır şablonlardan birine tıklayarak veya "Yeni Bot Oluştur" butonuna basarak ilk otonom haber & analiz botunuzu kurabilirsiniz.
+                  </p>
                   <button
-                    onClick={() => handleRunAgent({ id: "demo-1", name: "Ekonomik Veri Takip Botu", model_id: "amazon.nova-micro-v1:0" })}
-                    disabled={runningAgentId === "demo-1"}
-                    className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1"
+                    onClick={() => handleSelectAgentTemplate("news")}
+                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition"
                   >
-                    <Play className="w-3 h-3" />
-                    <span>{runningAgentId === "demo-1" ? "Çalışıyor..." : "Botu Çalıştır"}</span>
+                    Haber Casusu Botunu Kur
                   </button>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {agents.map((ag) => {
+                    const tools = ag.tools_config || {};
+                    return (
+                      <div
+                        key={ag.id}
+                        className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm hover:shadow-md transition space-y-4 flex flex-col justify-between"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-900 flex items-center justify-center text-2xl">
+                                {ag.icon || "🤖"}
+                              </div>
+                              <div>
+                                <h4 className="font-bold text-sm text-slate-900 dark:text-white">{ag.name}</h4>
+                                <div className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                                  {ag.model_id}
+                                </div>
+                              </div>
+                            </div>
 
-              <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-950 flex items-center justify-center text-purple-600 font-bold">
-                      📱
-                    </div>
-                    <div>
-                      <div className="font-bold text-sm text-slate-900 dark:text-white">Telegram Haber & Uyarı Botu</div>
-                      <div className="text-[10px] text-slate-400 font-mono">Amazon Nova Lite ($0.00008/1k)</div>
-                    </div>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold">Aktif</span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-gray-400">
-                  Kritik olayları ve sistem bildirimlerini anlık olarak Telegram Webhook ve Bot üzerinden ilgili kanala iletir.
-                </p>
-                <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
-                  <span className="text-slate-400 text-[11px]">Araçlar: Telegram Bot, Webhook</span>
-                  <button
-                    onClick={() => handleRunAgent({ id: "demo-2", name: "Telegram Haber & Uyarı Botu", model_id: "amazon.nova-lite-v1:0" })}
-                    disabled={runningAgentId === "demo-2"}
-                    className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center gap-1"
-                  >
-                    <Play className="w-3 h-3" />
-                    <span>{runningAgentId === "demo-2" ? "Çalışıyor..." : "Botu Çalıştır"}</span>
-                  </button>
-                </div>
-              </div>
+                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300">
+                              {ag.total_runs || 0} Görev Yürüttü
+                            </span>
+                          </div>
 
-              {agents.map((ag) => (
-                <div key={ag.id} className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950 flex items-center justify-center text-amber-600 font-bold">
-                        🤖
+                          <p className="text-xs text-slate-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
+                            {ag.description || ag.system_prompt}
+                          </p>
+
+                          {/* Aktif Yetenekler */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                            {tools.web_search && (
+                              <span className="px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold">
+                                🌐 Canlı Web Arama
+                              </span>
+                            )}
+                            {tools.telegram && (
+                              <span className="px-2 py-0.5 rounded-lg bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-bold">
+                                📱 Telegram Bildirimi
+                              </span>
+                            )}
+                            {tools.email && (
+                              <span className="px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-bold">
+                                📧 E-Posta
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-400 font-medium">
+                              ⏰ {ag.schedule_enabled && ag.schedule_cron ? ag.schedule_cron : "Manuel"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Alt Butonlar */}
+                        <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-gray-800 text-xs">
+                          <div className="flex items-center gap-1 text-[11px] text-slate-400">
+                            <span>Son Çalışma:</span>
+                            <span className="font-bold text-slate-600 dark:text-gray-300">
+                              {ag.last_run_at ? new Date(ag.last_run_at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "Henüz çalışmadı"}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAgentLogs(ag)}
+                              className="p-2 rounded-xl bg-slate-100 dark:bg-gray-800 hover:bg-slate-200 text-slate-600 dark:text-gray-300 transition"
+                              title="Çalışma Geçmişi & Loglar"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditAgent(ag)}
+                              className="p-2 rounded-xl bg-slate-100 dark:bg-gray-800 hover:bg-slate-200 text-slate-600 dark:text-gray-300 transition"
+                              title="Botu Düzenle"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAgent(ag.id)}
+                              className="p-2 rounded-xl bg-slate-100 dark:bg-gray-800 hover:bg-red-100 text-slate-400 hover:text-red-600 transition"
+                              title="Sil"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenRunModal(ag)}
+                              className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-1 shadow-sm shadow-indigo-600/20"
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                              <span>Çalıştır</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* ============================================================= */}
+            {/* İNTERAKTİF GÖREV ÇALIŞTIRMA MODALI (RUNNER CONSOLE) */}
+            {/* ============================================================= */}
+            {agentRunModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+                <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-2xl">{agentRunModal.icon || "🤖"}</span>
                       <div>
-                        <div className="font-bold text-sm text-slate-900 dark:text-white">{ag.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{ag.model_id}</div>
+                        <h3 className="font-bold text-base text-slate-900 dark:text-white">{agentRunModal.name}</h3>
+                        <span className="text-xs text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                          Model: {agentRunModal.model_id}
+                        </span>
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold">
-                      {ag.total_runs || 0} Kez Çalıştı
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-gray-400 line-clamp-2">
-                    {ag.description || ag.system_prompt}
-                  </p>
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-gray-800 text-xs">
-                    <span className="text-slate-400 text-[11px]">
-                      Zamanlayıcı: {ag.schedule_enabled ? "Aktif" : "Manuel"}
-                    </span>
                     <button
-                      onClick={() => handleRunAgent(ag)}
-                      disabled={runningAgentId === ag.id}
-                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] flex items-center gap-1"
+                      type="button"
+                      onClick={() => setAgentRunModal(null)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
                     >
-                      <Play className="w-3 h-3" />
-                      <span>{runningAgentId === ag.id ? "Çalışıyor..." : "Botu Çalıştır"}</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
-
-            </div>
-
-            {/* Yeni Bot Kurulum Modalı */}
-            {showAgentModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
-                <div className="w-full max-w-lg rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-base text-slate-900 dark:text-white">Yeni Otonom Bot & Ajan Yapılandır</h3>
-                    <button onClick={() => setShowAgentModal(false)} className="text-slate-400 hover:text-slate-600">
-                      <X className="w-4 h-4" />
+                      <X className="w-5 h-5" />
                     </button>
                   </div>
 
-                  <form onSubmit={handleCreateAgent} className="space-y-3">
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Bot Adı</label>
-                      <input
-                        type="text"
-                        required
-                        value={newAgentName}
-                        onChange={(e) => setNewAgentName(e.target.value)}
-                        placeholder="Örn: 24/7 Finans & Sistem İzleme Botu"
-                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white"
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Taranacak Haber Konusu veya Görev İstemi (Prompt):
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={agentRunPrompt}
+                        onChange={(e) => setAgentRunPrompt(e.target.value)}
+                        placeholder="Örn: Bugünkü son dakika yapay zeka haberlerini internetten tara ve Telegram'ıma gönder"
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl p-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
                       />
                     </div>
 
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <div className="flex items-center gap-2">
+                        {agentRunModal.tools_config?.web_search && (
+                          <span className="text-blue-500 font-bold">🌐 Canlı Web Taraması Yapılacak</span>
+                        )}
+                        {telegramStatus?.is_connected && (
+                          <span className="text-emerald-500 font-bold">📱 Telegram'a İletilecek</span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleExecuteAgentInteractive}
+                        disabled={runningAgentId === agentRunModal.id || !agentRunPrompt.trim()}
+                        className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition"
+                      >
+                        {runningAgentId === agentRunModal.id ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>İnternet Taranıyor & Çalışıyor...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4" />
+                            <span>Görevi Başlat</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Canlı Adım Takipçisi */}
+                    {agentRunSteps.length > 0 && (
+                      <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 text-xs font-mono space-y-1.5">
+                        <div className="text-slate-400 font-bold text-[10px] uppercase tracking-wider mb-1">Yürütüm Adımları</div>
+                        {agentRunSteps.map((s, idx) => (
+                          <div key={idx} className="text-emerald-400 text-[11px] flex items-center gap-2">
+                            <span>{s}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Sonuç Çıktı Kutusu */}
+                    {agentExecutionResult && (
+                      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-indigo-200 dark:border-indigo-900 space-y-3 animate-in fade-in">
+                        <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-300">
+                          <div className="flex items-center gap-1.5">
+                            <CheckCircle className="w-4 h-4 text-emerald-500" />
+                            <span>Rapor ve Görev Çıktısı:</span>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono">
+                            Maliyet: ~$0.0015
+                          </span>
+                        </div>
+
+                        <div className="p-3 rounded-xl bg-white dark:bg-gray-900 text-xs font-mono text-slate-800 dark:text-gray-200 border border-slate-200 dark:border-gray-800 whitespace-pre-wrap max-h-60 overflow-y-auto leading-relaxed">
+                          {agentExecutionResult.output}
+                        </div>
+
+                        {agentExecutionResult.learned_insight && (
+                          <div className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold">
+                            🧠 Öğrenilen Hafıza: "{agentExecutionResult.learned_insight}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================= */}
+            {/* GEÇMİŞ ÇALIŞMA LOGLARI MODALI */}
+            {/* ============================================================= */}
+            {agentLogsModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+                <div className="w-full max-w-3xl rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 pb-3">
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                      <History className="w-4 h-4 text-indigo-600" />
+                      <span>{agentLogsModal.name} — Geçmiş Çalışma Logları</span>
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setAgentLogsModal(null)}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {loadingAgentLogs ? (
+                    <div className="py-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Loglar yükleniyor...</span>
+                    </div>
+                  ) : agentLogsList.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      Bu bot için henüz kayıtlı bir çalışma logu bulunmuyor.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-700 dark:text-gray-300">
+                        <thead className="bg-slate-50 dark:bg-gray-950 border-b border-slate-200 dark:border-gray-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                          <tr>
+                            <th className="px-4 py-3">Tetikleme</th>
+                            <th className="px-4 py-3">İstem / Girdi</th>
+                            <th className="px-4 py-3">Çıktı Özeti</th>
+                            <th className="px-4 py-3">Maliyet</th>
+                            <th className="px-4 py-3">Zaman</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-gray-800/60 font-medium">
+                          {agentLogsList.map((lg) => (
+                            <tr key={lg.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/30">
+                              <td className="px-4 py-3 font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[11px]">
+                                {lg.trigger_type}
+                              </td>
+                              <td className="px-4 py-3 max-w-[150px] truncate text-[11px]">{lg.input_text}</td>
+                              <td className="px-4 py-3 max-w-[200px] truncate text-[11px] text-slate-500 dark:text-gray-400">
+                                {lg.output_text}
+                              </td>
+                              <td className="px-4 py-3 font-mono text-[11px]">${Number(lg.cost_usd || 0).toFixed(4)}</td>
+                              <td className="px-4 py-3 text-slate-400 text-[10px]">
+                                {new Date(lg.created_at).toLocaleString("tr-TR")}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ============================================================= */}
+            {/* BOT OLUŞTURMA & DÜZENLEME MODALI */}
+            {/* ============================================================= */}
+            {showAgentModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
+                <div className="w-full max-w-xl rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 pb-3">
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                      <Bot className="w-5 h-5 text-indigo-600" />
+                      <span>{editingAgent ? "Botu Düzenle" : "Yeni Otonom AI Botu Oluştur"}</span>
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setShowAgentModal(false)}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSaveAgent} className="space-y-4">
+                    {/* İkon & Bot Adı */}
+                    <div className="grid grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">İkon</label>
+                        <select
+                          value={newAgentIcon}
+                          onChange={(e) => setNewAgentIcon(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl p-2.5 text-base text-center"
+                        >
+                          <option value="📰">📰 Haber</option>
+                          <option value="📈">📈 Finans</option>
+                          <option value="🛡️">🛡️ Güvenlik</option>
+                          <option value="🤖">🤖 Bot</option>
+                          <option value="⚡">⚡ Hızlı</option>
+                          <option value="🔍">🔍 Arama</option>
+                          <option value="🚀">🚀 Asistan</option>
+                        </select>
+                      </div>
+
+                      <div className="col-span-3">
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Bot Adı</label>
+                        <input
+                          type="text"
+                          required
+                          value={newAgentName}
+                          onChange={(e) => setNewAgentName(e.target.value)}
+                          placeholder="Örn: Canlı AI & Teknoloji Haber Casusu"
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Model Seçimi */}
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Kullanılacak Bedrock Modeli</label>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Kullanılacak AWS Bedrock Modeli
+                      </label>
                       <select
                         value={newAgentModel}
                         onChange={(e) => setNewAgentModel(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white font-bold"
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white font-bold"
                       >
-                        <option value="amazon.nova-micro-v1:0">⚡ Amazon Nova Micro ($0.000035/1k - En Ucuz & Ultra Hızlı)</option>
-                        <option value="amazon.nova-lite-v1:0">🚀 Amazon Nova Lite ($0.00008/1k - 300k Context)</option>
-                        <option value="anthropic.claude-3-haiku-20240307-v1:0">🎯 Claude 3 Haiku ($0.00025/1k - Hızlı & Güvenilir)</option>
-                        <option value="meta.llama3-8b-instruct-v1:0">🦙 Meta Llama 3 8B ($0.0002/1k - Hafif Model)</option>
-                        <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">🧠 Claude 3.5 Sonnet v2 ($0.003/1k - İleri Düzey Akıl Yürütme)</option>
+                        <optgroup label="⚡ Ultra Düşük Maliyetli Agent Modelleri">
+                          <option value="amazon.nova-micro-v1:0">⚡ Amazon Nova Micro ($0.000035/1k - En Ucuz & Hızlı)</option>
+                          <option value="meta.llama3-2-1b-instruct-v1:0">⚡ Meta Llama 3.2 1B ($0.00010/1k - Mikro Agent LLM)</option>
+                          <option value="meta.llama3-2-3b-instruct-v1:0">⚡ Meta Llama 3.2 3B ($0.00015/1k - Hızlı Agent LLM)</option>
+                          <option value="amazon.nova-lite-v1:0">🚀 Amazon Nova Lite ($0.00006/1k - Multimodal)</option>
+                          <option value="mistral.mistral-small-2402-v1:0">🌪️ Mistral Small ($0.0003/1k - Kod & Analiz)</option>
+                        </optgroup>
+                        <optgroup label="🧠 İleri Düzey Akıl Yürütme & Frontier">
+                          <option value="anthropic.claude-3-5-haiku-20241022-v1:0">🎯 Claude 3.5 Haiku ($0.001/1k - Akıllı Agent)</option>
+                          <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">🧠 Claude 3.5 Sonnet v2 ($0.0036/1k - İleri Zeka)</option>
+                          <option value="anthropic.claude-3-7-sonnet-20250219-v1:0">🧠 Claude 3.7 Sonnet ($0.0036/1k - Hybrid Reasoning)</option>
+                        </optgroup>
                       </select>
                     </div>
 
+                    {/* Sistem Promptu */}
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Zamanlayıcı / Scheduler (Cron)</label>
-                      <select
-                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white"
-                      >
-                        <option value="">Manuel / Sadece Tetiklendiğinde</option>
-                        <option value="0 * * * *">Her Saat Başı Otomatik Çalıştır (0 * * * *)</option>
-                        <option value="0 9 * * *">Her Sabah Saat 09:00'da Çalıştır (0 9 * * *)</option>
-                        <option value="0 9 * * 1">Her Pazartesi 09:00'da Haftalık Rapor (0 9 * * 1)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Sistem Talimatı (Prompt)</label>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Sistem Rolü & Talimatları (Prompt)
+                      </label>
                       <textarea
                         rows={3}
                         required
                         value={newAgentPrompt}
                         onChange={(e) => setNewAgentPrompt(e.target.value)}
-                        placeholder="Sen verilen verileri tarayıp özetleyen ve anomali tespit eden bir otonom asistansın."
-                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl p-3 text-xs text-slate-900 dark:text-white"
+                        placeholder="Sen canlı internet verilerini tarayan, analiz edip özetleyen bir otonom asistansın."
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl p-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
                       />
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-2">
-                      <div className="text-xs font-bold text-slate-800 dark:text-gray-200">Entegrasyon ve Bildirim Kanalları:</div>
-                      <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-gray-400">
+                    {/* Yetenekler / Tools */}
+                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-3">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white">Bot Yetenekleri & Kanalları:</div>
+                      
+                      <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-gray-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agentWebSearchTool}
+                          onChange={(e) => setAgentWebSearchTool(e.target.checked)}
+                          className="w-4 h-4 rounded text-indigo-600 accent-indigo-600"
+                        />
+                        <span className="font-bold">🌐 Canlı İnternet & Haber Arama (Web Search)</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-gray-300 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={agentTelegramTool}
+                          onChange={(e) => setAgentTelegramTool(e.target.checked)}
+                          className="w-4 h-4 rounded text-indigo-600 accent-indigo-600"
+                        />
+                        <span className="font-bold">📱 Telegram ile Çift Yönlü İletişim & Bildirim</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-gray-300 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={agentEmailTool}
                           onChange={(e) => setAgentEmailTool(e.target.checked)}
-                          className="accent-indigo-600"
+                          className="w-4 h-4 rounded text-indigo-600 accent-indigo-600"
                         />
-                        <span>Sonuçları e-posta ile kullanıcıya gönder</span>
+                        <span className="font-medium">📧 Raporları E-Posta ile de gönder</span>
                       </label>
-                      <div>
-                        <input
-                          type="text"
-                          value={agentTelegramWebhook}
-                          onChange={(e) => setAgentTelegramWebhook(e.target.value)}
-                          placeholder="Telegram Webhook / Bot Entegrasyon URL (Opsiyonel)"
-                          className="w-full bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-lg px-3 py-1.5 text-xs text-slate-900 dark:text-white"
-                        />
-                      </div>
                     </div>
 
-                    <div className="flex justify-end gap-2 pt-2">
+                    {/* Zamanlayıcı (Cron) */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Otomatik Zamanlayıcı (Cron)
+                      </label>
+                      <select
+                        value={agentScheduleCron}
+                        onChange={(e) => setAgentScheduleCron(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white"
+                      >
+                        <option value="">Manuel / Sadece Telegram veya Panelden Tetiklendiğinde</option>
+                        <option value="*/30 * * * *">Her 30 Dakikada Bir Otomatik Çalıştır (*/30 * * * *)</option>
+                        <option value="0 * * * *">Her Saat Başı Otomatik Çalıştır (0 * * * *)</option>
+                        <option value="0 9 * * *">Her Sabah Saat 09:00'da Günlük Rapor Gönder (0 9 * * *)</option>
+                        <option value="0 9 * * 1">Her Pazartesi 09:00'da Haftalık Rapor (0 9 * * 1)</option>
+                      </select>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-gray-800">
                       <button
                         type="button"
                         onClick={() => setShowAgentModal(false)}
-                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-gray-800 text-xs font-bold"
+                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-gray-800 text-xs font-bold text-slate-700 dark:text-gray-300"
                       >
                         İptal
                       </button>
@@ -2631,7 +3449,7 @@ export default function RootPage() {
                         type="submit"
                         className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20"
                       >
-                        Botu Kaydet & Başlat
+                        {editingAgent ? "Değişiklikleri Kaydet" : "Botu Oluştur & Başlat"}
                       </button>
                     </div>
                   </form>
@@ -2643,182 +3461,752 @@ export default function RootPage() {
         )}
 
         {/* ================================================================= */}
-        {/* SEKME 3: BİRLEŞTİRİLMİŞ GELİŞTİRİCİ & API MERKEZİ (KEYS + DOCS) */}
+        {/* SEKME 3: GELİŞTİRİCİ & API MERKEZİ (KEYS + BÜTÇE + LOGLAR + ENTEGRASYON) */}
         {/* ================================================================= */}
         {activeTab === "api" && (
-          <div className="max-w-5xl mx-auto space-y-6">
-            <div>
-              <h2 className="text-xl font-black text-slate-900 dark:text-white">Geliştirici & API Merkezi</h2>
-              <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
-                API anahtarlarınızı üretin, yönetin ve standart SDK kodlarıyla AWS Bedrock modellerini hemen çağırın.
-              </p>
+          <div className="max-w-6xl mx-auto space-y-8 pb-12">
+            
+            {/* Üst Başlık & Hızlı İstatistik Kartları */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-gray-800 pb-5">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
+                  <Key className="w-7 h-7 text-indigo-600 dark:text-indigo-400" />
+                  <span>Geliştirici & API Merkezi</span>
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
+                  API anahtarlarınızı üretin, bütçe kısıtlarını belirleyin, canlı istek loglarını takip edin ve projenize 3 adımda entegre edin.
+                </p>
+              </div>
+
+              {/* Endpoint Kopyalama Kutusu */}
+              <div className="flex items-center gap-2 bg-slate-100 dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-2xl p-2 px-3.5 shadow-sm">
+                <Globe className="w-4 h-4 text-emerald-500 shrink-0" />
+                <div className="text-left">
+                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">OpenAI Uyumlu Base URL</div>
+                  <code className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
+                    {typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1"}
+                  </code>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1";
+                    navigator.clipboard.writeText(url);
+                    showPopup("info", "URL Kopyalandı", `${url} panoya kopyalandı.`);
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-gray-800 text-slate-500 hover:text-indigo-600 transition ml-1"
+                  title="Base URL'i Kopyala"
+                >
+                  <Copy className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* API Anahtarı Oluşturma Formu */}
-            <form onSubmit={handleCreateApiKey} className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 flex gap-2">
-              <input
-                type="text"
-                value={newKeyName}
-                onChange={(e) => setNewKeyName(e.target.value)}
-                placeholder="Yeni Anahtar Adı (Örn: Production Backend)..."
-                className="flex-1 bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-4 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500"
-              />
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Yeni Anahtar Üret</span>
-              </button>
-            </form>
-
-            {createdSecretKey && (
-              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 space-y-2">
-                <div className="text-xs font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Yeni API Anahtarınız (Lütfen güvenli bir yere kaydedin):</span>
+            {/* Hızlı İstatistik Metrikleri */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+              <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm">
+                <div className="text-[11px] text-slate-500 dark:text-gray-400 font-medium">Toplam API Anahtarı</div>
+                <div className="text-xl font-black text-slate-900 dark:text-white mt-1">
+                  {apiKeys.length} <span className="text-xs font-normal text-slate-400">adet</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 bg-white dark:bg-gray-950 p-2.5 rounded-xl border border-amber-300 dark:border-amber-700 font-mono text-xs text-amber-900 dark:text-amber-200 break-all">
-                    {createdSecretKey}
-                  </code>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(createdSecretKey);
-                      setKeyCopied(true);
-                      setTimeout(() => setKeyCopied(false), 2000);
-                    }}
-                    className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition"
-                  >
-                    {keyCopied ? "Kopyalandı!" : "Kopyala"}
-                  </button>
+              </div>
+              <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm">
+                <div className="text-[11px] text-slate-500 dark:text-gray-400 font-medium">Toplam İstek Sayısı</div>
+                <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 mt-1">
+                  {apiKeySummary?.total_requests ? Number(apiKeySummary.total_requests).toLocaleString() : "0"}
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm">
+                <div className="text-[11px] text-slate-500 dark:text-gray-400 font-medium">İşlenen Token</div>
+                <div className="text-xl font-black text-purple-600 dark:text-purple-400 mt-1">
+                  {apiKeySummary?.total_tokens ? Number(apiKeySummary.total_tokens).toLocaleString() : "0"}
+                </div>
+              </div>
+              <div className="p-4 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm">
+                <div className="text-[11px] text-slate-500 dark:text-gray-400 font-medium">Toplam API Harcaması</div>
+                <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                  ${apiKeySummary?.total_spent_usd !== undefined ? Number(apiKeySummary.total_spent_usd).toFixed(4) : "0.0000"}
+                </div>
+              </div>
+            </div>
+
+            {/* ================================================================= */}
+            {/* 1. YENİ API ANAHTARI OLUŞTURMA & BÜTÇE KISITI PANELİ */}
+            {/* ================================================================= */}
+            <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-indigo-600" />
+                    <span>Yeni API Anahtarı Üret & Bütçe Kısıtı Belirle</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                    Uygulamanız, botunuz veya IDE eklentiniz (Cursor/Cline) için harcama limitli anahtar oluşturun.
+                  </p>
+                </div>
+                <span className="text-[11px] px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800">
+                  Otomatik Bakiye Koruması
+                </span>
+              </div>
+
+              <form onSubmit={handleCreateApiKey} className="space-y-4 pt-2">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* Anahtar Adı */}
+                  <div className="md:col-span-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                      Anahtar Adı / Servis İsmi
+                    </label>
+                    <input
+                      type="text"
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      placeholder="Örn: Production Backend, Cursor IDE..."
+                      required
+                      className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                    />
+                  </div>
+
+                  {/* Bütçe Kısıtı ($ USD) */}
+                  <div className="md:col-span-1">
+                    <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+                      <span>Bütçe Kısıtı ($ USD)</span>
+                      <span className="text-[10px] text-slate-400 font-normal">Boş = Limitsiz</span>
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">$</span>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          max="10000"
+                          value={newKeySpendingLimit}
+                          onChange={(e) => setNewKeySpendingLimit(e.target.value)}
+                          placeholder="Limitsiz (∞)"
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl pl-7 pr-3 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-mono"
+                        />
+                      </div>
+                      {/* Hızlı Bütçe Butonları */}
+                      <div className="flex items-center gap-1">
+                        {["5", "25", "100"].map((amt) => (
+                          <button
+                            key={amt}
+                            type="button"
+                            onClick={() => setNewKeySpendingLimit(amt)}
+                            className={`px-2 py-2 rounded-lg text-[11px] font-bold border transition ${
+                              newKeySpendingLimit === amt
+                                ? "bg-indigo-600 text-white border-indigo-600"
+                                : "bg-slate-100 dark:bg-gray-800 text-slate-600 dark:text-gray-300 border-slate-200 dark:border-gray-700 hover:bg-slate-200"
+                            }`}
+                          >
+                            ${amt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Hız Limiti (RPM) & Üret Butonu */}
+                  <div className="md:col-span-1 flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        İstek Hız Limiti (RPM)
+                      </label>
+                      <select
+                        value={newKeyRpm}
+                        onChange={(e) => setNewKeyRpm(Number(e.target.value))}
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+                      >
+                        <option value={60}>60 İstek / Dk (Ekonomik)</option>
+                        <option value={120}>120 İstek / Dk (Standart)</option>
+                        <option value={300}>300 İstek / Dk (Yüksek Hız)</option>
+                        <option value={600}>600 İstek / Dk (Enterprise)</option>
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/25 shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Anahtar Üret</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* Yeni Üretilen Anahtar Banner'ı */}
+              {createdSecretKey && (
+                <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 space-y-2 mt-3 animate-in fade-in slide-in-from-top-2">
+                  <div className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>API Anahtarınız Başarıyla Üretildi (Güvenliğiniz için bir daha gösterilmeyecektir):</span>
+                    </span>
+                    <span className="text-[11px] text-amber-500/80">Lütfen hemen kopyalayın</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-white dark:bg-gray-950 p-2.5 rounded-xl border border-amber-300 dark:border-amber-800/80 font-mono text-xs text-amber-900 dark:text-amber-200 break-all select-all font-bold">
+                      {createdSecretKey}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(createdSecretKey);
+                        setKeyCopied(true);
+                        setTimeout(() => setKeyCopied(false), 2500);
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition flex items-center gap-1.5 shrink-0 shadow-sm"
+                    >
+                      {keyCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      <span>{keyCopied ? "Kopyalandı!" : "Kopyala"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ================================================================= */}
+            {/* 2. MEVCUT API ANAHTARLARI & BÜTÇE YÖNETİMİ TABLOSU */}
+            {/* ================================================================= */}
+            <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
+              <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-indigo-600" />
+                    <span>Mevcut API Anahtarlarınız & Bütçe Durumu ({apiKeys.length})</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                    Her anahtarın harcadığı tutarı izleyin, bütçe kısıtını düzenleyin veya gerektiğinde iptal edin.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadApiKeysAndLogs}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-800 transition"
+                  title="Yenile"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+
+              {apiKeys.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 dark:text-gray-400">
+                  Henüz aktif bir API anahtarınız bulunmamaktadır. Yukarıdaki formdan ilk anahtarınızı üretebilirsiniz.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-slate-700 dark:text-gray-300">
+                    <thead className="bg-slate-50 dark:bg-gray-950 border-b border-slate-200 dark:border-gray-800 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-5 py-3.5">Anahtar İsmi & Prefix</th>
+                        <th className="px-5 py-3.5">Harcanan / Bütçe Kısıtı</th>
+                        <th className="px-5 py-3.5">Hız Limiti</th>
+                        <th className="px-5 py-3.5">Durum</th>
+                        <th className="px-5 py-3.5">Oluşturulma</th>
+                        <th className="px-5 py-3.5 text-right">İşlemler</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-gray-800/60 font-medium">
+                      {apiKeys.map((k) => {
+                        const used = Number(k.spending_used_usd || 0);
+                        const limit = k.spending_limit_usd ? Number(k.spending_limit_usd) : null;
+                        const pct = limit ? Math.min(100, Math.round((used / limit) * 100)) : null;
+
+                        return (
+                          <tr key={k.id} className="hover:bg-slate-50/70 dark:hover:bg-gray-800/30 transition">
+                            {/* Anahtar & Prefix */}
+                            <td className="px-5 py-4">
+                              <div className="font-bold text-slate-900 dark:text-white text-xs">{k.name}</div>
+                              <div className="text-[11px] font-mono text-slate-400 dark:text-gray-500 mt-0.5 flex items-center gap-1.5">
+                                <span>{k.prefix}••••••••••••</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(k.prefix);
+                                    showPopup("info", "Prefix Kopyalandı", `${k.prefix} kopyalandı.`);
+                                  }}
+                                  className="hover:text-indigo-600 transition"
+                                  title="Prefix Kopyala"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </td>
+
+                            {/* Harcanan / Bütçe Kısıtı */}
+                            <td className="px-5 py-4 min-w-[200px]">
+                              <div className="flex items-center justify-between text-[11px] mb-1">
+                                <span className="font-mono font-bold text-slate-900 dark:text-white">
+                                  ${used.toFixed(4)}
+                                </span>
+                                <span className="text-slate-400">
+                                  {limit ? `Limit: $${limit.toFixed(2)}` : "Limitsiz (∞)"}
+                                </span>
+                              </div>
+                              {limit ? (
+                                <div className="w-full h-1.5 bg-slate-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      (pct || 0) > 90
+                                        ? "bg-red-500"
+                                        : (pct || 0) > 60
+                                        ? "bg-amber-500"
+                                        : "bg-emerald-500"
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                                  ✓ Serbest Tüketim Modu
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Hız Limiti */}
+                            <td className="px-5 py-4 text-xs font-mono">
+                              {k.rate_limit_rpm || 120} req/dk
+                            </td>
+
+                            {/* Durum */}
+                            <td className="px-5 py-4">
+                              {k.is_active ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                  Aktif
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
+                                  İptal Edildi
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Tarih */}
+                            <td className="px-5 py-4 text-slate-500 dark:text-gray-400 text-[11px]">
+                              {k.created_at ? new Date(k.created_at).toLocaleDateString("tr-TR") : "—"}
+                            </td>
+
+                            {/* İşlemler: Düzenle / İptal / Sil */}
+                            <td className="px-5 py-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {/* Düzenle / Bütçe Kısıtını Değiştir */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditKey(k)}
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 transition"
+                                  title="Bütçe Kısıtını ve İsmi Düzenle"
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+
+                                {/* İptal Et */}
+                                {k.is_active && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRevokeKey(k.id)}
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition"
+                                    title="Anahtarı Devre Dışı Bırak"
+                                  >
+                                    <ShieldAlert className="w-4 h-4" />
+                                  </button>
+                                )}
+
+                                {/* Sil */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteKey(k.id)}
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 transition"
+                                  title="Kalıcı Olarak Sil"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* ================================================================= */}
+            {/* DÜZENLEME MODALI (API KEY EDIT MODAL) */}
+            {/* ================================================================= */}
+            {editingKey && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+                <div className="bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 pb-3">
+                    <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-indigo-600" />
+                      <span>API Anahtarını Düzenle</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingKey(null)}
+                      className="text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleUpdateApiKey} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        Anahtar İsmi
+                      </label>
+                      <input
+                        type="text"
+                        value={editKeyName}
+                        onChange={(e) => setEditKeyName(e.target.value)}
+                        required
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+                        <span>Bütçe Kısıtı ($ USD)</span>
+                        <span className="text-[10px] text-slate-400 font-normal">Boş = Limitsiz</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">$</span>
+                        <input
+                          type="number"
+                          step="0.5"
+                          min="0.5"
+                          max="10000"
+                          value={editKeySpendingLimit}
+                          onChange={(e) => setEditKeySpendingLimit(e.target.value)}
+                          placeholder="Limitsiz (∞)"
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl pl-7 pr-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-mono"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Bu anahtar belirlenen limiti aştığında API çağrıları durdurulur, bakiyeniz korunur.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        İstek Hız Limiti (RPM)
+                      </label>
+                      <select
+                        value={editKeyRpm}
+                        onChange={(e) => setEditKeyRpm(Number(e.target.value))}
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
+                      >
+                        <option value={60}>60 İstek / Dk</option>
+                        <option value={120}>120 İstek / Dk</option>
+                        <option value={300}>300 İstek / Dk</option>
+                        <option value={600}>600 İstek / Dk</option>
+                      </select>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditingKey(null)}
+                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-gray-800 text-xs font-bold text-slate-700 dark:text-gray-300"
+                      >
+                        İptal
+                      </button>
+                      <button
+                        type="submit"
+                        className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20"
+                      >
+                        Değişiklikleri Kaydet
+                      </button>
+                    </div>
+                  </form>
                 </div>
               </div>
             )}
 
-            {/* Mevcut Anahtarlar Tablosu */}
-            <div className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-200 dark:border-gray-800 font-bold text-xs">
-                Mevcut API Anahtarlarınız ({apiKeys.length})
-              </div>
-              <div className="divide-y divide-slate-100 dark:divide-gray-800">
-                {apiKeys.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500">Henüz bir anahtarınız yok. Yukarıdan oluşturabilirsiniz.</div>
-                ) : (
-                  apiKeys.map((k) => (
-                    <div key={k.id} className="p-4 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-bold text-slate-900 dark:text-white">{k.name}</div>
-                        <div className="text-slate-400 dark:text-gray-500 font-mono text-[11px] mt-0.5">
-                          {k.prefix}••••••••••••
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-[11px]">
-                          Harcanan: ${Number(k.spend_usd || 0).toFixed(4)}
-                        </span>
-                        <button
-                          onClick={() => handleRevokeKey(k.id)}
-                          title="Anahtarı İptal Et"
-                          className="text-slate-400 hover:text-red-600 p-1 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* İnteraktif Kod Dokümantasyonu */}
+            {/* ================================================================= */}
+            {/* 3. CANLI İSTEK & TÜKETİM LOGLARI */}
+            {/* ================================================================= */}
             <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-hidden shadow-sm">
-              <div className="p-4 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between bg-slate-50/60 dark:bg-gray-950">
-                <div className="flex gap-2">
-                  {[
-                    { id: "python", name: "Python (OpenAI SDK)" },
-                    { id: "node", name: "Node.js / TypeScript" },
-                    { id: "curl", name: "cURL / HTTP REST" },
-                    { id: "langchain", name: "LangChain" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setDocsLanguage(tab.id as any)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                        docsLanguage === tab.id
-                          ? "bg-indigo-600 text-white"
-                          : "text-slate-600 dark:text-gray-400 hover:bg-slate-200 dark:hover:bg-gray-800"
-                      }`}
-                    >
-                      {tab.name}
-                    </button>
-                  ))}
+              <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-gray-800 flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-emerald-500" />
+                    <span>Canlı API İstek & Harcama Logları</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                    API anahtarlarınız üzerinden yapılan tüm çağrıların milisaniye süreleri, harcanan tokenlar ve ücret dökümü.
+                  </p>
                 </div>
-                <span className="text-[11px] text-emerald-600 font-bold hidden sm:inline">✓ OpenAI SDK Drop-In Uyumlu</span>
+                <button
+                  type="button"
+                  onClick={loadApiKeysAndLogs}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-800 transition"
+                  title="Logları Yenile"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
 
-              <div className="p-6 bg-slate-900 text-gray-200 font-mono text-xs overflow-x-auto leading-relaxed">
-                {docsLanguage === "python" && (
-                  <pre className="text-gray-300">
-                    <span className="text-purple-400">from</span> openai <span className="text-purple-400">import</span> OpenAI<br/><br/>
-                    client = OpenAI(<br/>
-                    &nbsp;&nbsp;base_url=<span className="text-emerald-300">"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1"</span>,<br/>
-                    &nbsp;&nbsp;api_key=<span className="text-amber-300">"sk-live-your-gateway-api-key"</span><br/>
-                    )<br/><br/>
-                    response = client.chat.completions.create(<br/>
-                    &nbsp;&nbsp;model=<span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
-                    &nbsp;&nbsp;messages=[&#123;<span className="text-amber-300">"role"</span>: <span className="text-amber-300">"user"</span>, <span className="text-amber-300">"content"</span>: <span className="text-amber-300">"AWS Bedrock modellerini listele ve açıkla."</span>&#125;],<br/>
-                    &nbsp;&nbsp;stream=<span className="text-indigo-400">True</span><br/>
-                    )<br/><br/>
-                    <span className="text-purple-400">for</span> chunk <span className="text-purple-400">in</span> response:<br/>
-                    &nbsp;&nbsp;print(chunk.choices[0].delta.content <span className="text-purple-400">or</span> <span className="text-emerald-300">""</span>, end=<span className="text-emerald-300">""</span>, flush=<span className="text-indigo-400">True</span>)
-                  </pre>
-                )}
+              {apiKeyLogs.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-500 dark:text-gray-400">
+                  Henüz kaydedilmiş bir API isteği bulunmamaktadır. SDK veya cURL ile ilk isteğinizi gönderebilirsiniz.
+                </div>
+              ) : (
+                <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                  <table className="w-full text-left text-xs text-slate-700 dark:text-gray-300">
+                    <thead className="bg-slate-50 dark:bg-gray-950 border-b border-slate-200 dark:border-gray-800 text-slate-400 font-bold uppercase tracking-wider text-[10px] sticky top-0">
+                      <tr>
+                        <th className="px-5 py-3">Zaman</th>
+                        <th className="px-5 py-3">Model</th>
+                        <th className="px-5 py-3">Endpoint</th>
+                        <th className="px-5 py-3">Tokenlar</th>
+                        <th className="px-5 py-3">Süre</th>
+                        <th className="px-5 py-3">Ücret ($)</th>
+                        <th className="px-5 py-3 text-right">Durum</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-gray-800/60 font-mono text-[11px]">
+                      {apiKeyLogs.map((log, idx) => (
+                        <tr key={log.request_id || idx} className="hover:bg-slate-50/70 dark:hover:bg-gray-800/30 transition">
+                          <td className="px-5 py-3 text-slate-500 dark:text-gray-400">
+                            {log.created_at ? new Date(log.created_at).toLocaleTimeString("tr-TR") : "—"}
+                          </td>
+                          <td className="px-5 py-3 font-sans font-bold text-slate-900 dark:text-white">
+                            {log.model_name || "AWS Bedrock"}
+                          </td>
+                          <td className="px-5 py-3 text-slate-500">
+                            {log.endpoint || "/v1/chat/completions"}
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="text-purple-600 dark:text-purple-400 font-bold">
+                              {Number(log.total_tokens || 0).toLocaleString()}
+                            </span>
+                            <span className="text-[10px] text-slate-400 ml-1">
+                              (in: {log.input_tokens || 0} / out: {log.output_tokens || 0})
+                            </span>
+                          </td>
+                          <td className="px-5 py-3 text-amber-600 dark:text-amber-400 font-bold">
+                            {log.duration_ms || 0} ms
+                          </td>
+                          <td className="px-5 py-3 text-emerald-600 dark:text-emerald-400 font-bold">
+                            ${Number(log.customer_charged_usd || 0).toFixed(5)}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              (log.status_code || 200) < 400
+                                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                                : "bg-red-500/10 text-red-600 border border-red-500/20"
+                            }`}>
+                              {log.status_code || 200} OK
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
 
-                {docsLanguage === "node" && (
-                  <pre className="text-gray-300">
-                    <span className="text-purple-400">import</span> OpenAI <span className="text-purple-400">from</span> <span className="text-emerald-300">"openai"</span>;<br/><br/>
-                    <span className="text-purple-400">const</span> client = <span className="text-purple-400">new</span> OpenAI(&#123;<br/>
-                    &nbsp;&nbsp;baseURL: <span className="text-emerald-300">"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1"</span>,<br/>
-                    &nbsp;&nbsp;apiKey: <span className="text-amber-300">"sk-live-your-gateway-api-key"</span>,<br/>
-                    &#125;);<br/><br/>
-                    <span className="text-purple-400">const</span> stream = <span className="text-purple-400">await</span> client.chat.completions.create(&#123;<br/>
-                    &nbsp;&nbsp;model: <span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
-                    &nbsp;&nbsp;messages: [&#123; role: <span className="text-amber-300">"user"</span>, content: <span className="text-amber-300">"TypeScript ile Bedrock API kullanımı"</span> &#125;],<br/>
-                    &nbsp;&nbsp;stream: <span className="text-indigo-400">true</span>,<br/>
-                    &#125;);<br/><br/>
-                    <span className="text-purple-400">for await</span> (<span className="text-purple-400">const</span> chunk <span className="text-purple-400">of</span> stream) &#123;<br/>
-                    &nbsp;&nbsp;process.stdout.write(chunk.choices[0]?.delta?.content || <span className="text-emerald-300">""</span>);<br/>
-                    &#125;
-                  </pre>
-                )}
+            {/* ================================================================= */}
+            {/* 4. 3 ADIMDA PROJENİZE ENTEGRASYON KILAVUZU */}
+            {/* ================================================================= */}
+            <div className="rounded-3xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm space-y-5">
+              <div className="border-b border-slate-100 dark:border-gray-800 pb-4">
+                <div className="flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-xl bg-indigo-600/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-sm">
+                    🚀
+                  </span>
+                  <div>
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                      3 Adımda Projenize Entegre Edin (Standart OpenAI Drop-In)
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                      Yeni bir SDK öğrenmenize gerek yok. Standart <code>openai</code> kütüphanesi veya REST API ile hemen çalışır.
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-                {docsLanguage === "curl" && (
-                  <pre className="text-gray-300">
-                    curl -X POST http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1/chat/completions \<br/>
-                    &nbsp;&nbsp;-H <span className="text-emerald-300">"Authorization: Bearer sk-live-your-api-key"</span> \<br/>
-                    &nbsp;&nbsp;-H <span className="text-emerald-300">"Content-Type: application/json"</span> \<br/>
-                    &nbsp;&nbsp;-d '&#123;<br/>
-                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"model"</span>: <span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
-                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"messages"</span>: [&#123;<span className="text-amber-300">"role"</span>: <span className="text-amber-300">"user"</span>, <span className="text-amber-300">"content"</span>: <span className="text-amber-300">"Hello Bedrock"</span>&#125;],<br/>
-                    &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"stream"</span>: <span className="text-indigo-400">true</span><br/>
-                    &nbsp;&nbsp;&#125;'
-                  </pre>
-                )}
+              {/* 3 Adım Adım Rehber */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">1</div>
+                  <div className="font-bold text-xs text-slate-900 dark:text-white">API Anahtarınızı Seçin</div>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400">
+                    Yukarıda ürettiğiniz aktif anahtarlardan birini seçin; kod örneklerinde otomatik doldurulacaktır.
+                  </p>
+                  <select
+                    value={selectedDocsKey}
+                    onChange={(e) => setSelectedDocsKey(e.target.value)}
+                    className="w-full mt-2 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-indigo-600 dark:text-indigo-400 font-bold focus:outline-none cursor-pointer"
+                  >
+                    <option value="">{apiKeys.length > 0 ? "Otomatik İlk Anahtarı Kullan" : "bg-live-your-api-key"}</option>
+                    {apiKeys.map((k) => (
+                      <option key={k.id} value={k.prefix}>
+                        {k.name} ({k.prefix}...)
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                {docsLanguage === "langchain" && (
-                  <pre className="text-gray-300">
-                    <span className="text-purple-400">from</span> langchain_openai <span className="text-purple-400">import</span> ChatOpenAI<br/><br/>
-                    llm = ChatOpenAI(<br/>
-                    &nbsp;&nbsp;openai_api_base=<span className="text-emerald-300">"http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000/v1"</span>,<br/>
-                    &nbsp;&nbsp;openai_api_key=<span className="text-amber-300">"sk-live-your-api-key"</span>,<br/>
-                    &nbsp;&nbsp;model_name=<span className="text-emerald-300">"amazon.nova-pro-v1:0"</span><br/>
-                    )<br/>
-                    print(llm.invoke(<span className="text-amber-300">"LangChain üzerinden Bedrock Nova Pro yanıtı"</span>).content)
-                  </pre>
-                )}
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">2</div>
+                  <div className="font-bold text-xs text-slate-900 dark:text-white">Base URL Tanımlayın</div>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400">
+                    OpenAI istemcinizin <code>base_url</code> veya <code>baseURL</code> parametresini gateway adresimize yönlendirin.
+                  </p>
+                  <code className="block mt-2 bg-white dark:bg-gray-900 p-1.5 rounded-lg border border-slate-200 dark:border-gray-800 text-[10px] font-mono text-emerald-600 font-bold break-all">
+                    {typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1"}
+                  </code>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-1.5">
+                  <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white font-bold text-xs flex items-center justify-center">3</div>
+                  <div className="font-bold text-xs text-slate-900 dark:text-white">Modelinizi Çağırın</div>
+                  <p className="text-[11px] text-slate-500 dark:text-gray-400">
+                    Anthropic Claude 3.5/3.7, Amazon Nova veya Meta Llama 3.2/3.3 modellerinden dilediğinizi çağırın.
+                  </p>
+                  <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-2">
+                    ✓ Streaming & SSE %100 Destekli
+                  </div>
+                </div>
+              </div>
+
+              {/* Kod Snippet Kartı */}
+              <div className="rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-950 overflow-hidden shadow-xl">
+                <div className="p-3.5 border-b border-gray-800 flex flex-wrap items-center justify-between gap-2 bg-gray-950">
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: "python", name: "Python (OpenAI SDK)" },
+                      { id: "node", name: "Node.js / TypeScript" },
+                      { id: "curl", name: "cURL / REST API" },
+                      { id: "langchain", name: "LangChain / LlamaIndex" },
+                      { id: "agent", name: "Cursor / Cline IDE Config" },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setDocsLanguage(tab.id as any)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                          docsLanguage === tab.id
+                            ? "bg-indigo-600 text-white shadow-sm"
+                            : "text-gray-400 hover:text-white hover:bg-gray-800"
+                        }`}
+                      >
+                        {tab.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const activeKeyVal = selectedDocsKey || (apiKeys[0]?.prefix ? `${apiKeys[0].prefix}••••••••` : "bg-live-your-api-key");
+                      const baseUrlVal = typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1";
+                      let text = "";
+
+                      if (docsLanguage === "python") {
+                        text = `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseUrlVal}",\n    api_key="${activeKeyVal}"\n)\n\nresponse = client.chat.completions.create(\n    model="anthropic.claude-3-5-sonnet-20241022-v2:0",\n    messages=[{"role": "user", "content": "Merhaba Bedrock!"}],\n    stream=True\n)\n\nfor chunk in response:\n    print(chunk.choices[0].delta.content or "", end="", flush=True)`;
+                      } else if (docsLanguage === "node") {
+                        text = `import OpenAI from "openai";\n\nconst client = new OpenAI({\n  baseURL: "${baseUrlVal}",\n  apiKey: "${activeKeyVal}",\n});\n\nconst stream = await client.chat.completions.create({\n  model: "anthropic.claude-3-5-sonnet-20241022-v2:0",\n  messages: [{ role: "user", content: "TypeScript ile Bedrock API kullanımı" }],\n  stream: true,\n});\n\nfor await (const chunk of stream) {\n  process.stdout.write(chunk.choices[0]?.delta?.content || "");\n}`;
+                      } else if (docsLanguage === "curl") {
+                        text = `curl -X POST ${baseUrlVal}/chat/completions \\\n  -H "Authorization: Bearer ${activeKeyVal}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "model": "amazon.nova-micro-v1:0",\n    "messages": [{"role": "user", "content": "Merhaba!"}],\n    "stream": false\n  }'`;
+                      } else if (docsLanguage === "langchain") {
+                        text = `from langchain_openai import ChatOpenAI\n\nllm = ChatOpenAI(\n    openai_api_base="${baseUrlVal}",\n    openai_api_key="${activeKeyVal}",\n    model_name="amazon.nova-pro-v1:0"\n)\n\nresponse = llm.invoke("Bedrock Nova Pro ile analiz yap.")\nprint(response.content)`;
+                      } else {
+                        text = `// Cursor / Cline / Roo Code settings.json\n{\n  "openai.baseUrl": "${baseUrlVal}",\n  "openai.apiKey": "${activeKeyVal}",\n  "openai.model": "anthropic.claude-3-5-sonnet-20241022-v2:0"\n}`;
+                      }
+
+                      navigator.clipboard.writeText(text);
+                      showPopup("success", "Kod Kopyalandı", "Entegrasyon kodu panoya kopyalandı!");
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-bold transition"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Kodu Kopyala</span>
+                  </button>
+                </div>
+
+                <div className="p-5 font-mono text-xs text-gray-200 overflow-x-auto leading-relaxed">
+                  {docsLanguage === "python" && (
+                    <pre className="text-gray-300">
+                      <span className="text-purple-400">from</span> openai <span className="text-purple-400">import</span> OpenAI<br/><br/>
+                      <span className="text-slate-500"># 1. Standart OpenAI istemcisini Gateway adresimize bağlayın</span><br/>
+                      client = OpenAI(<br/>
+                      &nbsp;&nbsp;base_url=<span className="text-emerald-300">"{typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1"}"</span>,<br/>
+                      &nbsp;&nbsp;api_key=<span className="text-amber-300">"{selectedDocsKey || (apiKeys[0]?.prefix ? `${apiKeys[0].prefix}••••••••` : "bg-live-your-api-key")}"</span><br/>
+                      )<br/><br/>
+                      <span className="text-slate-500"># 2. AWS Bedrock modellerini anında çağırın</span><br/>
+                      response = client.chat.completions.create(<br/>
+                      &nbsp;&nbsp;model=<span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
+                      &nbsp;&nbsp;messages=[&#123;<span className="text-amber-300">"role"</span>: <span className="text-amber-300">"user"</span>, <span className="text-amber-300">"content"</span>: <span className="text-amber-300">"AWS Bedrock AI Gateway entegrasyonu başarılı!"</span>&#125;],<br/>
+                      &nbsp;&nbsp;stream=<span className="text-indigo-400">True</span><br/>
+                      )<br/><br/>
+                      <span className="text-purple-400">for</span> chunk <span className="text-purple-400">in</span> response:<br/>
+                      &nbsp;&nbsp;print(chunk.choices[0].delta.content <span className="text-purple-400">or</span> <span className="text-emerald-300">""</span>, end=<span className="text-emerald-300">""</span>, flush=<span className="text-indigo-400">True</span>)
+                    </pre>
+                  )}
+
+                  {docsLanguage === "node" && (
+                    <pre className="text-gray-300">
+                      <span className="text-purple-400">import</span> OpenAI <span className="text-purple-400">from</span> <span className="text-emerald-300">"openai"</span>;<br/><br/>
+                      <span className="text-purple-400">const</span> client = <span className="text-purple-400">new</span> OpenAI(&#123;<br/>
+                      &nbsp;&nbsp;baseURL: <span className="text-emerald-300">"{typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1"}"</span>,<br/>
+                      &nbsp;&nbsp;apiKey: <span className="text-amber-300">"{selectedDocsKey || (apiKeys[0]?.prefix ? `${apiKeys[0].prefix}••••••••` : "bg-live-your-api-key")}"</span>,<br/>
+                      &#125;);<br/><br/>
+                      <span className="text-purple-400">const</span> stream = <span className="text-purple-400">await</span> client.chat.completions.create(&#123;<br/>
+                      &nbsp;&nbsp;model: <span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span>,<br/>
+                      &nbsp;&nbsp;messages: [&#123; role: <span className="text-amber-300">"user"</span>, content: <span className="text-amber-300">"TypeScript ile Bedrock çağrısı"</span> &#125;],<br/>
+                      &nbsp;&nbsp;stream: <span className="text-indigo-400">true</span>,<br/>
+                      &#125;);<br/><br/>
+                      <span className="text-purple-400">for await</span> (<span className="text-purple-400">const</span> chunk <span className="text-purple-400">of</span> stream) &#123;<br/>
+                      &nbsp;&nbsp;process.stdout.write(chunk.choices[0]?.delta?.content || <span className="text-emerald-300">""</span>);<br/>
+                      &#125;
+                    </pre>
+                  )}
+
+                  {docsLanguage === "curl" && (
+                    <pre className="text-gray-300">
+                      curl -X POST {typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1"}/chat/completions \<br/>
+                      &nbsp;&nbsp;-H <span className="text-emerald-300">"Authorization: Bearer {selectedDocsKey || (apiKeys[0]?.prefix ? `${apiKeys[0].prefix}••••••••` : "bg-live-your-api-key")}"</span> \<br/>
+                      &nbsp;&nbsp;-H <span className="text-emerald-300">"Content-Type: application/json"</span> \<br/>
+                      &nbsp;&nbsp;-d '&#123;<br/>
+                      &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"model"</span>: <span className="text-emerald-300">"amazon.nova-micro-v1:0"</span>,<br/>
+                      &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"messages"</span>: [&#123;<span className="text-amber-300">"role"</span>: <span className="text-amber-300">"user"</span>, <span className="text-amber-300">"content"</span>: <span className="text-amber-300">"Merhaba!"</span>&#125;],<br/>
+                      &nbsp;&nbsp;&nbsp;&nbsp;<span className="text-amber-300">"stream"</span>: <span className="text-indigo-400">false</span><br/>
+                      &nbsp;&nbsp;&#125;'
+                    </pre>
+                  )}
+
+                  {docsLanguage === "langchain" && (
+                    <pre className="text-gray-300">
+                      <span className="text-purple-400">from</span> langchain_openai <span className="text-purple-400">import</span> ChatOpenAI<br/><br/>
+                      llm = ChatOpenAI(<br/>
+                      &nbsp;&nbsp;openai_api_base=<span className="text-emerald-300">"{typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1"}"</span>,<br/>
+                      &nbsp;&nbsp;openai_api_key=<span className="text-amber-300">"{selectedDocsKey || (apiKeys[0]?.prefix ? `${apiKeys[0].prefix}••••••••` : "bg-live-your-api-key")}"</span>,<br/>
+                      &nbsp;&nbsp;model_name=<span className="text-emerald-300">"amazon.nova-pro-v1:0"</span><br/>
+                      )<br/><br/>
+                      response = llm.invoke(<span className="text-amber-300">"LangChain üzerinden AWS Bedrock modeli ile yanıt üret."</span>)<br/>
+                      print(response.content)
+                    </pre>
+                  )}
+
+                  {docsLanguage === "agent" && (
+                    <pre className="text-gray-300">
+                      <span className="text-slate-500">// Cursor / Cline / Roo Code / VS Code AI Assistant Settings</span><br/>
+                      &#123;<br/>
+                      &nbsp;&nbsp;<span className="text-amber-300">"openai.baseUrl"</span>: <span className="text-emerald-300">"{typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1"}"</span>,<br/>
+                      &nbsp;&nbsp;<span className="text-amber-300">"openai.apiKey"</span>: <span className="text-amber-300">"{selectedDocsKey || (apiKeys[0]?.prefix ? `${apiKeys[0].prefix}••••••••` : "bg-live-your-api-key")}"</span>,<br/>
+                      &nbsp;&nbsp;<span className="text-amber-300">"openai.model"</span>: <span className="text-emerald-300">"anthropic.claude-3-5-sonnet-20241022-v2:0"</span><br/>
+                      &#125;
+                    </pre>
+                  )}
+                </div>
               </div>
             </div>
+
           </div>
         )}
 

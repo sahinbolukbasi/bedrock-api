@@ -1,6 +1,7 @@
 import uuid
 from decimal import Decimal
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
@@ -9,6 +10,18 @@ from app.core.database import get_db
 from app.api.deps import get_current_active_admin
 from app.domain.schemas import AdminOverviewStats, ModelCatalogItem
 from app.models.entities import User, ApiKey, UsageRecord, ModelCatalog, ModelPricing, AuditLog, Wallet
+
+
+class AdminBalanceAdjustRequest(BaseModel):
+    new_balance_usd: Optional[Decimal] = None
+    amount: Optional[Decimal] = None
+    balance: Optional[Decimal] = None
+
+
+class AdminNotifyUserRequest(BaseModel):
+    title: str = "Sistem Bildirimi"
+    message: str
+    channel: str = "EMAIL"
 
 router = APIRouter()
 
@@ -97,16 +110,6 @@ async def update_user_status(
     )
     db.add(audit)
     await db.commit()
-class AdminBalanceAdjustRequest(BaseModel):
-    new_balance_usd: Optional[Decimal] = None
-    amount: Optional[Decimal] = None
-    balance: Optional[Decimal] = None
-
-
-class AdminNotifyUserRequest(BaseModel):
-    title: str = "Sistem Bildirimi"
-    message: str
-    channel: str = "EMAIL"
 
 
 @router.post("/users/{user_id}/balance")

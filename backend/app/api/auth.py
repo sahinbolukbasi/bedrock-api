@@ -19,7 +19,7 @@ import time
 import secrets
 from typing import Dict, Any
 from decimal import Decimal
-from app.models.entities import User, Wallet, ApiKey, UserRole
+from app.models.entities import User, Wallet, ApiKey
 from app.services.email_service import EmailService
 from app.domain.schemas import (
     UserRegisterRequest,

@@ -28,6 +28,10 @@ class User(Base):
     role = Column(String(50), default="user", nullable=False)  # "user" | "admin"
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     mfa_secret = Column(String(64), nullable=True)
+    telegram_chat_id = Column(String(64), nullable=True, index=True)
+    telegram_username = Column(String(128), nullable=True)
+    telegram_pairing_code = Column(String(32), nullable=True, index=True)
+    telegram_active_agent_id = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
@@ -39,6 +43,7 @@ class User(Base):
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="user")
     credit_purchases = relationship("CreditPurchase", back_populates="user")
+    scheduled_tasks = relationship("ScheduledTask", back_populates="user", cascade="all, delete-orphan")
 
 
 class UserSession(Base):
@@ -254,6 +259,8 @@ class CustomAgent(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(128), nullable=False)
+    icon = Column(String(64), default="🤖", nullable=False)
+    agent_type = Column(String(64), default="custom", nullable=False)  # "news", "finance", "security", "custom"
     description = Column(Text, nullable=True)
     model_id = Column(String(128), default="amazon.nova-micro-v1:0", nullable=False)
     system_prompt = Column(Text, nullable=False)
@@ -284,3 +291,25 @@ class AgentExecutionLog(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
     agent = relationship("CustomAgent", back_populates="execution_logs")
+
+
+class ScheduledTask(Base):
+    __tablename__ = "scheduled_tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    task_type = Column(String(50), nullable=False)  # "REMINDER", "WEB_SEARCH_TRACKER", "AGENT_CRON", "IMAGE_GEN"
+    title = Column(String(255), nullable=False)
+    payload = Column(JSON, default=dict, nullable=False)  # {"prompt": "...", "search_query": "...", "chat_id": "..."}
+    schedule_type = Column(String(50), default="ONCE", nullable=False)  # "ONCE", "INTERVAL", "CRON"
+    interval_seconds = Column(Integer, nullable=True)  # e.g., 3600 for hourly
+    cron_expression = Column(String(64), nullable=True)
+    next_run_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    last_run_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String(50), default="ACTIVE", nullable=False, index=True)  # "ACTIVE", "COMPLETED", "CANCELLED", "PAUSED"
+    run_count = Column(Integer, default=0, nullable=False)
+    last_result_summary = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    user = relationship("User", back_populates="scheduled_tasks")

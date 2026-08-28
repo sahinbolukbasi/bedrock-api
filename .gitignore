@@ -63,3 +63,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+test-results/
+*.tsbuildinfo
+

@@ -14,20 +14,34 @@ from app.api import auth, api_keys, wallet, usage, admin, chat_ui, agents
 from loguru import logger
 
 
+from app.services.scheduler import BackgroundSchedulerService
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: init Redis, initialize DB tables and seed catalog
+    # Startup: init Redis, initialize DB tables, seed catalog, start background scheduler
     logger.info("Initializing AWS Bedrock AI Gateway...")
     await init_redis()
     try:
         await seed_database()
     except Exception as e:
         logger.warning(f"Seed database warning: {e}")
+
+    try:
+        await BackgroundSchedulerService.start()
+    except Exception as e:
+        logger.warning(f"Failed to start background scheduler: {e}")
+
     yield
     # Shutdown
     logger.info("Shutting down Gateway...")
+    try:
+        await BackgroundSchedulerService.stop()
+    except Exception as e:
+        logger.warning(f"Error stopping background scheduler: {e}")
     await close_redis()
     await engine.dispose()
+
 
 
 app = FastAPI(
@@ -122,6 +136,7 @@ app.include_router(images.router, prefix="/v1", tags=["OpenAI Images"])
 # Platform & SaaS APIs
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication & MFA"])
 app.include_router(api_keys.router, prefix="/api/keys", tags=["API Key Management"])
+app.include_router(api_keys.router, prefix="/api/api-keys", tags=["API Key Management Alias"])
 app.include_router(wallet.router, prefix="/api/wallet", tags=["Wallet & Stripe Billing"])
 app.include_router(usage.router, prefix="/api/usage", tags=["Usage & Analytics"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin & Margins"])

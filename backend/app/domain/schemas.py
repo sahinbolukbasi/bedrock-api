@@ -92,6 +92,13 @@ class ApiKeyCreateRequest(BaseModel):
     expires_in_days: Optional[int] = Field(default=None, ge=1, le=365)
 
 
+class ApiKeyUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    rate_limit_rpm: Optional[int] = Field(default=None, ge=1, le=10000)
+    spending_limit_usd: Optional[Decimal] = Field(default=None, ge=0)
+    is_active: Optional[bool] = None
+
+
 class ApiKeyCreatedResponse(BaseModel):
     id: uuid.UUID
     name: str

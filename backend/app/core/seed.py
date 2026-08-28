@@ -11,6 +11,22 @@ from loguru import logger
 INITIAL_MODELS = [
     # --- Anthropic Claude Family ---
     {
+        "model_id": "anthropic.claude-3-7-sonnet-20250219-v1:0",
+        "name": "claude-3-7-sonnet",
+        "display_name": "Anthropic Claude 3.7 Sonnet (Hybrid Reasoning)",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 200000,
+        "capabilities": {"vision": True, "tools": True, "streaming": True, "reasoning": True},
+        "pricing": {
+            "provider_in": Decimal("0.003000"),
+            "provider_out": Decimal("0.015000"),
+            "customer_in": Decimal("0.003600"),
+            "customer_out": Decimal("0.018000"),
+            "margin": Decimal("20.00"),
+        }
+    },
+    {
         "model_id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
         "name": "claude-3-5-sonnet-20241022",
         "display_name": "Anthropic Claude 3.5 Sonnet v2",
@@ -58,24 +74,40 @@ INITIAL_MODELS = [
             "margin": Decimal("20.00"),
         }
     },
+
+    # --- Amazon Nova Family (Ultra Budget & High Speed for Agents) ---
     {
-        "model_id": "anthropic.claude-3-sonnet-20240229-v1:0",
-        "name": "claude-3-sonnet",
-        "display_name": "Anthropic Claude 3 Sonnet",
+        "model_id": "amazon.nova-micro-v1:0",
+        "name": "nova-micro",
+        "display_name": "Amazon Nova Micro (⚡ Ultra Bütçe Agent)",
         "provider": "BEDROCK",
         "type": "CHAT",
-        "context_window": 200000,
-        "capabilities": {"vision": True, "tools": True, "streaming": True},
+        "context_window": 128000,
+        "capabilities": {"vision": False, "tools": True, "streaming": True, "fast_agent": True},
         "pricing": {
-            "provider_in": Decimal("0.003000"),
-            "provider_out": Decimal("0.015000"),
-            "customer_in": Decimal("0.003600"),
-            "customer_out": Decimal("0.018000"),
-            "margin": Decimal("20.00"),
+            "provider_in": Decimal("0.000035"),
+            "provider_out": Decimal("0.000140"),
+            "customer_in": Decimal("0.000050"),
+            "customer_out": Decimal("0.000180"),
+            "margin": Decimal("40.00"),
         }
     },
-
-    # --- Amazon Nova Family ---
+    {
+        "model_id": "amazon.nova-lite-v1:0",
+        "name": "nova-lite",
+        "display_name": "Amazon Nova Lite (⚡ Hızlı Multimodal)",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 300000,
+        "capabilities": {"vision": True, "tools": True, "streaming": True, "fast_agent": True},
+        "pricing": {
+            "provider_in": Decimal("0.000060"),
+            "provider_out": Decimal("0.000240"),
+            "customer_in": Decimal("0.000080"),
+            "customer_out": Decimal("0.000300"),
+            "margin": Decimal("33.00"),
+        }
+    },
     {
         "model_id": "amazon.nova-pro-v1:0",
         "name": "nova-pro",
@@ -92,40 +124,56 @@ INITIAL_MODELS = [
             "margin": Decimal("25.00"),
         }
     },
+
+    # --- Meta Llama 3.2 / 3.3 Family (Lightweight Agents & Frontier) ---
     {
-        "model_id": "amazon.nova-lite-v1:0",
-        "name": "nova-lite",
-        "display_name": "Amazon Nova Lite",
-        "provider": "BEDROCK",
-        "type": "CHAT",
-        "context_window": 300000,
-        "capabilities": {"vision": True, "tools": True, "streaming": True},
-        "pricing": {
-            "provider_in": Decimal("0.000060"),
-            "provider_out": Decimal("0.000240"),
-            "customer_in": Decimal("0.000080"),
-            "customer_out": Decimal("0.000300"),
-            "margin": Decimal("33.00"),
-        }
-    },
-    {
-        "model_id": "amazon.nova-micro-v1:0",
-        "name": "nova-micro",
-        "display_name": "Amazon Nova Micro",
+        "model_id": "meta.llama3-2-1b-instruct-v1:0",
+        "name": "llama-3.2-1b",
+        "display_name": "Meta Llama 3.2 1B (⚡ Mikro Agent)",
         "provider": "BEDROCK",
         "type": "CHAT",
         "context_window": 128000,
-        "capabilities": {"vision": False, "tools": True, "streaming": True},
+        "capabilities": {"vision": False, "tools": True, "streaming": True, "fast_agent": True},
         "pricing": {
-            "provider_in": Decimal("0.000035"),
-            "provider_out": Decimal("0.000140"),
-            "customer_in": Decimal("0.000050"),
-            "customer_out": Decimal("0.000180"),
-            "margin": Decimal("40.00"),
+            "provider_in": Decimal("0.000100"),
+            "provider_out": Decimal("0.000100"),
+            "customer_in": Decimal("0.000120"),
+            "customer_out": Decimal("0.000120"),
+            "margin": Decimal("20.00"),
         }
     },
-
-    # --- Meta Llama Family ---
+    {
+        "model_id": "meta.llama3-2-3b-instruct-v1:0",
+        "name": "llama-3.2-3b",
+        "display_name": "Meta Llama 3.2 3B (⚡ Hızlı Agent)",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 128000,
+        "capabilities": {"vision": False, "tools": True, "streaming": True, "fast_agent": True},
+        "pricing": {
+            "provider_in": Decimal("0.000150"),
+            "provider_out": Decimal("0.000150"),
+            "customer_in": Decimal("0.000180"),
+            "customer_out": Decimal("0.000180"),
+            "margin": Decimal("20.00"),
+        }
+    },
+    {
+        "model_id": "meta.llama3-2-11b-instruct-v1:0",
+        "name": "llama-3.2-11b",
+        "display_name": "Meta Llama 3.2 11B Vision",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 128000,
+        "capabilities": {"vision": True, "tools": True, "streaming": True},
+        "pricing": {
+            "provider_in": Decimal("0.000350"),
+            "provider_out": Decimal("0.000350"),
+            "customer_in": Decimal("0.000450"),
+            "customer_out": Decimal("0.000450"),
+            "margin": Decimal("28.00"),
+        }
+    },
     {
         "model_id": "meta.llama3-3-70b-instruct-v1:0",
         "name": "llama-3.3-70b",
@@ -145,7 +193,7 @@ INITIAL_MODELS = [
     {
         "model_id": "meta.llama3-1-405b-instruct-v1:0",
         "name": "llama-3.1-405b",
-        "display_name": "Meta Llama 3.1 405B Instruct",
+        "display_name": "Meta Llama 3.1 405B Instruct (Dev Frontier)",
         "provider": "BEDROCK",
         "type": "CHAT",
         "context_window": 128000,
@@ -156,38 +204,6 @@ INITIAL_MODELS = [
             "customer_in": Decimal("0.003000"),
             "customer_out": Decimal("0.003000"),
             "margin": Decimal("25.00"),
-        }
-    },
-    {
-        "model_id": "meta.llama3-1-70b-instruct-v1:0",
-        "name": "llama-3.1-70b",
-        "display_name": "Meta Llama 3.1 70B Instruct",
-        "provider": "BEDROCK",
-        "type": "CHAT",
-        "context_window": 128000,
-        "capabilities": {"vision": False, "tools": True, "streaming": True},
-        "pricing": {
-            "provider_in": Decimal("0.000720"),
-            "provider_out": Decimal("0.000720"),
-            "customer_in": Decimal("0.000900"),
-            "customer_out": Decimal("0.000900"),
-            "margin": Decimal("25.00"),
-        }
-    },
-    {
-        "model_id": "meta.llama3-1-8b-instruct-v1:0",
-        "name": "llama-3.1-8b",
-        "display_name": "Meta Llama 3.1 8B Instruct",
-        "provider": "BEDROCK",
-        "type": "CHAT",
-        "context_window": 128000,
-        "capabilities": {"vision": False, "tools": True, "streaming": True},
-        "pricing": {
-            "provider_in": Decimal("0.000220"),
-            "provider_out": Decimal("0.000220"),
-            "customer_in": Decimal("0.000300"),
-            "customer_out": Decimal("0.000300"),
-            "margin": Decimal("36.00"),
         }
     },
 
@@ -211,17 +227,67 @@ INITIAL_MODELS = [
     {
         "model_id": "mistral.mistral-small-2402-v1:0",
         "name": "mistral-small",
-        "display_name": "Mistral Small",
+        "display_name": "Mistral Small (⚡ Bütçe Kod & Metin)",
         "provider": "BEDROCK",
         "type": "CHAT",
         "context_window": 32000,
-        "capabilities": {"vision": False, "tools": True, "streaming": True},
+        "capabilities": {"vision": False, "tools": True, "streaming": True, "fast_agent": True},
         "pricing": {
             "provider_in": Decimal("0.000200"),
             "provider_out": Decimal("0.000600"),
             "customer_in": Decimal("0.000300"),
             "customer_out": Decimal("0.000800"),
             "margin": Decimal("33.00"),
+        }
+    },
+    {
+        "model_id": "mistral.pixtral-12b-2409-v1:0",
+        "name": "pixtral-12b",
+        "display_name": "Mistral Pixtral 12B (Vision & Docs)",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 128000,
+        "capabilities": {"vision": True, "tools": True, "streaming": True},
+        "pricing": {
+            "provider_in": Decimal("0.000300"),
+            "provider_out": Decimal("0.000900"),
+            "customer_in": Decimal("0.000400"),
+            "customer_out": Decimal("0.001100"),
+            "margin": Decimal("25.00"),
+        }
+    },
+
+    # --- AI21 Jamba Family ---
+    {
+        "model_id": "ai21.jamba-1-5-mini-v1:0",
+        "name": "jamba-1.5-mini",
+        "display_name": "AI21 Jamba 1.5 Mini (⚡ 256K Uzun Bağlam)",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 256000,
+        "capabilities": {"vision": False, "tools": True, "streaming": True, "fast_agent": True},
+        "pricing": {
+            "provider_in": Decimal("0.000200"),
+            "provider_out": Decimal("0.000400"),
+            "customer_in": Decimal("0.000250"),
+            "customer_out": Decimal("0.000500"),
+            "margin": Decimal("25.00"),
+        }
+    },
+    {
+        "model_id": "ai21.jamba-1-5-large-v1:0",
+        "name": "jamba-1.5-large",
+        "display_name": "AI21 Jamba 1.5 Large (256K Context)",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 256000,
+        "capabilities": {"vision": False, "tools": True, "streaming": True},
+        "pricing": {
+            "provider_in": Decimal("0.002000"),
+            "provider_out": Decimal("0.008000"),
+            "customer_in": Decimal("0.002500"),
+            "customer_out": Decimal("0.010000"),
+            "margin": Decimal("25.00"),
         }
     },
 
@@ -259,37 +325,69 @@ INITIAL_MODELS = [
         }
     },
 
-    # --- Amazon Titan Text Family ---
+    # --- OpenAI Drop-In Compatibles (Mapped dynamically) ---
     {
-        "model_id": "amazon.titan-text-premier-v1:0",
-        "name": "titan-text-premier",
-        "display_name": "Amazon Titan Text Premier",
+        "model_id": "gpt-4o",
+        "name": "gpt-4o",
+        "display_name": "OpenAI GPT-4o Omni (Drop-In Router)",
         "provider": "BEDROCK",
         "type": "CHAT",
-        "context_window": 32000,
-        "capabilities": {"vision": False, "tools": True, "streaming": True},
+        "context_window": 128000,
+        "capabilities": {"vision": True, "tools": True, "streaming": True, "openai_compatible": True},
         "pricing": {
-            "provider_in": Decimal("0.000500"),
-            "provider_out": Decimal("0.001500"),
-            "customer_in": Decimal("0.000700"),
-            "customer_out": Decimal("0.002000"),
-            "margin": Decimal("33.00"),
+            "provider_in": Decimal("0.002500"),
+            "provider_out": Decimal("0.010000"),
+            "customer_in": Decimal("0.003000"),
+            "customer_out": Decimal("0.012000"),
+            "margin": Decimal("20.00"),
         }
     },
     {
-        "model_id": "amazon.titan-text-express-v1",
-        "name": "titan-text-express",
-        "display_name": "Amazon Titan Text Express",
+        "model_id": "gpt-4o-mini",
+        "name": "gpt-4o-mini",
+        "display_name": "OpenAI GPT-4o Mini (⚡ Bütçe Router)",
         "provider": "BEDROCK",
         "type": "CHAT",
-        "context_window": 8000,
-        "capabilities": {"vision": False, "tools": False, "streaming": True},
+        "context_window": 128000,
+        "capabilities": {"vision": True, "tools": True, "streaming": True, "openai_compatible": True, "fast_agent": True},
         "pricing": {
-            "provider_in": Decimal("0.000200"),
+            "provider_in": Decimal("0.000150"),
             "provider_out": Decimal("0.000600"),
-            "customer_in": Decimal("0.000300"),
-            "customer_out": Decimal("0.000800"),
-            "margin": Decimal("33.00"),
+            "customer_in": Decimal("0.000180"),
+            "customer_out": Decimal("0.000750"),
+            "margin": Decimal("25.00"),
+        }
+    },
+    {
+        "model_id": "o1",
+        "name": "o1",
+        "display_name": "OpenAI o1 Reasoning (Drop-In Router)",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 200000,
+        "capabilities": {"vision": True, "tools": True, "streaming": True, "reasoning": True, "openai_compatible": True},
+        "pricing": {
+            "provider_in": Decimal("0.015000"),
+            "provider_out": Decimal("0.060000"),
+            "customer_in": Decimal("0.018000"),
+            "customer_out": Decimal("0.072000"),
+            "margin": Decimal("20.00"),
+        }
+    },
+    {
+        "model_id": "o3-mini",
+        "name": "o3-mini",
+        "display_name": "OpenAI o3-mini Reasoning (⚡ Fast Agent Router)",
+        "provider": "BEDROCK",
+        "type": "CHAT",
+        "context_window": 200000,
+        "capabilities": {"vision": False, "tools": True, "streaming": True, "reasoning": True, "openai_compatible": True, "fast_agent": True},
+        "pricing": {
+            "provider_in": Decimal("0.001100"),
+            "provider_out": Decimal("0.004400"),
+            "customer_in": Decimal("0.001400"),
+            "customer_out": Decimal("0.005500"),
+            "margin": Decimal("25.00"),
         }
     },
 
@@ -400,6 +498,11 @@ async def seed_database():
                 )
                 db.add(pricing_obj)
                 logger.info(f"Seeded model: {m_data['display_name']}")
+            else:
+                # Update display name and capabilities if changed
+                model_obj.display_name = m_data["display_name"]
+                model_obj.capabilities = m_data["capabilities"]
+                model_obj.context_window = m_data["context_window"]
 
         await db.commit()
         logger.info("Database seeding completed successfully.")
