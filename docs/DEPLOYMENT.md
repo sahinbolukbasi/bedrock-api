@@ -1,79 +1,73 @@
-# 🚀 Production AWS Deployment Guide
+# Dağıtım & GitOps Rehberi (Deployment & GitOps)
 
-This guide walks through deploying the **AWS Bedrock AI Gateway Platform** to AWS using Terraform, ECS Fargate, Amazon RDS PostgreSQL, Amazon ElastiCache Redis, Application Load Balancers, and AWS Secrets Manager.
-
----
-
-## 1. Prerequisites
-
-- AWS CLI v2 configured (`aws configure`)
-- Terraform >= 1.5.0
-- Docker & Docker Compose
-- AWS IAM Administrator access for initial provisioning
+Bu rehber; **Terraform Modüler IaC**, **GitHub Actions OIDC ile Secretless AWS Dağıtımı** ve **Sandbox ➔ Staging ➔ Main GitOps Pipeline** akışını açıklar.
 
 ---
 
-## 2. Infrastructure Provisioning with Terraform
+## 🚀 1. GitOps & Branching Stratejisi
 
-### Step 1: Initialize Terraform
+```mermaid
+gitGraph
+   commit id: "Init"
+   branch sandbox
+   checkout sandbox
+   commit id: "feat(agent): local RAG & growth"
+   commit id: "test: 30 tests pass"
+   checkout main
+   merge sandbox id: "PR: Sandbox -> Staging -> Main"
+```
+
+1. **`sandbox`:** Geliştirme ve deneysel özelliklerin ilk uygulandığı dal.
+2. **`staging`:** Ön üretim ve entegrasyon testlerinin yürütüldüğü ortam.
+3. **`main`:** Canlı üretim (Production) ortamı. Doğrudan `main` dalına push yapılmaz; PR ve kalite kapılarından geçilerek alınır.
+
+---
+
+## 🏗️ 2. Terraform Modülleri ile AWS Kurulumu
+
+Altyapı `terraform/` dizini altında modüler olarak tanımlanmıştır:
+
 ```bash
-cd terraform
+cd terraform/environments/sandbox
 terraform init
+terraform plan
+terraform apply
 ```
 
-### Step 2: Plan & Validate
-```bash
-terraform plan -var="aws_region=us-east-1" -var="environment=prod"
-```
-
-### Step 3: Apply Infrastructure
-```bash
-terraform apply -auto-approve -var="aws_region=us-east-1" -var="environment=prod"
-```
-
-Terraform provisions:
-- Multi-AZ VPC across 2 Availability Zones (`us-east-1a`, `us-east-1b`)
-- Internet Gateway and NAT Gateway with Elastic IP
-- Amazon RDS PostgreSQL 16 in isolated private database subnets
-- Amazon ElastiCache Redis 7 cluster in cache subnets
-- ECS Fargate Task Execution Role with `bedrock:InvokeModel*` permissions
-- Application Load Balancer (ALB) with path routing rules on Port 80 & 8000
-- AWS WAF WebACL attached to ALB
+### Modül Dağılımı:
+- **`modules/iam/`:** AWS Bedrock, S3 ve DynamoDB için en az yetki prensipli (least privilege) roller ve GitHub Actions OIDC entegrasyonu.
+- **`modules/bedrock_guardrails/`:** PII maskeleme ve prompt injection koruma katmanı.
+- **`modules/knowledge_base/`:** S3 bilgi tabanı ve DynamoDB stateful hafıza tablosu.
+- **`modules/bedrock_agentcore/`:** Claude 3.7 Sonnet ve Claude 3.5 Haiku modellerine bağlı agent tanımları.
 
 ---
 
-## 3. Building & Pushing Docker Images to AWS ECR
+## 🛡️ 3. GitHub Actions OIDC ile Secretless CI/CD
 
-```bash
-# 1. Authenticate Docker with Amazon ECR
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 996270854731.dkr.ecr.us-east-1.amazonaws.com
+Sabit AWS Access Key ve Secret Key saklamak yerine, **GitHub OIDC Identity Provider** üzerinden `sts:AssumeRoleWithWebIdentity` ile geçici token alınır:
 
-# 2. Build and tag Backend image
-docker build -t bedrock-gateway-backend ./backend
-docker tag bedrock-gateway-backend:latest 996270854731.dkr.ecr.us-east-1.amazonaws.com/bedrock-gateway-backend:latest
-docker push 996270854731.dkr.ecr.us-east-1.amazonaws.com/bedrock-gateway-backend:latest
+```yaml
+name: Deploy Sandbox Infrastructure
+on:
+  push:
+    branches: [ sandbox ]
 
-# 3. Build and tag Frontend image
-docker build -t bedrock-gateway-frontend ./frontend
-docker tag bedrock-gateway-frontend:latest 996270854731.dkr.ecr.us-east-1.amazonaws.com/bedrock-gateway-frontend:latest
-docker push 996270854731.dkr.ecr.us-east-1.amazonaws.com/bedrock-gateway-frontend:latest
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/sandbox-bedrock-github-actions-role
+          aws-region: us-east-1
+      - name: Terraform Apply
+        run: |
+          cd terraform/environments/sandbox
+          terraform init
+          terraform apply -auto-approve
 ```
-
----
-
-## 4. Environment Variables & Secrets Management
-
-Secrets are synchronized dynamically from AWS Secrets Manager (`bedrock-gateway-secrets-prod`):
-```bash
-aws secretsmanager get-secret-value --region us-east-1 --secret-id bedrock-gateway-secrets-prod --query SecretString --output text
-```
-
----
-
-## 5. Continuous Deployment (CI/CD)
-
-The GitHub Actions workflow (`.github/workflows/ci.yml` and `deploy.yml`) automatically triggers on push to `main`:
-1. Executes backend tests and type verification.
-2. Builds Next.js 14 frontend assets.
-3. Builds and pushes production container images to Amazon ECR.
-4. Triggers zero-downtime rolling update on AWS ECS Fargate services (`bedrock-gateway-backend-svc`, `bedrock-gateway-frontend-svc`).

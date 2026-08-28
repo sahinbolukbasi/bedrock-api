@@ -1,41 +1,50 @@
-# 📡 API Referansı & Uç Noktalar
+# REST API Referansı (API Reference)
 
-Gateway, standart **OpenAI Chat Completions** formatıyla %100 uyumludur ve platform yönetim servisleri sunar.
+Bedrock AI Gateway ve Otonom Agent sisteminin tüm REST API uç noktaları.
 
 ---
 
-## 🤖 1. OpenAI Uyumlu API (`/v1`)
+## 🤖 1. Otonom Agent & Bilgi Tabanı API'leri
 
-### `POST /v1/chat/completions`
-* **Açıklama:** AWS Bedrock modelleriyle (Nova, Claude, Llama vb.) sohbet tamamlama veya SSE stream akışı üretir.
-* **Başlıklar:**
-  * `Authorization: Bearer sk-live-...`
-  * `Content-Type: application/json`
-* **İstek Gövdesi Örneği:**
-```json
-{
-  "model": "amazon.nova-micro-v1:0",
-  "messages": [
-    { "role": "system", "content": "Kısa ve öz Türkçe yanıt ver." },
-    { "role": "user", "content": "AWS Bedrock nedir?" }
-  ],
-  "stream": false
-}
+| Metot | Endpoint | Açıklama |
+| :--- | :--- | :--- |
+| `GET` | `/api/agents` | Kullanıcının tüm otonom botlarını listeler |
+| `POST` | `/api/agents` | Yeni otonom bot oluşturur |
+| `PATCH` | `/api/agents/{agent_id}` | Bot ayarlarını ve promptunu günceller |
+| `DELETE` | `/api/agents/{agent_id}` | Botu siler |
+| `POST` | `/api/agents/{agent_id}/run` | Botu interaktif veya zamanlı tetikler |
+| `GET` | `/api/agents/{agent_id}/logs` | Botun geçmiş çalışma loglarını ve maliyetini getirir |
+| `POST` | `/api/agents/{agent_id}/knowledge` | Botun bilgi tabanına Website URL, API veya doküman ekler (RAG) |
+| `DELETE` | `/api/agents/{agent_id}/knowledge/{source_id}` | Eklenmiş bilgi kaynağını siler |
+| `POST` | `/api/agents/{agent_id}/feedback` | Botun yanıtına olumlu/olumsuz geri bildirim verir (+50 XP) |
+| `GET` | `/api/agents/{agent_id}/growth` | Botun XP, Seviye (1-4), IQ skoru ve evrim geçmişini getirir |
+| `POST` | `/api/agents/{agent_id}/reset-memory` | Botun öğrenilen uzun süreli hafızasını sıfırlar |
+
+---
+
+## 📱 2. Telegram Bot Entegrasyon API'leri
+
+| Metot | Endpoint | Açıklama |
+| :--- | :--- | :--- |
+| `GET` | `/api/agents/telegram/status` | Telegram botunun bağlantı durumunu getirir |
+| `POST` | `/api/agents/telegram/generate-code` | Eşleştirme için 6 haneli `TG-XXXXXX` kodu üretir |
+| `POST` | `/api/agents/telegram/disconnect` | Telegram bot bağlantısını sonlandırır |
+| `POST` | `/api/agents/telegram/test-message` | Bağlı Telegram hesabına test bildirimi gönderir |
+
+---
+
+## 💬 3. OpenAI Uyumlu Chat API (`/v1/chat/completions`)
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -d '{
+    "model": "anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "messages": [
+      {"role": "system", "content": "Sen yardımcı bir asistansın."},
+      {"role": "user", "content": "Bugünkü yapay zeka haberlerini özetle."}
+    ],
+    "temperature": 0.7
+  }'
 ```
-
-### `GET /v1/models`
-* **Açıklama:** Erişilebilir ve aktif olan tüm AWS Bedrock modellerini döndürür.
-
----
-
-## 🛠️ 2. Platform & Yönetim API (`/api`)
-
-* `POST /api/auth/register` — Yeni kullanıcı kaydı ve cüzdan oluşturma.
-* `POST /api/auth/login` — JWT erişim anahtarı ve rol döndürür.
-* `GET /api/wallet` — Kullanıcının kalan bakiye miktarını sorgular.
-* `GET /api/keys` — Kullanıcının aktif API anahtarlarını listeler.
-* `POST /api/keys` — Yeni `sk-live-...` API anahtarı üretir.
-* `GET /api/agents` — Otonom ajanları listeler.
-* `POST /api/agents` — Yeni otonom ajan tanımlar.
-* `POST /api/agents/{agent_id}/run` — Ajanı anında tetikler ve SMS/Telegram/E-posta ile sonucu iletir.
-* `POST /api/agents/{agent_id}/reset-memory` — Ajanın öğrenen bellek önbelleğini sıfırlar.
