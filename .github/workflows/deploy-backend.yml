@@ -68,7 +68,6 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
-
       - name: Zero-Downtime ECS Rolling Update
         run: |
           echo "Updating ECS Backend Service..."
