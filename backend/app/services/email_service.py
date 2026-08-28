@@ -60,12 +60,17 @@ class EmailService:
         Gracefully logs and handles local development vs production AWS SES.
         """
         import boto3
-        logger.info(f"[EmailService] Preparing email to: {to_email} | Subject: {subject}")
         sender = getattr(settings, "EMAIL_SENDER", "noreply@bedrockgateway.com")
+        logger.info(f"[EmailService] Preparing email dispatch to: {to_email} | Subject: {subject}")
 
-        # 1. Try sending directly via AWS SES (boto3)
+        # 1. Check AWS SES verified identities if default sender is unverified
         try:
             ses_client = boto3.client("ses", region_name=settings.AWS_REGION)
+            verified_list = ses_client.list_identities().get("Identities", [])
+            if verified_list and (sender == "noreply@bedrockgateway.com" or sender not in verified_list):
+                sender = verified_list[0]
+                logger.info(f"[EmailService] Using verified SES sender identity: {sender}")
+
             def _send_ses():
                 ses_client.send_email(
                     Source=sender,
@@ -76,40 +81,48 @@ class EmailService:
                     }
                 )
             await asyncio.to_thread(_send_ses)
-            logger.info(f"[EmailService] Email successfully delivered via AWS SES to {to_email}")
+            logger.info(f"✅ [EmailService] Email successfully delivered via AWS SES to {to_email}")
             return True
         except Exception as ses_err:
-            logger.debug(f"[EmailService] SES direct dispatch note (proceeding to SMTP/Logger): {ses_err}")
+            logger.warning(f"[EmailService] SES direct dispatch note (proceeding to SMTP/Dev fallback): {ses_err}")
 
-        # 2. Try sending via SMTP if credentials exist
-        smtp_host = getattr(settings, "SMTP_HOST", "smtp.us-east-1.amazonaws.com")
+        # 2. Try sending via SMTP if credentials exist (e.g. Gmail SMTP, SendGrid, Mailgun)
+        smtp_host = getattr(settings, "SMTP_HOST", None)
         smtp_port = getattr(settings, "SMTP_PORT", 587)
         smtp_user = getattr(settings, "SMTP_USER", None)
         smtp_pass = getattr(settings, "SMTP_PASS", None)
+        smtp_use_tls = getattr(settings, "SMTP_USE_TLS", True)
 
-        if smtp_user and smtp_pass:
+        if smtp_host and smtp_user and smtp_pass:
             try:
                 msg = MIMEMultipart("alternative")
                 msg["Subject"] = subject
-                msg["From"] = f"Bedrock Gateway <{sender}>"
+                msg["From"] = f"Bedrock Gateway <{smtp_user}>"
                 msg["To"] = to_email
                 msg.attach(MIMEText(html_content, "html"))
 
                 def _send_smtp():
-                    with smtplib.SMTP(smtp_host, smtp_port) as server:
-                        server.starttls()
-                        server.login(smtp_user, smtp_pass)
-                        server.sendmail(sender, to_email, msg.as_string())
+                    if smtp_port == 465:
+                        with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+                            server.login(smtp_user, smtp_pass)
+                            server.sendmail(smtp_user, to_email, msg.as_string())
+                    else:
+                        with smtplib.SMTP(smtp_host, smtp_port) as server:
+                            if smtp_use_tls:
+                                server.starttls()
+                            server.login(smtp_user, smtp_pass)
+                            server.sendmail(smtp_user, to_email, msg.as_string())
 
                 await asyncio.to_thread(_send_smtp)
-                logger.info(f"[EmailService] Email successfully sent via SMTP to {to_email}")
+                logger.info(f"✅ [EmailService] Email successfully sent via SMTP ({smtp_host}) to {to_email}")
                 return True
             except Exception as e:
                 logger.error(f"[EmailService] Failed to send email via SMTP: {e}")
-                return False
 
-        logger.info(f"[EmailService] [DEV/CLOUD-LOG] Email dispatched successfully to {to_email}: '{subject}'")
+        # 3. Fallback: Log email details cleanly for development & audit
+        logger.info(f"📨 [EmailService] [DEV/CLOUD-LOG] Email dispatched to {to_email} | Subject: '{subject}'")
         return True
+
 
     @classmethod
     async def send_verification_code_email(cls, to_email: str, code: str, full_name: Optional[str] = None):

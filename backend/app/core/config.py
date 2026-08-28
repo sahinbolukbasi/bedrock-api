@@ -64,8 +64,20 @@ class Settings(BaseSettings):
         description="Bearer token required to scrape /metrics endpoint"
     )
 
+    # Email & SMTP Dispatcher Settings
+    EMAIL_SENDER: str = Field(
+        default=os.getenv("EMAIL_SENDER", "noreply@bedrockgateway.com"),
+        description="Default sender address for system emails"
+    )
+    SMTP_HOST: Optional[str] = os.getenv("SMTP_HOST", None)
+    SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER: Optional[str] = os.getenv("SMTP_USER", None)
+    SMTP_PASS: Optional[str] = os.getenv("SMTP_PASS", None)
+    SMTP_USE_TLS: bool = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+
 
 settings = Settings()
+
 
 
 if not settings.TELEGRAM_BOT_TOKEN:
