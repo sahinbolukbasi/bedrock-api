@@ -953,33 +953,14 @@ export default function RootPage() {
     const emailClean = regEmail.trim().toLowerCase();
 
     try {
-      let data: any = null;
-      try {
-        const res = await fetch("/api/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: emailClean,
-            password: regPassword,
-            full_name: regFullName || undefined,
-          }),
-        });
-
-        data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.detail || data?.error?.message || data?.message || "Kayıt işlemi başarısız.");
-        }
-      } catch (networkErr: any) {
-        if (networkErr.message && !networkErr.message.includes("Failed to fetch")) {
-          throw networkErr;
-        }
-        data = {
-          status: "verification_required",
+      const data = await fetchApi("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
           email: emailClean,
-          message: `6 haneli doğrulama kodu ${emailClean} adresine iletildi.`,
-          code_preview: "123456"
-        };
-      }
+          password: regPassword,
+          full_name: regFullName || undefined,
+        }),
+      });
 
       setVerificationEmail(emailClean);
       setIsVerifyingEmail(true);
@@ -1007,33 +988,13 @@ export default function RootPage() {
     const codeClean = verificationCode.trim();
 
     try {
-      let data: any = null;
-      try {
-        const res = await fetch("/api/auth/verify-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: emailClean,
-            code: codeClean,
-          }),
-        });
-
-        data = await res.json();
-        if (!res.ok) {
-          throw new Error(data?.detail || data?.error?.message || "Doğrulama kodu geçersiz.");
-        }
-      } catch (networkErr: any) {
-        if (networkErr.message && !networkErr.message.includes("Failed to fetch")) {
-          throw networkErr;
-        }
-        data = {
-          access_token: "session-jwt-" + Date.now(),
-          refresh_token: "refresh-jwt-" + Date.now(),
-          user_id: "00000000-0000-0000-0000-" + Math.floor(100000000000 + Math.random() * 900000000000),
+      const data = await fetchApi("/api/auth/verify-email", {
+        method: "POST",
+        body: JSON.stringify({
           email: emailClean,
-          role: emailClean.startsWith("admin@") ? "admin" : "user"
-        };
-      }
+          code: codeClean,
+        }),
+      });
 
       setAuthToken(data.access_token);
       setToken(data.access_token);
@@ -1058,20 +1019,19 @@ export default function RootPage() {
     setResendSuccess("");
     setVerifyError("");
     try {
-      const res = await fetch(`${API_BASE}/api/auth/resend-code`, {
+      const data = await fetchApi("/api/auth/resend-code", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: verificationEmail }),
       });
-      const data = await res.json();
       setResendSuccess(data?.message || "Yeni doğrulama kodu e-postanıza gönderildi.");
       setTimeout(() => setResendSuccess(""), 4000);
-    } catch {
-      setVerifyError("Kod gönderilirken bir hata oluştu.");
+    } catch (err: any) {
+      setVerifyError(err.message || "Kod gönderilirken bir hata oluştu.");
     } finally {
       setResendLoading(false);
     }
   };
+
 
   // Guest Forgot Password Submit
   const handleForgotSubmit = async (e: React.FormEvent) => {
@@ -2246,31 +2206,38 @@ export default function RootPage() {
     <div className="min-h-[calc(100vh-64px)] w-full bg-slate-50 dark:bg-[#0b0f17] text-slate-900 dark:text-gray-100 transition-colors">
       
       {/* Ana Çalışma Alanı (Full-Screen Studio) */}
-      <main className={`w-full ${activeTab === "chat" ? "h-[calc(100vh-64px)] overflow-hidden" : "min-h-[calc(100vh-64px)] p-4 md:p-8 max-w-7xl mx-auto overflow-y-auto"}`}>
+      <main className={`w-full ${activeTab === "chat" ? "h-[calc(100vh-64px)] overflow-hidden" : "min-h-[calc(100vh-64px)] p-4 sm:p-6 lg:p-8 w-full max-w-[1600px] mx-auto overflow-y-auto"}`}>
         
-        {/* Chat Dışındaki Sayfalarda Üst Geri Dönüş Başlığı */}
+        {/* Chat Dışındaki Sayfalarda Minimal Kurumsal Gezinme Çubuğu */}
         {activeTab !== "chat" && (
-          <div className="mb-6 flex items-center justify-between border-b border-slate-200 dark:border-gray-800 pb-4">
+          <div className="mb-6 flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-gray-800/80">
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-400 dark:text-gray-500">
+              <button 
+                onClick={() => handleTabChange("chat")} 
+                className="hover:text-indigo-600 dark:hover:text-indigo-400 transition"
+              >
+                Platform
+              </button>
+              <span>/</span>
+              <span className="text-slate-900 dark:text-white font-semibold">
+                {activeTab === "profile" ? "Cüzdan & Hesap Ayarları" : 
+                 activeTab === "admin" ? "Sistem Yönetim Konsolu" : 
+                 activeTab === "api" ? "API Anahtarları & Entegrasyon" : 
+                 activeTab === "agents" ? "Otonom AI Bot Stüdyosu" : 
+                 activeTab === "models" ? "Model Kataloğu & Kotalar" : activeTab}
+              </span>
+            </div>
             <button
               type="button"
               onClick={() => handleTabChange("chat")}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold text-xs shadow-sm hover:border-indigo-500 transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-semibold text-xs shadow-sm hover:border-indigo-500 transition"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span>← Sohbet Studio'ya Dön</span>
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Sohbet Ekranına Dön</span>
             </button>
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
-              <span>Modül:</span>
-              <span className="text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                {activeTab === "profile" ? "Kullanıcı Profili & Cüzdan" : 
-                 activeTab === "admin" ? "Süper Admin Konsolu" : 
-                 activeTab === "api" ? "Geliştirici & API Merkezi" : 
-                 activeTab === "agents" ? "Otonom Botlar & Ajanlar" : 
-                 activeTab === "models" ? "Bedrock Model Kataloğu" : activeTab}
-              </span>
-            </div>
           </div>
         )}
+
 
         {/* ================================================================= */}
         {/* SEKME 1: FRONTIER AI SOHBET (SESLİ KONUŞMA, HAFIZA, GÖRSEL & DOSYA) */}
@@ -2744,7 +2711,7 @@ export default function RootPage() {
         {/* SEKME 2: OTONOM BOT & TELEGRAM ASİSTANI (AUTONOMOUS AGENT STUDIO) */}
         {/* ================================================================= */}
         {activeTab === "agents" && (
-          <div className="max-w-6xl mx-auto space-y-8 pb-12">
+          <div className="w-full space-y-8 pb-12">
             
             {/* Üst Başlık & Aksiyon Butonu */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-gray-800 pb-5">
@@ -3730,7 +3697,7 @@ export default function RootPage() {
         {/* SEKME 3: GELİŞTİRİCİ & API MERKEZİ (KEYS + BÜTÇE + LOGLAR + ENTEGRASYON) */}
         {/* ================================================================= */}
         {activeTab === "api" && (
-          <div className="max-w-6xl mx-auto space-y-8 pb-12">
+          <div className="w-full space-y-8 pb-12">
             
             {/* Üst Başlık & Hızlı İstatistik Kartları */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-gray-800 pb-5">
@@ -4480,7 +4447,7 @@ export default function RootPage() {
         {/* SEKME 4: MODEL KATALOĞU */}
         {/* ================================================================= */}
         {activeTab === "models" && (
-          <div className="max-w-6xl mx-auto space-y-6">
+          <div className="w-full space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-black text-slate-900 dark:text-white">AWS Bedrock Model Kataloğu</h2>
@@ -4537,7 +4504,7 @@ export default function RootPage() {
         {/* SEKME 6: KULLANICI PROFİLİ, CÜZDAN, GÜVENLİK & HARCAMA RAPORU (CSV) */}
         {/* ================================================================= */}
         {activeTab === "profile" && (
-          <div className="max-w-5xl mx-auto space-y-6 pb-12">
+          <div className="w-full space-y-6 pb-12">
             
             {/* Header: Kullanıcı Profil & Avatar Başlığı */}
             <div className="p-6 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm flex flex-col sm:flex-row items-center gap-6">
@@ -4895,7 +4862,7 @@ export default function RootPage() {
         {/* SEKME 7: ENTERPRISE ADMIN KONTROL MERKEZİ */}
         {/* ================================================================= */}
         {activeTab === "admin" && (
-          <div className="max-w-6xl mx-auto space-y-6 pb-12">
+          <div className="w-full space-y-6 pb-12">
             
             {/* Header & Sub-Nav */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
