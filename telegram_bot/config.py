@@ -4,9 +4,10 @@ from typing import Optional
 from loguru import logger
 
 class TelegramConfig:
-    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "REDACTED_TELEGRAM_BOT_TOKEN")
-    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000")
+    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    API_BASE_URL: str = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
+
     SECRET_ID: str = os.getenv("SECRET_ID", "bedrock-gateway-secrets-prod")
     MAX_PROMPT_LENGTH: int = 4000
     RATE_LIMIT_PER_MINUTE: int = 30

@@ -9,17 +9,15 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VENV="$ROOT/venv/bin/activate"
 
-# AWS Production Credentials
-export ENVIRONMENT=production
-export DATABASE_URL="postgresql+asyncpg://bedrockadmin:BedrockSecurePassword2026!@bedrock-gateway-db.cobqqmqcs7xh.us-east-1.rds.amazonaws.com:5432/bedrock_gateway"
-export REDIS_URL="redis://bedrock-gateway-redis.hmoplf.0001.use1.cache.amazonaws.com:6379/0"
-export SECRET_KEY="super-secure-production-jwt-key-32-chars-minimum"
-export ADMIN_EMAIL="admin@bedrockgateway.com"
-export ADMIN_PASSWORD="AdminPassword123!"
-export AWS_REGION="us-east-1"
-export S3_BUCKET_NAME="bedrock-gateway-artifacts-prod"
-export TELEGRAM_BOT_TOKEN="REDACTED_TELEGRAM_BOT_TOKEN"
-export NEXT_PUBLIC_API_URL="http://localhost:8000"
+# Load local .env if available
+if [ -f "$ROOT/.env" ]; then
+    export $(grep -v '^#' "$ROOT/.env" | xargs)
+fi
+
+export ENVIRONMENT=${ENVIRONMENT:-production}
+export AWS_REGION=${AWS_REGION:-us-east-1}
+export NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-"http://localhost:8000"}
+
 
 echo "🚀 AWS Bedrock AI Gateway başlatılıyor..."
 echo "   📦 Database: AWS RDS PostgreSQL @ bedrock-gateway-db.cobqqmqcs7xh.us-east-1.rds.amazonaws.com"

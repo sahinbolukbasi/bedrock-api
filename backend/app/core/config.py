@@ -56,7 +56,12 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = "AdminPassword123!"
 
     # Telegram Bot
-    TELEGRAM_BOT_TOKEN: Optional[str] = "REDACTED_TELEGRAM_BOT_TOKEN"
+    TELEGRAM_BOT_TOKEN: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN")
 
 
 settings = Settings()
+
+if not settings.TELEGRAM_BOT_TOKEN:
+    from app.core.secrets_manager import AWSSecretsManagerService
+    settings.TELEGRAM_BOT_TOKEN = AWSSecretsManagerService.get_secret("TELEGRAM_BOT_TOKEN")
+

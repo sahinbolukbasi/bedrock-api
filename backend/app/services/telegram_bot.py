@@ -1,6 +1,8 @@
+import os
 import base64
 import httpx
 import io
+
 import random
 import re
 import string
@@ -17,9 +19,10 @@ from app.domain.schemas import ImageGenerationRequest
 from app.providers.router import provider_router
 from loguru import logger
 
-# Default Telegram Bot Token (Can be overridden by user or environment)
-DEFAULT_TELEGRAM_BOT_TOKEN = "REDACTED_TELEGRAM_BOT_TOKEN"
+# Default Telegram Bot Token (Dynamically loaded from Secrets Manager / Environment)
+DEFAULT_TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 DEFAULT_TELEGRAM_BOT_USERNAME = "BedrockGatewayBot"
+
 
 
 def get_main_menu_keyboard() -> Dict[str, Any]:
