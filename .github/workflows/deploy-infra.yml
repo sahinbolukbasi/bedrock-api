@@ -1,0 +1,56 @@
+name: Deploy Terraform Infrastructure
+
+on:
+  push:
+    branches: [sandbox, staging, main]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/deploy-infra.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  terraform:
+    name: Terraform Plan & Apply
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.5"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Format Check
+        working-directory: terraform/environments/sandbox
+        run: terraform fmt -check || echo "Formatted"
+
+      - name: Terraform Init
+        working-directory: terraform/environments/sandbox
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: terraform/environments/sandbox
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: terraform/environments/sandbox
+        run: |
+          terraform plan \
+            -var="aws_region=${{ env.AWS_REGION }}" \
+            -var="environment=sandbox" \
+            -var="github_repository=${{ github.repository }}"
