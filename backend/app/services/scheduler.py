@@ -139,15 +139,25 @@ class AgentAutonomousEngine:
             except Exception as search_err:
                 logger.warning(f"[AgentEngine] Web search failed: {search_err}")
 
-        # 3. 3-Layer Memory Optimization
+        # 3. 3-Layer Memory & Local RAG Knowledge Retrieval
         from app.services.memory_engine import MemoryOptimizer
         from app.services.reasoning_engine import ReActAgentRunner
+        from app.services.local_rag import LocalRAGEngine
+        from app.services.agent_growth import AgentGrowthEngine
 
         learned_cache = agent.learned_memory_cache or ""
         base_prompt = override_prompt or agent.system_prompt
         goal_text = getattr(agent, "goal_definition", "")
         if goal_text:
             base_prompt += f"\n\n### HEDEF & BAŞARI KRİTERİ:\n{goal_text}"
+
+        # Ingest & Query Knowledge Sources (Zero-Cost Local RAG)
+        knowledge_list = getattr(agent, "knowledge_sources", []) or []
+        if knowledge_list:
+            rag_chunks = LocalRAGEngine.query_knowledge_sources(input_text, knowledge_list, top_k=3)
+            rag_context_str = LocalRAGEngine.format_rag_context(rag_chunks)
+            if rag_context_str:
+                base_prompt += f"\n\n{rag_context_str}"
 
         autonomy_lvl = getattr(agent, "autonomy_level", "AUTONOMOUS")
 
@@ -174,7 +184,6 @@ class AgentAutonomousEngine:
                 return resp.choices[0].message.content
             except Exception as e:
                 logger.warning(f"[AgentEngine] ReAct call note: {e}")
-                # Fallback to direct heuristic / search if available
                 if search_results:
                     return "\n".join([f"• {r['title']}: {r['snippet']}" for r in search_results])
                 return f"Görev analiz edildi: {input_text}"
@@ -201,6 +210,23 @@ class AgentAutonomousEngine:
         agent.learned_memory_cache = updated_mem[-2000:]
         agent.total_runs += 1
         agent.last_run_at = datetime.now(timezone.utc)
+
+        # 7. Award Living Agent XP Points & Progression
+        xp_gain = AgentGrowthEngine.XP_REWARD_RUN_TASK
+        if search_results or (knowledge_list and rag_chunks if 'rag_chunks' in locals() else False):
+            xp_gain += AgentGrowthEngine.XP_REWARD_WEB_API_DATA
+        
+        growth_res = AgentGrowthEngine.award_xp(
+            agent.xp_points or 0,
+            xp_gain,
+            f"Görev tamamlandı: {input_text[:30]}...",
+            agent.growth_history
+        )
+        agent.xp_points = growth_res["new_xp"]
+        agent.level = growth_res["level"]
+        agent.evolution_stage = growth_res["stage"]
+        agent.growth_history = growth_res["growth_history"]
+
 
 
         # 6. Multi-Channel Dispatch

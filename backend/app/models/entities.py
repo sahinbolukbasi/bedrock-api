@@ -273,11 +273,22 @@ class CustomAgent(Base):
     learned_memory_cache = Column(Text, default="", nullable=False)  # Layer-2 Long-term facts & preferences
     memory_settings = Column(JSON, default=dict, nullable=False)  # {"compression": true, "max_context": 4000}
     tools_config = Column(JSON, default=dict, nullable=False)  # {"web_search": true, "telegram": true, "math": true}
+    
+    # Knowledge Sources (URLs, REST APIs, Raw Docs)
+    knowledge_sources = Column(JSON, default=list, nullable=False)  # [{"type": "url", "name": "...", "content": "..."}]
+    
+    # Living Agent Evolution & IQ Progression (Mem0 / Growth Engine)
+    xp_points = Column(Integer, default=0, nullable=False)
+    level = Column(Integer, default=1, nullable=False)
+    evolution_stage = Column(String(64), default="🌱 Yenidoğan", nullable=False)
+    growth_history = Column(JSON, default=list, nullable=False)  # Milestones & Level up events
+    
     is_active = Column(Boolean, default=True, nullable=False)
     total_runs = Column(Integer, default=0, nullable=False)
     last_run_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
 
 
     execution_logs = relationship("AgentExecutionLog", back_populates="agent", cascade="all, delete-orphan")

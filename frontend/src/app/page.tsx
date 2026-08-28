@@ -203,10 +203,13 @@ export default function RootPage() {
   const [newAgentPrompt, setNewAgentPrompt] = useState("Sen canlı internet haberlerini ve teknoloji gelişmelerini tarayan, özetleyen ve Telegram üzerinden kullanıcıya ileten otonom bir haber asistanısın.");
   const [newAgentGoal, setNewAgentGoal] = useState("Kullanıcının talep ettiği güncel bilgileri hızlı, doğru ve kaynak belirterek teslim etmek.");
   const [newAgentAutonomy, setNewAgentAutonomy] = useState("AUTONOMOUS");
+  const [newAgentKnowledgeUrl, setNewAgentKnowledgeUrl] = useState("");
+  const [newAgentKnowledgeText, setNewAgentKnowledgeText] = useState("");
   const [agentWebSearchTool, setAgentWebSearchTool] = useState(true);
   const [agentTelegramTool, setAgentTelegramTool] = useState(true);
   const [agentEmailTool, setAgentEmailTool] = useState(false);
   const [agentScheduleCron, setAgentScheduleCron] = useState("");
+
   
   // Telegram Integration State
   const [telegramStatus, setTelegramStatus] = useState<any | null>(null);
@@ -702,6 +705,26 @@ export default function RootPage() {
     e.preventDefault();
     if (!newAgentName.trim()) return;
 
+    const knowledgeSources = editingAgent?.knowledge_sources || [];
+    if (newAgentKnowledgeUrl.trim()) {
+      knowledgeSources.push({
+        id: Math.random().toString(36).substring(2, 9),
+        type: "url",
+        name: newAgentKnowledgeUrl.trim(),
+        content: newAgentKnowledgeUrl.trim(),
+        created_at: new Date().toISOString(),
+      });
+    }
+    if (newAgentKnowledgeText.trim()) {
+      knowledgeSources.push({
+        id: Math.random().toString(36).substring(2, 9),
+        type: "text",
+        name: "Özel Kılavuz / Bilgi Notu",
+        content: newAgentKnowledgeText.trim(),
+        created_at: new Date().toISOString(),
+      });
+    }
+
     const payload = {
       name: newAgentName.trim(),
       icon: newAgentIcon || "🤖",
@@ -711,6 +734,7 @@ export default function RootPage() {
       description: newAgentDesc.trim(),
       model_id: newAgentModel,
       system_prompt: newAgentPrompt.trim(),
+      knowledge_sources: knowledgeSources,
       schedule_cron: agentScheduleCron || null,
       schedule_enabled: Boolean(agentScheduleCron),
       tools_config: {
@@ -736,6 +760,8 @@ export default function RootPage() {
       }
       setShowAgentModal(false);
       setEditingAgent(null);
+      setNewAgentKnowledgeUrl("");
+      setNewAgentKnowledgeText("");
     } catch (err: any) {
       alert(err.message || "Bot kaydedilemedi.");
     }
@@ -748,6 +774,8 @@ export default function RootPage() {
     setNewAgentType(agent.agent_type || "custom");
     setNewAgentGoal(agent.goal_definition || "Kullanıcının talep ettiği güncel bilgileri hızlı, doğru ve kaynak belirterek teslim etmek.");
     setNewAgentAutonomy(agent.autonomy_level || "AUTONOMOUS");
+    setNewAgentKnowledgeUrl("");
+    setNewAgentKnowledgeText("");
     setNewAgentDesc(agent.description || "");
     setNewAgentModel(agent.model_id);
     setNewAgentPrompt(agent.system_prompt);
@@ -758,6 +786,7 @@ export default function RootPage() {
     setAgentScheduleCron(agent.schedule_cron || "");
     setShowAgentModal(true);
   };
+
 
 
   const handleDeleteAgent = async (agentId: string) => {
@@ -3034,17 +3063,32 @@ export default function RootPage() {
                                 {ag.icon || "🤖"}
                               </div>
                               <div>
-                                <h4 className="font-bold text-sm text-slate-900 dark:text-white">{ag.name}</h4>
-                                <div className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-bold">
-                                  {ag.model_id}
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">{ag.name}</h4>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                    {ag.evolution_stage || "🌱 Yenidoğan"} (Lv.{ag.level || 1})
+                                  </span>
+                                </div>
+                                <div className="text-[11px] font-mono text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-2 mt-0.5">
+                                  <span>{ag.model_id}</span>
+                                  <span className="text-slate-400">·</span>
+                                  <span className="text-amber-500 font-bold">{ag.xp_points || 0} XP</span>
                                 </div>
                               </div>
                             </div>
 
-                            <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300">
-                              {ag.total_runs || 0} Görev Yürüttü
-                            </span>
+                            <div className="text-right">
+                              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-gray-800 text-slate-700 dark:text-gray-300 block">
+                                {ag.total_runs || 0} Görev
+                              </span>
+                              {(ag.knowledge_sources?.length || 0) > 0 && (
+                                <span className="text-[9px] text-indigo-500 font-bold block mt-1">
+                                  📚 {ag.knowledge_sources.length} Kaynak / RAG
+                                </span>
+                              )}
+                            </div>
                           </div>
+
 
                           <p className="text-xs text-slate-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
                             {ag.description || ag.system_prompt}
@@ -3417,6 +3461,32 @@ export default function RootPage() {
                           <span className="text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded">Aktif</span>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Bilgi Kaynakları & Local RAG */}
+                    <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/80 dark:border-indigo-900/60 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-indigo-900 dark:text-indigo-300">
+                          📚 Özel Bilgi Kaynağı (Website URL / Dokümantasyon Linki - RAG)
+                        </label>
+                        <span className="text-[10px] bg-indigo-100 dark:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded font-bold">
+                          Maliyetsiz Vektör RAG
+                        </span>
+                      </div>
+                      <input
+                        type="url"
+                        value={newAgentKnowledgeUrl}
+                        onChange={(e) => setNewAgentKnowledgeUrl(e.target.value)}
+                        placeholder="https://example.com/docs veya https://api.site.com/data.json"
+                        className="w-full bg-white dark:bg-gray-900 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                      />
+                      <textarea
+                        rows={2}
+                        value={newAgentKnowledgeText}
+                        onChange={(e) => setNewAgentKnowledgeText(e.target.value)}
+                        placeholder="Opsiyonel: Botun bilmesini istediğiniz özel şirket notları, ürün fiyatları veya kurallar..."
+                        className="w-full bg-white dark:bg-gray-900 border border-indigo-200 dark:border-indigo-800 rounded-xl p-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                      />
                     </div>
 
                     {/* Sistem Promptu */}

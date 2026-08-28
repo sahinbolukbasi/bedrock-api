@@ -191,13 +191,158 @@ async def get_agent_logs(
     return res.scalars().all()
 
 
-@router.post("/{agent_id}/reset-memory")
-async def reset_agent_memory(
+@router.post("/{agent_id}/knowledge")
+async def add_knowledge_source(
     agent_id: uuid.UUID,
+    body: Dict[str, Any] = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Ingests and indexes custom URL, REST API, or raw text into agent's knowledge base.
+    """
+    from app.services.local_rag import LocalRAGEngine
+    from app.services.agent_growth import AgentGrowthEngine
+
+    stmt = select(CustomAgent).where(CustomAgent.id == agent_id, CustomAgent.user_id == current_user.id)
+    res = await db.execute(stmt)
+    agent = res.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    stype = body.get("type", "text")  # "url", "api", "text"
+    sname = body.get("name", "Custom Knowledge")
+    scontent = body.get("content", "")
+
+    cached_chunks = []
+    if stype == "url" and scontent.startswith("http"):
+        chunks = await LocalRAGEngine.ingest_url(scontent)
+        cached_chunks = [c.to_dict() for c in chunks]
+    elif stype == "api" and scontent.startswith("http"):
+        chunks = await LocalRAGEngine.ingest_api_endpoint(scontent, headers=body.get("headers"))
+        cached_chunks = [c.to_dict() for c in chunks]
+    elif stype == "text":
+        chunks = LocalRAGEngine.chunk_text(scontent, sname)
+        cached_chunks = [c.to_dict() for c in chunks]
+
+    sources = list(agent.knowledge_sources or [])
+    new_source = {
+        "id": str(uuid.uuid4())[:8],
+        "type": stype,
+        "name": sname,
+        "content": scontent,
+        "chunk_count": len(cached_chunks),
+        "cached_chunks": cached_chunks[:20],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    sources.append(new_source)
+    agent.knowledge_sources = sources
+
+    # Award XP for Knowledge Ingestion (+40 XP)
+    growth = AgentGrowthEngine.award_xp(
+        agent.xp_points or 0,
+        AgentGrowthEngine.XP_REWARD_KNOWLEDGE_SOURCE_ADDED,
+        f"Yeni bilgi kaynağı eklendi: {sname}",
+        agent.growth_history
+    )
+    agent.xp_points = growth["new_xp"]
+    agent.level = growth["level"]
+    agent.evolution_stage = growth["stage"]
+    agent.growth_history = growth["growth_history"]
+
+    await db.commit()
+    await db.refresh(agent)
+    return {"message": "Knowledge source indexed successfully", "source": new_source, "growth": growth}
+
+
+@router.delete("/{agent_id}/knowledge/{source_id}")
+async def remove_knowledge_source(
+    agent_id: uuid.UUID,
+    source_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     stmt = select(CustomAgent).where(CustomAgent.id == agent_id, CustomAgent.user_id == current_user.id)
+    res = await db.execute(stmt)
+    agent = res.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    sources = [s for s in (agent.knowledge_sources or []) if s.get("id") != source_id]
+    agent.knowledge_sources = sources
+    await db.commit()
+    return {"message": "Knowledge source removed successfully"}
+
+
+@router.post("/{agent_id}/feedback")
+async def submit_agent_feedback(
+    agent_id: uuid.UUID,
+    body: Dict[str, Any] = Body(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.services.agent_growth import AgentGrowthEngine
+    stmt = select(CustomAgent).where(CustomAgent.id == agent_id, CustomAgent.user_id == current_user.id)
+    res = await db.execute(stmt)
+    agent = res.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    is_positive = bool(body.get("is_positive", True))
+    note = body.get("note", "")
+
+    if is_positive:
+        growth = AgentGrowthEngine.award_xp(
+            agent.xp_points or 0,
+            AgentGrowthEngine.XP_REWARD_USER_UPVOTE,
+            f"Kullanıcı beğenisi ve olumlu geri bildirim: {note}",
+            agent.growth_history
+        )
+        agent.xp_points = growth["new_xp"]
+        agent.level = growth["level"]
+        agent.evolution_stage = growth["stage"]
+        agent.growth_history = growth["growth_history"]
+        await db.commit()
+        return {"message": "Thank you! Bot gained +50 XP and improved.", "growth": growth}
+
+    return {"message": "Feedback recorded."}
+
+
+@router.get("/{agent_id}/growth")
+async def get_agent_growth_stats(
+    agent_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    from app.services.agent_growth import AgentGrowthEngine
+    stmt = select(CustomAgent).where(CustomAgent.id == agent_id, CustomAgent.user_id == current_user.id)
+    res = await db.execute(stmt)
+    agent = res.scalar_one_or_none()
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    lvl, stage, min_xp, max_xp, progress = AgentGrowthEngine.calculate_level_and_stage(agent.xp_points or 0)
+    facts_count = len((agent.learned_memory_cache or "").splitlines())
+    iq_score = AgentGrowthEngine.calculate_iq_score(
+        agent.total_runs or 0,
+        facts_count,
+        len(agent.knowledge_sources or []),
+        lvl
+    )
+
+    return {
+        "xp_points": agent.xp_points or 0,
+        "level": lvl,
+        "evolution_stage": stage,
+        "progress_pct": progress,
+        "min_xp": min_xp,
+        "next_level_xp": max_xp,
+        "iq_score": iq_score,
+        "total_runs": agent.total_runs or 0,
+        "knowledge_count": len(agent.knowledge_sources or []),
+        "growth_history": agent.growth_history or []
+    }
+
     res = await db.execute(stmt)
     agent = res.scalar_one_or_none()
     if not agent:
