@@ -21,7 +21,9 @@ ENV GF_SECURITY_ADMIN_PASSWORD=AdminPassword123!
 ENV GF_USERS_ALLOW_SIGN_UP=false
 ENV GF_AUTH_ANONYMOUS_ENABLED=true
 ENV GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+ENV GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/provisioning/dashboards/bedrock_dashboard.json
 ENV GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-piechart-panel
+
 
 USER grafana
 
