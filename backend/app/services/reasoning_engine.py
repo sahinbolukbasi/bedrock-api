@@ -142,15 +142,26 @@ class ReActAgentRunner:
                 "execution_time_ms": int((time.time() - start_time) * 1000)
             }
 
+        from app.services.semantic_memory import SemanticMemoryStore
+        from app.services.bedrock_tools import BedrockToolRegistry
+
+        # 1. Retrieve Semantically Relevant Long-Term Memories
+        relevant_facts = SemanticMemoryStore.retrieve_relevant_facts(user_input, context_memory or "")
+        memory_block = SemanticMemoryStore.format_retrieved_memory_block(relevant_facts)
+
+        effective_system_persona = system_persona
+        if memory_block:
+            effective_system_persona += f"\n\n{memory_block}"
+
         # Multi-step ReAct reasoning
         for step_idx in range(1, cls.MAX_REACT_STEPS + 1):
             prompt = (
-                f"{system_persona}\n\n"
+                f"{effective_system_persona}\n\n"
                 f"### GÖREV:\n{user_input}\n\n"
                 f"### ÇALIŞMA HAFIZASI & GEÇMİŞ ADIMLAR:\n{working_scratchpad}\n\n"
                 "Aşağıdaki formatta düşün ve karar ver:\n"
-                "THOUGHT: <Ne yapman gerektiğini ve hangi bilgiye ihtiyacın olduğunu adım adım düşün>\n"
-                "ACTION: <web_search / calculator_math / alarm_reminder / NONE>\n"
+                "THOUGHT: <Ne yapman gerektiğini ve hangi bilgiye veya araca ihtiyacın olduğunu adım adım düşün>\n"
+                "ACTION: <web_search / python_interpreter / finance_market_data / schedule_reminder / NONE>\n"
                 "ACTION_INPUT: <JSON parametreleri veya 'none'>\n"
                 "FINAL_ANSWER: <Eğer tüm bilgiye sahipsen veya araç gerekmiyorsa nihai cevabı buraya yaz>"
             )
@@ -181,19 +192,24 @@ class ReActAgentRunner:
             # Parse tool input
             tool_args = {}
             try:
-                # Clean markdown json code fences if any
                 clean_json = re.sub(r"^```json\s*|\s*```$", "", raw_input, flags=re.MULTILINE).strip()
                 if clean_json.startswith("{") and clean_json.endswith("}"):
                     tool_args = json.loads(clean_json)
                 elif action == "web_search":
                     tool_args = {"query": raw_input.strip("\"'")}
-                elif action == "calculator_math":
-                    tool_args = {"expression": raw_input.strip("\"'")}
+                elif action in ("python_interpreter", "calculator_math"):
+                    tool_args = {"code": f"print({raw_input.strip()})"}
+                elif action == "finance_market_data":
+                    tool_args = {"symbol": raw_input.strip("\"'")}
             except Exception:
                 tool_args = {"query": raw_input}
 
-            # Execute tool
-            observation = await MinimalToolRegistry.execute_tool(action, tool_args)
+            # Execute tool via BedrockToolRegistry or MinimalToolRegistry
+            if action in ("python_interpreter", "finance_market_data", "schedule_reminder"):
+                tool_exec_res = await BedrockToolRegistry.execute_tool_call(action, tool_args)
+                observation = tool_exec_res.get("result") or tool_exec_res.get("error") or str(tool_exec_res)
+            else:
+                observation = await MinimalToolRegistry.execute_tool(action, tool_args)
 
             steps_trace.append({
                 "step": step_idx,
@@ -214,7 +230,7 @@ class ReActAgentRunner:
         if not final_answer:
             # Reflection & Synthesize final summary from scratchpad
             synth_prompt = (
-                f"{system_persona}\n\n"
+                f"{effective_system_persona}\n\n"
                 f"Kullanıcı Sorusu: {user_input}\n"
                 f"Toplanan Araştırma & Gözlem Verileri:\n{working_scratchpad}\n\n"
                 "Lütfen toplanan tüm gözlemleri sentezleyerek kullanıcıya doğrudan, temiz ve kapsamlı bir nihai yanıt ver."
@@ -225,6 +241,8 @@ class ReActAgentRunner:
             "answer": final_answer,
             "steps": steps_trace,
             "scratchpad": working_scratchpad,
+            "relevant_memories": [f.to_dict() for f in relevant_facts],
             "autonomy_level": autonomy_level,
             "execution_time_ms": int((time.time() - start_time) * 1000)
         }
+

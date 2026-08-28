@@ -151,16 +151,51 @@ class AWSBedrockProvider(IModelProvider):
         actual_model_id = self._resolve_model_id(model_entity.model_id)
 
         try:
-            params = {
-                "modelId": actual_model_id,
-                "messages": converse_messages,
-                "inferenceConfig": inference_config
-            }
-            if system_prompts:
-                params["system"] = system_prompts
+            from app.services.bedrock_tools import BedrockToolRegistry
+
+            # Check if tools are enabled / requested
+            tool_config = None
+            if getattr(request, "tools", None) or getattr(model_entity, "capabilities", {}).get("tools"):
+                tool_config = BedrockToolRegistry.get_bedrock_tool_config()
+                params["toolConfig"] = tool_config
 
             response = self._client.converse(**params)
             
+            # Recursive Tool Use Execution Loop (Up to 3 iterations)
+            tool_iterations = 0
+            while response.get("stopReason") == "tool_use" and tool_iterations < 3:
+                tool_iterations += 1
+                assistant_msg = response.get("output", {}).get("message", {})
+                converse_messages.append(assistant_msg)
+
+                tool_results_content = []
+                for content_block in assistant_msg.get("content", []):
+                    if "toolUse" in content_block:
+                        tool_use_info = content_block["toolUse"]
+                        tool_use_id = tool_use_info.get("toolUseId")
+                        tool_name = tool_use_info.get("name")
+                        tool_input = tool_use_info.get("input", {})
+
+                        logger.info(f"[BedrockProvider] Native toolUse triggered: {tool_name}({tool_input})")
+                        exec_res = await BedrockToolRegistry.execute_tool_call(tool_name, tool_input)
+                        
+                        tool_results_content.append({
+                            "toolResult": {
+                                "toolUseId": tool_use_id,
+                                "content": [{"text": json.dumps(exec_res, ensure_ascii=False) if isinstance(exec_res, dict) else str(exec_res)}]
+                            }
+                        })
+
+                if tool_results_content:
+                    converse_messages.append({
+                        "role": "user",
+                        "content": tool_results_content
+                    })
+                    params["messages"] = converse_messages
+                    response = self._client.converse(**params)
+                else:
+                    break
+
             output_msg = response.get("output", {}).get("message", {})
             text_blocks = output_msg.get("content", [])
             response_text = "".join([b.get("text", "") for b in text_blocks if "text" in b])
@@ -187,6 +222,7 @@ class AWSBedrockProvider(IModelProvider):
                 )
             )
             return chat_response, input_tokens, output_tokens
+
 
         except Exception as e:
             logger.error(f"AWS Bedrock converse error for model {model_entity.model_id}: {e}")
