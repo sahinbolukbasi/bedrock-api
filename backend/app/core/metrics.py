@@ -34,6 +34,37 @@ ACTIVE_INFERENCES = Gauge(
     "Number of concurrent active inference requests"
 )
 
+# Autonomous Agent & Memory Metrics
+AGENT_RUNS_TOTAL = Counter(
+    "gateway_agent_runs_total",
+    "Total autonomous agent tasks executed",
+    ["agent_type", "status"]
+)
+
+AGENT_SAVED_TOKENS = Counter(
+    "gateway_agent_saved_tokens_total",
+    "Total tokens saved by 3-layer memory compression & local RAG"
+)
+
+GUARDRAIL_EVENTS = Counter(
+    "gateway_guardrail_events_total",
+    "Total Guardrail security triggers (PII, Prompt Injection)",
+    ["event_type"]
+)
+
+RAG_QUERIES_TOTAL = Counter(
+    "gateway_rag_queries_total",
+    "Total Local RAG knowledge queries processed",
+    ["source_type"]
+)
+
+TELEGRAM_MESSAGES_TOTAL = Counter(
+    "gateway_telegram_messages_total",
+    "Total Telegram bot messages and notifications",
+    ["direction"]
+)
+
+
 
 class PrometheusMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):

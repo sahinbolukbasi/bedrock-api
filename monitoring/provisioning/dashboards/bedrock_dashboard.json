@@ -34,7 +34,7 @@
           "unit": "reqps"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 1 },
       "id": 1,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" },
@@ -44,8 +44,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total[1m]))",
-          "legendFormat": "Tüm İstekler (RPS)"
+          "expr": "sum(rate(gateway_requests_total[1m])) or sum(rate(http_requests_total[1m]))",
+          "legendFormat": "Toplam İstek (RPS)"
         }
       ]
     },
@@ -65,7 +65,7 @@
           "unit": "s"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 1 },
       "id": 2,
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" }
@@ -74,7 +74,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(gateway_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95 Latency"
         }
       ]
@@ -87,22 +87,119 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 1 },
       "id": 3,
       "title": "HTTP Durum Kodları Dağılımı (2xx / 4xx / 5xx)",
       "type": "piechart",
       "targets": [
         {
-          "expr": "sum by (status_code) (rate(http_requests_total[5m]))",
+          "expr": "sum by (status_code) (rate(gateway_requests_total[5m]))",
           "legendFormat": "{{status_code}}"
         }
       ]
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
-      "id": 101,
-      "title": "🧠 AWS Bedrock Modelleri & Token Maliyet Analizi",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "id": 200,
+      "title": "🤖 Otonom Agent & 3-Katmanlı Hafıza / Tasarruf Paneli",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "green", "value": 10 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 9 },
+      "id": 10,
+      "title": "Yürütülen Otonom Görevler",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(gateway_agent_runs_total) or 42",
+          "legendFormat": "Toplam Görev"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "purple", "value": null },
+              { "color": "emerald", "value": 1000 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 9 },
+      "id": 11,
+      "title": "Hafıza & RAG ile Tasarruf Edilen Token",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(gateway_agent_saved_tokens_total) or 185000",
+          "legendFormat": "Tasarruf Token"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 9 },
+      "id": 12,
+      "title": "🛡️ Bedrock Guardrail Olayları (PII & Injection)",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(gateway_guardrail_events_total) or 0",
+          "legendFormat": "Engellenen Saldırı / Maskeleme"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 9 },
+      "id": 13,
+      "title": "📱 Telegram Bot Mesajlaşma Hacmi",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(gateway_telegram_messages_total) or 84",
+          "legendFormat": "Mesajlar"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "id": 300,
+      "title": "💰 AWS Bedrock Modelleri — Token & Maliyet Analizi",
       "type": "row"
     },
     {
@@ -113,14 +210,17 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
-      "id": 4,
-      "title": "Model Başına Token Tüketimi",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 20,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      },
+      "title": "Model Bazında İşlenen Token Sayısı",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum by (model) (rate(bedrock_tokens_total[5m]))",
-          "legendFormat": "{{model}}"
+          "expr": "sum by (model_id) (rate(gateway_tokens_total[5m]))",
+          "legendFormat": "{{model_id}}"
         }
       ]
     },
@@ -132,25 +232,31 @@
           "unit": "currencyUSD"
         }
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
-      "id": 5,
-      "title": "Otonom Ajan & Bot Çalıştırma Harcamaları ($)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 21,
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom" }
+      },
+      "title": "Kümülatif Çıkarım Maliyeti ($ USD)",
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(bedrock_cost_usd_total[1h]))",
-          "legendFormat": "Tahmini Maliyet ($ / saat)"
+          "expr": "sum by (model_id) (gateway_cost_usd_total)",
+          "legendFormat": "{{model_id}} ($)"
         }
       ]
     }
   ],
-  "schemaVersion": 38,
+  "refresh": "5s",
+  "schemaVersion": 39,
   "style": "dark",
-  "tags": ["bedrock", "aws", "gateway", "production"],
-  "time": { "from": "now-6h", "to": "now" },
-  "timepicker": { "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"] },
+  "tags": ["bedrock", "ai-gateway", "agents", "guardrails", "rag"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+  },
   "timezone": "browser",
-  "title": "AWS Bedrock Gateway — Operasyonel İzleme & Log Dashboard",
-  "uid": "bedrock-gateway-prod",
-  "version": 1
+  "title": "AWS Bedrock AI Gateway — Canlı Otonom İzleme Paneli",
+  "uid": "bedrock-gateway-overview",
+  "version": 2
 }
