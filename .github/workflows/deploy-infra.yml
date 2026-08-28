@@ -2,11 +2,12 @@ name: Deploy Terraform Infrastructure
 
 on:
   push:
-    branches: [sandbox, staging, main]
+    branches: [main]
     paths:
       - 'terraform/**'
       - '.github/workflows/deploy-infra.yml'
   workflow_dispatch:
+
 
 env:
   AWS_REGION: us-east-1

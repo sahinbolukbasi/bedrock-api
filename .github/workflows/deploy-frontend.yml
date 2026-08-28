@@ -2,11 +2,12 @@ name: Deploy Frontend Web Portal
 
 on:
   push:
-    branches: [sandbox, staging, main]
+    branches: [main]
     paths:
       - 'frontend/**'
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
+
 
 env:
   AWS_REGION: us-east-1

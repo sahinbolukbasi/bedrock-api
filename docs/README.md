@@ -7,10 +7,11 @@ Bu dizin, **AWS Bedrock AI Gateway Platformu** için tüm teknik mimariyi, AWS k
 ## 🧭 Dokümantasyon Modülleri
 
 | Doküman | İçerik & Amaç |
-| :--- | :--- |
+| 🚀 **[DEVELOPER_ONBOARDING.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DEVELOPER_ONBOARDING.md)** | **Yeni Yazılımcı & DevOps için 5 dakikada hızlı başlangıç, mimari ve geliştirme kuralları** |
 | 🤖 **[AI_AGENT_PLAYBOOK.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AI_AGENT_PLAYBOOK.md)** | **Yapay zeka ajanları & LLM'ler için sistemi bozmadan müdahale etme el kitabı** |
 | 🌐 **[AWS_RESOURCE_CATALOG.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AWS_RESOURCE_CATALOG.md)** | Resource Group (`bedrock-gateway-production-resources`), 36+ AWS kaynağının ARN ve ID haritası |
 | 🏛️ **[ARCHITECTURE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/ARCHITECTURE.md)** | ECS Fargate, ALB, RDS, ElastiCache, Secrets Manager ve Bedrock uçtan uca mimarisi |
+
 | 📱 **[TELEGRAM_AND_AUTONOMOUS_BOTS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/TELEGRAM_AND_AUTONOMOUS_BOTS.md)** | Telegram Botu (`@BedrocksAiBot`), Cron Scheduler, SNS SMS & SES Mail, Öğrenen Bellek Cache |
 | 📡 **[API_REFERENCE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/API_REFERENCE.md)** | OpenAI uyumlu `/v1/chat/completions`, `/v1/models` ve Gateway yönetim API uç noktaları |
 | 🗄️ **[DATABASE_SCHEMA.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DATABASE_SCHEMA.md)** | RDS PostgreSQL entity modelleri, ilişkiler, indeksler ve Redis anahtar yapısı |

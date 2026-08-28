@@ -2,11 +2,12 @@ name: Deploy Grafana Monitoring Stack
 
 on:
   push:
-    branches: [sandbox, staging, main]
+    branches: [main]
     paths:
       - 'monitoring/**'
       - '.github/workflows/deploy-monitoring.yml'
   workflow_dispatch:
+
 
 env:
   AWS_REGION: us-east-1
