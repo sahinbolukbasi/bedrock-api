@@ -1,19 +1,12 @@
-name: Deploy Backend API
+name: Deploy Backend Web Service
 
 on:
   push:
     branches: [main]
     paths:
       - 'backend/**'
+      - '.github/workflows/deploy-backend-api.yml'
   workflow_dispatch:
-    inputs:
-      force:
-        description: 'Force deployment'
-        required: false
-        default: 'true'
-
-
-
 
 env:
   AWS_REGION: us-east-1
@@ -22,8 +15,8 @@ env:
   ECS_SERVICE: bedrock-gateway-backend-svc
 
 jobs:
-  build-and-deploy:
-    name: Backend Test, ECR Build and ECS Update
+  deploy-backend:
+    name: Backend Build, ECR Push and ECS Update
     runs-on: ubuntu-latest
     permissions:
       id-token: write
