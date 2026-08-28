@@ -1,66 +1,49 @@
-# 🔒 Security, IAM & DevSecOps Specification
+# 🔒 Güvenlik, DevSecOps & Metrik Koruma Standartları (Security Specification)
 
-This document details the security controls, authentication mechanisms, IAM isolation, and abuse protections implemented across the **AWS Bedrock AI Gateway Platform**.
-
----
-
-## 1. Zero AWS Key Exposure & IAM Least Privilege
-
-1. **No Static Credentials**: The platform does **not** distribute or require AWS Access Key IDs or Secret Access Keys to end users.
-2. **IAM Task Execution Role**: Backend services running on AWS ECS Fargate assume an IAM task role (`bedrock-gateway-ecs-task-role`) with strictly scoped permissions:
-   ```json
-   {
-     "Version": "2012-10-17",
-     "Statement": [
-       {
-         "Effect": "Allow",
-         "Action": [
-           "bedrock:InvokeModel",
-           "bedrock:InvokeModelWithResponseStream",
-           "secretsmanager:GetSecretValue",
-           "logs:CreateLogStream",
-           "logs:PutLogEvents",
-           "sns:Publish",
-           "ses:SendEmail",
-           "ses:SendRawEmail"
-         ],
-         "Resource": "*"
-       }
-     ]
-   }
-   ```
-3. **No Administrative IAM Capabilities**: The ECS task role cannot modify IAM policies or provision resources.
+Bu doküman; **AWS Bedrock AI Gateway**, **Otonom Agent Motoru** ve **Altyapı Güvenlik Standartları**'nın tüm IAM erişim izolasyonunu, veri maskeleme, metrik şifreleme ve kötüye kullanım korumalarını detaylandırır.
 
 ---
 
-## 2. API Key Security & Storage
+## 🛡️ 1. Prometheus Metrikleri Güvenlik Zırhı (`/metrics` Authentication)
 
-- **Prefix + Secret Format**: Keys are generated as `sk-live-<8_char_prefix><32_char_secret>`.
-- **One-Way SHA-256 Hashing**: Full secret keys are **never** stored plaintext in the database. Only the SHA-256 hash (`key_hash`) and public prefix are persisted.
-- **One-Time Display**: Raw keys are only shown to the user upon initial creation in the dashboard modal.
-- **Instant Revocation**: Revoked keys are rejected immediately in-flight.
-
----
-
-## 3. Rate Limiting & Distributed Abuse Protection
-
-1. **Redis Token Bucket**:
-   - Each API key and IP address is metered using Redis.
-   - Exceeding the rate limit returns `HTTP 429 Too Many Requests` with a `Retry-After` header.
-2. **AWS WAF (Web Application Firewall)**:
-   - Regional WAF WebACL placed in front of the Application Load Balancer.
-   - Blocks SQL injection (`AWSManagedRulesSQLiRuleSet`), Cross-Site Scripting, and volumetric IP floods.
+* **Yetkisiz İfşa Koruması (Anti-Reconnaissance):** Sistem istek hacmi, token harcamaları, hata oranları ve model kullanım istatistiklerinin dış dünyaya sızmasını engellemek için `/metrics` uç noktası **Bearer Token Koruması** ile kilitlenmiştir.
+* **Yetkilendirme Kuralı:**
+  - `Authorization: Bearer <METRICS_SCRAPE_TOKEN>` veya `x-metrics-token` başlığı zorunludur.
+  - Başlık içermeyen tüm istekler `401 Unauthorized` ile otomatik engellenir ve güvenlik loglarına kaydedilir.
+* **Prometheus Entegrasyonu:**
+  - `monitoring/prometheus.yml` içinde `bearer_token: "bedrock-metrics-secret-token-key-2026"` tanımlanmış olup sadece yetkili izleme konteyneri metrik toplayabilir.
 
 ---
 
-## 4. Payment Security & Webhook Idempotency
+## 🔐 2. Sıfır AWS Key İfşası & IAM Least Privilege
 
-- **Cryptographic Signature Verification**: Stripe webhook events are rejected unless signed with the valid `STRIPE_WEBHOOK_SECRET`.
-- **Idempotency Guarantee**: Each payment event stores `idempotency_key = stripe_session_id`. Duplicate webhook deliveries never trigger double-crediting.
+1. **Statik Anahtar Kullanılmaz:** Kod tabanında veya ortam değişkenlerinde açıkta `AWS_ACCESS_KEY_ID` veya `AWS_SECRET_ACCESS_KEY` barındırılmaz.
+2. **ECS Task Execution Rolü (`BedrockAgentExecutionRole`):** Konteynerler AWS API'lerine minimum yetkili IAM rolleri ile (SigV4) bağlanır:
+   - `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream`
+   - `secretsmanager:GetSecretValue` (Yalnızca `bedrock-gateway-secrets-prod` kaynağı)
+   - `logs:CreateLogStream`, `logs:PutLogEvents`
+3. **AWS Secrets Manager:** Veritabanı şifreleri, Redis bağlantı dizgisi ve Telegram bot tokeni `bedrock-gateway-secrets-prod` üzerinde şifreli (KMS) saklanır.
 
 ---
 
-## 5. Multi-Tenant Isolation & Audit Logging
+## 🛡️ 3. AWS Bedrock Guardrails & Hassas Veri Maskeleme (PII)
 
-- **Strict Tenant Boundaries**: Database queries enforce `user_id = current_user.id` on all session, API key, conversation, and wallet operations.
-- **Admin Audit Trail**: Every sensitive operation (user suspension, model margin modification, API key revocation) writes an immutable record to the audit tables.
+1. **PII Maskeleme (Anonymization):**
+   - Kullanıcıların sohbetlerinde veya dokümanlarında geçen Kredi Kartı numaraları, Telefon Numaraları ve E-posta adresleri modele gönderilmeden önce `EnterpriseGuardrailService` tarafından otomatik maskelenir (`[CREDIT_CARD]`, `[PHONE_NUMBER]`, `[EMAIL]`).
+2. **Prompt Injection & Jailbreak Koruması:**
+   - Sistem direktiflerini çiğnemeye yönelik kötü niyetli komutlar ("Ignore all previous instructions") filtreye takılarak model çağrısı öncesi bloke edilir.
+
+---
+
+## 🔑 4. API Key Güvenliği & Kriptografik SHA-256 Hashing
+
+- **Anahtar Formatı:** `bgk_<random_32_bytes>`
+- **Tek Yönlü Hashleme:** Ham API anahtarları veritabanında **asla açık metin (plaintext) tutulmaz.** Sadece SHA-256 kriptografik hash'i (`key_hash`) saklanır.
+- **Tek Seferlik Gösterim:** Üretilen anahtar kullanıcıya yalnızca ilk oluşturma anında gösterilir.
+
+---
+
+## 🚦 5. Dağıtık Rate Limiting & DoS Koruması
+
+- **Redis Token Bucket:** Her API anahtarı ve IP adresi için dakikalık hız sınırı (Varsayılan: 120 RPM) uygulanır. Sınır aşıldığında `429 Too Many Requests` döner.
+- **Otomatik Gitleaks Taraması:** GitHub Actions CI/CD hattındaki her PR'da otomatik secret taraması yapılır.
