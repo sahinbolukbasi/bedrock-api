@@ -21,8 +21,9 @@ from app.services.scheduler import BackgroundSchedulerService
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: init Redis, initialize DB tables, seed catalog, start background scheduler
-    logger.info("Initializing AWS Bedrock AI Gateway (Secured Metrics & Guardrails)...")
+    logger.info("Initializing AWS Bedrock AI Gateway (v1.0.1 - Metrics Auth Hardened)...")
     await init_redis()
+
 
     try:
         await seed_database()
