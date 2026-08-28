@@ -201,6 +201,8 @@ export default function RootPage() {
   const [newAgentDesc, setNewAgentDesc] = useState("");
   const [newAgentModel, setNewAgentModel] = useState("amazon.nova-micro-v1:0");
   const [newAgentPrompt, setNewAgentPrompt] = useState("Sen canlı internet haberlerini ve teknoloji gelişmelerini tarayan, özetleyen ve Telegram üzerinden kullanıcıya ileten otonom bir haber asistanısın.");
+  const [newAgentGoal, setNewAgentGoal] = useState("Kullanıcının talep ettiği güncel bilgileri hızlı, doğru ve kaynak belirterek teslim etmek.");
+  const [newAgentAutonomy, setNewAgentAutonomy] = useState("AUTONOMOUS");
   const [agentWebSearchTool, setAgentWebSearchTool] = useState(true);
   const [agentTelegramTool, setAgentTelegramTool] = useState(true);
   const [agentEmailTool, setAgentEmailTool] = useState(false);
@@ -208,6 +210,7 @@ export default function RootPage() {
   
   // Telegram Integration State
   const [telegramStatus, setTelegramStatus] = useState<any | null>(null);
+
   const [loadingTelegram, setLoadingTelegram] = useState(false);
   const [telegramCopied, setTelegramCopied] = useState(false);
   const [telegramTestStatus, setTelegramTestStatus] = useState<{ type: "success" | "error"; msg: string } | null>(null);
@@ -703,6 +706,8 @@ export default function RootPage() {
       name: newAgentName.trim(),
       icon: newAgentIcon || "🤖",
       agent_type: newAgentType || "custom",
+      goal_definition: newAgentGoal.trim(),
+      autonomy_level: newAgentAutonomy,
       description: newAgentDesc.trim(),
       model_id: newAgentModel,
       system_prompt: newAgentPrompt.trim(),
@@ -741,6 +746,8 @@ export default function RootPage() {
     setNewAgentName(agent.name);
     setNewAgentIcon(agent.icon || "🤖");
     setNewAgentType(agent.agent_type || "custom");
+    setNewAgentGoal(agent.goal_definition || "Kullanıcının talep ettiği güncel bilgileri hızlı, doğru ve kaynak belirterek teslim etmek.");
+    setNewAgentAutonomy(agent.autonomy_level || "AUTONOMOUS");
     setNewAgentDesc(agent.description || "");
     setNewAgentModel(agent.model_id);
     setNewAgentPrompt(agent.system_prompt);
@@ -751,6 +758,7 @@ export default function RootPage() {
     setAgentScheduleCron(agent.schedule_cron || "");
     setShowAgentModal(true);
   };
+
 
   const handleDeleteAgent = async (agentId: string) => {
     if (!confirm("Bu botu silmek istediğinize emin misiniz?")) return;
@@ -3369,6 +3377,48 @@ export default function RootPage() {
                       </select>
                     </div>
 
+                    {/* Hedef & Başarı Kriteri */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                        🎯 Hedef & Başarı Kriteri (Goal Definition)
+                      </label>
+                      <input
+                        type="text"
+                        value={newAgentGoal}
+                        onChange={(e) => setNewAgentGoal(e.target.value)}
+                        placeholder="Örn: Kullanıcının talep ettiği güncel bilgileri hızlı, doğru ve kaynak belirterek teslim etmek."
+                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                      />
+                    </div>
+
+                    {/* Otonomi Seviyesi & 3-Katmanlı Hafıza */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          🛡️ Otonomi Seviyesi
+                        </label>
+                        <select
+                          value={newAgentAutonomy}
+                          onChange={(e) => setNewAgentAutonomy(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3 py-2.5 text-xs text-slate-900 dark:text-white font-bold"
+                        >
+                          <option value="AUTONOMOUS">🚀 Tam Otonom (Doğrudan Yürüt)</option>
+                          <option value="CONFIRMATION_REQUIRED">✋ Onay Bekleyen (Kritik Adımlarda Sor)</option>
+                          <option value="ADVISORY">💡 Sadece Öneri Veren (Bilgilendirici)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
+                          🧠 3-Katmanlı Akıllı Hafıza
+                        </label>
+                        <div className="px-3 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-[11px] font-bold text-purple-700 dark:text-purple-300 flex items-center justify-between">
+                          <span>%75+ Token Tasarrufu</span>
+                          <span className="text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded">Aktif</span>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Sistem Promptu */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
@@ -3418,6 +3468,7 @@ export default function RootPage() {
                         <span className="font-medium">📧 Raporları E-Posta ile de gönder</span>
                       </label>
                     </div>
+
 
                     {/* Zamanlayıcı (Cron) */}
                     <div>

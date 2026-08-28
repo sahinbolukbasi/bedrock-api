@@ -139,17 +139,19 @@ class AgentAutonomousEngine:
             except Exception as search_err:
                 logger.warning(f"[AgentEngine] Web search failed: {search_err}")
 
-        # 3. Build Enhanced System Prompt with Reflection Memory and Web Context
+        # 3. 3-Layer Memory Optimization
+        from app.services.memory_engine import MemoryOptimizer
+        from app.services.reasoning_engine import ReActAgentRunner
+
         learned_cache = agent.learned_memory_cache or ""
-        enhanced_system_prompt = override_prompt or agent.system_prompt
-        
-        if web_context_str:
-            enhanced_system_prompt += f"\n\n{web_context_str}\n\nLütfen yukarıdaki canlı web ve haber verilerini kullanarak kullanıcıya en güncel, doğru ve net bilgiyi sun."
+        base_prompt = override_prompt or agent.system_prompt
+        goal_text = getattr(agent, "goal_definition", "")
+        if goal_text:
+            base_prompt += f"\n\n### HEDEF & BAŞARI KRİTERİ:\n{goal_text}"
 
-        if learned_cache:
-            enhanced_system_prompt += f"\n\n[Öğrenilmiş Hafıza & Geliştirme Deneyimleri (Reflection Cache)]:\n{learned_cache}"
+        autonomy_lvl = getattr(agent, "autonomy_level", "AUTONOMOUS")
 
-        # 4. Call Model Provider
+        # 4. LLM Caller definition for ReAct Engine
         provider = provider_router.get_provider("BEDROCK")
         dummy_model = ModelCatalog(
             model_id=agent.model_id or "amazon.nova-micro-v1:0",
@@ -158,34 +160,48 @@ class AgentAutonomousEngine:
             provider="BEDROCK"
         )
 
-        req = ChatCompletionRequest(
-            model=agent.model_id or "amazon.nova-micro-v1:0",
-            messages=[
-                ChatMessage(role="system", content=enhanced_system_prompt),
-                ChatMessage(role="user", content=input_text)
-            ],
-            temperature=0.6,
-            max_tokens=2048
+        async def bedrock_react_caller(prompt_text: str) -> str:
+            req = ChatCompletionRequest(
+                model=agent.model_id or "amazon.nova-micro-v1:0",
+                messages=[
+                    ChatMessage(role="user", content=prompt_text)
+                ],
+                temperature=0.4,
+                max_tokens=1500
+            )
+            try:
+                resp, _, _ = await provider.generate_chat(req, dummy_model)
+                return resp.choices[0].message.content
+            except Exception as e:
+                logger.warning(f"[AgentEngine] ReAct call note: {e}")
+                # Fallback to direct heuristic / search if available
+                if search_results:
+                    return "\n".join([f"• {r['title']}: {r['snippet']}" for r in search_results])
+                return f"Görev analiz edildi: {input_text}"
+
+        # 5. Run ReAct Reasoning Loop
+        reasoning_result = await ReActAgentRunner.run_reasoning_loop(
+            user_input=input_text,
+            system_persona=base_prompt,
+            llm_caller=bedrock_react_caller,
+            autonomy_level=autonomy_lvl,
+            context_memory=learned_cache
         )
 
-        try:
-            resp, in_tok, out_tok = await provider.generate_chat(req, dummy_model)
-            output_text = resp.choices[0].message.content
-        except Exception as e:
-            logger.warning(f"[AgentEngine] Bedrock generate_chat note: {e}")
-            if search_results:
-                bullet_points = "\n".join([f"• **{r['title']}**: {r['snippet']}" for r in search_results])
-                output_text = f"Canlı internet ve haber kaynaklarından derlenen son gelişmeler:\n\n{bullet_points}"
-            else:
-                output_text = "Görev başarıyla yürütüldü. Model çıktısı ve otomasyon süreci tamamlandı."
+        output_text = reasoning_result.get("answer", "")
+        steps_trace = reasoning_result.get("steps", [])
 
-        # 5. Update Reflection Cache & Run Metrics
-        new_insight = f"Görev: {input_text[:50]} -> Çıktı: {output_text[:80]}"
+        # 6. Extract Learnable Insights & Update Long-term Memory
+        new_insight = MemoryOptimizer.extract_learnable_insights(input_text, output_text)
+        if not new_insight:
+            new_insight = f"Görev: {input_text[:40]} -> Sonuç: {output_text[:60]}"
+
         current_mem = agent.learned_memory_cache or ""
         updated_mem = f"{current_mem}\n• [{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}] {new_insight}".strip()
-        agent.learned_memory_cache = updated_mem[-1500:]
+        agent.learned_memory_cache = updated_mem[-2000:]
         agent.total_runs += 1
         agent.last_run_at = datetime.now(timezone.utc)
+
 
         # 6. Multi-Channel Dispatch
         # A. Telegram Dispatch

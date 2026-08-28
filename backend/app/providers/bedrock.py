@@ -85,37 +85,45 @@ class AWSBedrockProvider(IModelProvider):
         self,
         messages: List[Union[ChatMessage, Dict[str, Any]]]
     ) -> Tuple[List[Dict[str, str]], List[Dict[str, Any]]]:
-        system_prompts = []
-        converse_messages = []
+        from app.services.memory_engine import MemoryOptimizer
 
+        # 1. Normalize messages
+        raw_list = []
+        raw_system = ""
         for msg in messages:
             role = msg.role if hasattr(msg, "role") else msg.get("role")
             content = msg.content if hasattr(msg, "content") else msg.get("content", "")
+            if isinstance(content, list):
+                content = " ".join([p.get("text", "") if isinstance(p, dict) else getattr(p, "text", "") for p in content])
+            if role == "system":
+                raw_system += (content + "\n")
+            elif role in ("user", "assistant"):
+                raw_list.append({"role": role, "content": str(content)})
 
-            text_content = ""
-            if isinstance(content, str):
-                text_content = content
-            elif isinstance(content, list):
-                for part in content:
-                    if isinstance(part, dict) and part.get("type") == "text":
-                        text_content += part.get("text", "")
-                    elif hasattr(part, "type") and part.type == "text":
-                        text_content += part.text or ""
+        # 2. Apply 3-Layer Memory Optimizer (Sliding window + Rolling summary compression)
+        opt_msgs, optimized_system, orig_tokens, opt_tokens = MemoryOptimizer.build_optimized_context(
+            messages=raw_list,
+            system_prompt=raw_system.strip() or None
+        )
 
-            clean_text = text_content.strip()
+        system_prompts = []
+        if optimized_system:
+            system_prompts.append({"text": optimized_system})
+
+        converse_messages = []
+        for m in opt_msgs:
+            role = m["role"]
+            clean_text = m["content"].strip()
             if not clean_text:
                 continue
 
-            if role == "system":
-                system_prompts.append({"text": clean_text})
-            elif role in ("user", "assistant"):
-                if converse_messages and converse_messages[-1]["role"] == role:
-                    converse_messages[-1]["content"][0]["text"] += f"\n\n{clean_text}"
-                else:
-                    converse_messages.append({
-                        "role": role,
-                        "content": [{"text": clean_text}]
-                    })
+            if converse_messages and converse_messages[-1]["role"] == role:
+                converse_messages[-1]["content"][0]["text"] += f"\n\n{clean_text}"
+            else:
+                converse_messages.append({
+                    "role": role,
+                    "content": [{"text": clean_text}]
+                })
 
         if not converse_messages:
             converse_messages = [{"role": "user", "content": [{"text": "Merhaba"}]}]
@@ -123,6 +131,7 @@ class AWSBedrockProvider(IModelProvider):
             converse_messages.insert(0, {"role": "user", "content": [{"text": "Sohbete devam et."}]})
 
         return system_prompts, converse_messages
+
 
     async def generate_chat(
         self,

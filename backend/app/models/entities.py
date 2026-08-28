@@ -197,6 +197,8 @@ class Conversation(Base):
     title = Column(String(255), default="New Chat", nullable=False)
     model_id = Column(String(128), nullable=False)
     system_prompt = Column(Text, nullable=True)
+    summary_context = Column(Text, default="", nullable=False)  # Compressed Layer-1 rolling memory
+    scratchpad = Column(Text, default="", nullable=False)  # Working Layer-3 memory
     temperature = Column(Numeric(3, 2), default=Decimal("0.70"), nullable=False)
     max_tokens = Column(Integer, default=4096, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
@@ -261,18 +263,22 @@ class CustomAgent(Base):
     name = Column(String(128), nullable=False)
     icon = Column(String(64), default="🤖", nullable=False)
     agent_type = Column(String(64), default="custom", nullable=False)  # "news", "finance", "security", "custom"
+    goal_definition = Column(Text, default="", nullable=False)  # Success metrics & goal
+    autonomy_level = Column(String(32), default="AUTONOMOUS", nullable=False)  # "AUTONOMOUS", "CONFIRMATION_REQUIRED", "ADVISORY"
     description = Column(Text, nullable=True)
     model_id = Column(String(128), default="amazon.nova-micro-v1:0", nullable=False)
     system_prompt = Column(Text, nullable=False)
     schedule_cron = Column(String(64), nullable=True)  # e.g., "0 * * * *" (hourly), "0 9 * * *" (daily)
     schedule_enabled = Column(Boolean, default=False, nullable=False)
-    learned_memory_cache = Column(Text, default="", nullable=False)  # Self-improving reflection & training cache
-    tools_config = Column(JSON, default=dict, nullable=False)  # {"email": true, "sms": "+905...", "telegram": true}
+    learned_memory_cache = Column(Text, default="", nullable=False)  # Layer-2 Long-term facts & preferences
+    memory_settings = Column(JSON, default=dict, nullable=False)  # {"compression": true, "max_context": 4000}
+    tools_config = Column(JSON, default=dict, nullable=False)  # {"web_search": true, "telegram": true, "math": true}
     is_active = Column(Boolean, default=True, nullable=False)
     total_runs = Column(Integer, default=0, nullable=False)
     last_run_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
 
     execution_logs = relationship("AgentExecutionLog", back_populates="agent", cascade="all, delete-orphan")
 

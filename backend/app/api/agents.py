@@ -20,12 +20,15 @@ class AgentCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     icon: Optional[str] = "🤖"
     agent_type: Optional[str] = "custom"
+    goal_definition: Optional[str] = ""
+    autonomy_level: Optional[str] = "AUTONOMOUS"  # "AUTONOMOUS", "CONFIRMATION_REQUIRED", "ADVISORY"
     description: Optional[str] = None
     model_id: str = "amazon.nova-micro-v1:0"
     system_prompt: str = Field(min_length=5)
     schedule_cron: Optional[str] = None
     schedule_enabled: bool = False
     learned_memory_cache: Optional[str] = ""
+    memory_settings: Dict[str, Any] = Field(default_factory=lambda: {"compression": True, "max_context": 4000})
     tools_config: Dict[str, Any] = Field(default_factory=dict)  # {"web_search": true, "telegram": true, "email": false}
 
 
@@ -33,11 +36,14 @@ class AgentUpdateRequest(BaseModel):
     name: Optional[str] = None
     icon: Optional[str] = None
     agent_type: Optional[str] = None
+    goal_definition: Optional[str] = None
+    autonomy_level: Optional[str] = None
     description: Optional[str] = None
     model_id: Optional[str] = None
     system_prompt: Optional[str] = None
     schedule_cron: Optional[str] = None
     schedule_enabled: Optional[bool] = None
+    memory_settings: Optional[Dict[str, Any]] = None
     tools_config: Optional[Dict[str, Any]] = None
 
 
@@ -72,12 +78,15 @@ async def create_agent(
         name=body.name,
         icon=body.icon or "🤖",
         agent_type=body.agent_type or "custom",
+        goal_definition=body.goal_definition or "",
+        autonomy_level=body.autonomy_level or "AUTONOMOUS",
         description=body.description,
         model_id=body.model_id,
         system_prompt=body.system_prompt,
         schedule_cron=body.schedule_cron,
         schedule_enabled=body.schedule_enabled,
         learned_memory_cache=body.learned_memory_cache or "",
+        memory_settings=body.memory_settings or {},
         tools_config=body.tools_config
     )
     db.add(agent)
@@ -106,6 +115,10 @@ async def update_agent(
         agent.icon = body.icon
     if body.agent_type is not None:
         agent.agent_type = body.agent_type
+    if body.goal_definition is not None:
+        agent.goal_definition = body.goal_definition
+    if body.autonomy_level is not None:
+        agent.autonomy_level = body.autonomy_level
     if body.description is not None:
         agent.description = body.description
     if body.model_id is not None:
@@ -116,12 +129,15 @@ async def update_agent(
         agent.schedule_cron = body.schedule_cron
     if body.schedule_enabled is not None:
         agent.schedule_enabled = body.schedule_enabled
+    if body.memory_settings is not None:
+        agent.memory_settings = body.memory_settings
     if body.tools_config is not None:
         agent.tools_config = body.tools_config
 
     await db.commit()
     await db.refresh(agent)
     return agent
+
 
 
 @router.delete("/{agent_id}")
