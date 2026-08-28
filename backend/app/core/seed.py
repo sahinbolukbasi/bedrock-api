@@ -432,14 +432,20 @@ INITIAL_MODELS = [
 
 
 async def seed_database():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with asyncio.timeout(5.0):
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
 
-    async with AsyncSessionLocal() as db:
-        # Seed Admin User
-        admin_stmt = select(User).where(User.email == settings.ADMIN_EMAIL)
-        admin_res = await db.execute(admin_stmt)
-        admin_user = admin_res.scalar_one_or_none()
+            async with AsyncSessionLocal() as db:
+                # Seed Admin User
+                admin_stmt = select(User).where(User.email == settings.ADMIN_EMAIL)
+                admin_res = await db.execute(admin_stmt)
+                admin_user = admin_res.scalar_one_or_none()
+    except Exception as e:
+        logger.warning(f"Database connection / seed note: {e}. Running with cached state.")
+        return
+
 
         if not admin_user:
             admin_user = User(

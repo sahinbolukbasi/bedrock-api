@@ -4,23 +4,38 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from sqlalchemy.orm import declarative_base
 from app.core.config import settings
 
-# AWS RDS PostgreSQL 16 — production async engine with SSL
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=False,
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=1800,
-    pool_pre_ping=True,
-    pool_timeout=30,
-    connect_args={
-        "ssl": "require",
-        "server_settings": {"application_name": "bedrock-gateway"},
-        "command_timeout": 30,
-        # Note: asyncpg uses 'timeout' not 'connection_timeout'
-        "timeout": 15,
-    },
-)
+is_sqlite = "sqlite" in settings.DATABASE_URL
+connect_args = {}
+
+if not is_sqlite:
+    if "rds.amazonaws.com" in settings.DATABASE_URL:
+        connect_args = {
+            "ssl": "require",
+            "server_settings": {"application_name": "bedrock-gateway"},
+            "command_timeout": 30,
+            "timeout": 8,
+        }
+    else:
+        connect_args = {
+            "command_timeout": 30,
+            "timeout": 8,
+        }
+
+engine_kwargs = {
+    "echo": False,
+    "pool_pre_ping": True,
+    "connect_args": connect_args
+}
+if not is_sqlite:
+    engine_kwargs.update({
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_recycle": 1800,
+        "pool_timeout": 30
+    })
+
+engine = create_async_engine(settings.DATABASE_URL, **engine_kwargs)
+
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
