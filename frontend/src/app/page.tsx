@@ -195,7 +195,9 @@ export default function RootPage() {
   const [agents, setAgents] = useState<any[]>([]);
   const [showAgentModal, setShowAgentModal] = useState(false);
   const [editingAgent, setEditingAgent] = useState<any | null>(null);
+  const [wizardStep, setWizardStep] = useState<number>(1);
   const [newAgentName, setNewAgentName] = useState("");
+
   const [newAgentIcon, setNewAgentIcon] = useState("📰");
   const [newAgentType, setNewAgentType] = useState("news");
   const [newAgentDesc, setNewAgentDesc] = useState("");
@@ -3344,239 +3346,386 @@ export default function RootPage() {
             )}
 
             {/* ============================================================= */}
-            {/* BOT OLUŞTURMA & DÜZENLEME MODALI */}
+            {/* 🧙‍♂️ KULLANICI DOSTU 4-ADIMLI BOT OLUŞTURMA SİHİRBAZI */}
             {/* ============================================================= */}
             {showAgentModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
-                <div className="w-full max-w-xl rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 pb-3">
-                    <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                      <Bot className="w-5 h-5 text-indigo-600" />
-                      <span>{editingAgent ? "Botu Düzenle" : "Yeni Otonom AI Botu Oluştur"}</span>
-                    </h3>
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
+                <div className="w-full max-w-2xl rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 p-6 md:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+                  
+                  {/* Başlık & Kapat Butonu */}
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-gray-800 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 text-xl">
+                        {newAgentIcon || "🤖"}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>{editingAgent ? "Botunuzu Düzenleyin" : "Akıllı Yapay Zeka Asistanı Sihirbazı"}</span>
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-gray-400">
+                          Teknik bilgiye gerek olmadan 4 kolay adımda asistanınızı kurun.
+                        </p>
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={() => setShowAgentModal(false)}
-                      className="text-slate-400 hover:text-white"
+                      className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-gray-800 transition"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
 
-                  <form onSubmit={handleSaveAgent} className="space-y-4">
-                    {/* İkon & Bot Adı */}
-                    <div className="grid grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">İkon</label>
-                        <select
-                          value={newAgentIcon}
-                          onChange={(e) => setNewAgentIcon(e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl p-2.5 text-base text-center"
-                        >
-                          <option value="📰">📰 Haber</option>
-                          <option value="📈">📈 Finans</option>
-                          <option value="🛡️">🛡️ Güvenlik</option>
-                          <option value="🤖">🤖 Bot</option>
-                          <option value="⚡">⚡ Hızlı</option>
-                          <option value="🔍">🔍 Arama</option>
-                          <option value="🚀">🚀 Asistan</option>
-                        </select>
-                      </div>
-
-                      <div className="col-span-3">
-                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">Bot Adı</label>
-                        <input
-                          type="text"
-                          required
-                          value={newAgentName}
-                          onChange={(e) => setNewAgentName(e.target.value)}
-                          placeholder="Örn: Canlı AI & Teknoloji Haber Casusu"
-                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Model Seçimi */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                        Kullanılacak AWS Bedrock Modeli
-                      </label>
-                      <select
-                        value={newAgentModel}
-                        onChange={(e) => setNewAgentModel(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white font-bold"
+                  {/* 4-Adımlı İlerleme Çubuğu */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { step: 1, label: "1. Kimlik & Amaç", icon: "🤖" },
+                      { step: 2, label: "2. Özel Bilgiler", icon: "📚" },
+                      { step: 3, label: "3. Yetenekler", icon: "🛠️" },
+                      { step: 4, label: "4. Zeka Düzeyi", icon: "🧠" },
+                    ].map((s) => (
+                      <button
+                        key={s.step}
+                        type="button"
+                        onClick={() => setWizardStep(s.step)}
+                        className={`p-2.5 rounded-2xl border text-center transition flex flex-col items-center justify-center gap-1 ${
+                          wizardStep === s.step
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/20 font-bold"
+                            : wizardStep > s.step
+                            ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 font-medium"
+                            : "bg-slate-50 dark:bg-gray-950 text-slate-400 dark:text-gray-500 border-slate-200 dark:border-gray-800"
+                        }`}
                       >
-                        <optgroup label="⚡ Ultra Düşük Maliyetli Agent Modelleri">
-                          <option value="amazon.nova-micro-v1:0">⚡ Amazon Nova Micro ($0.000035/1k - En Ucuz & Hızlı)</option>
-                          <option value="meta.llama3-2-1b-instruct-v1:0">⚡ Meta Llama 3.2 1B ($0.00010/1k - Mikro Agent LLM)</option>
-                          <option value="meta.llama3-2-3b-instruct-v1:0">⚡ Meta Llama 3.2 3B ($0.00015/1k - Hızlı Agent LLM)</option>
-                          <option value="amazon.nova-lite-v1:0">🚀 Amazon Nova Lite ($0.00006/1k - Multimodal)</option>
-                          <option value="mistral.mistral-small-2402-v1:0">🌪️ Mistral Small ($0.0003/1k - Kod & Analiz)</option>
-                        </optgroup>
-                        <optgroup label="🧠 İleri Düzey Akıl Yürütme & Frontier">
-                          <option value="anthropic.claude-3-5-haiku-20241022-v1:0">🎯 Claude 3.5 Haiku ($0.001/1k - Akıllı Agent)</option>
-                          <option value="anthropic.claude-3-5-sonnet-20241022-v2:0">🧠 Claude 3.5 Sonnet v2 ($0.0036/1k - İleri Zeka)</option>
-                          <option value="anthropic.claude-3-7-sonnet-20250219-v1:0">🧠 Claude 3.7 Sonnet ($0.0036/1k - Hybrid Reasoning)</option>
-                        </optgroup>
-                      </select>
-                    </div>
+                        <span className="text-sm">{s.icon}</span>
+                        <span className="text-[11px] truncate w-full">{s.label}</span>
+                      </button>
+                    ))}
+                  </div>
 
-                    {/* Hedef & Başarı Kriteri */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                        🎯 Hedef & Başarı Kriteri (Goal Definition)
-                      </label>
-                      <input
-                        type="text"
-                        value={newAgentGoal}
-                        onChange={(e) => setNewAgentGoal(e.target.value)}
-                        placeholder="Örn: Kullanıcının talep ettiği güncel bilgileri hızlı, doğru ve kaynak belirterek teslim etmek."
-                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                      />
-                    </div>
+                  <form onSubmit={handleSaveAgent} className="space-y-6">
+                    {/* ADIM 1: KİMLİK & AMAÇ */}
+                    {wizardStep === 1 && (
+                      <div className="space-y-5 animate-in fade-in">
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            1. Botunuz İçin Bir İkon Seçin
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {["📰", "📈", "🛡️", "🤖", "⚡", "🔍", "🚀", "💬", "💼", "🎓"].map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => setNewAgentIcon(emoji)}
+                                className={`w-11 h-11 text-xl rounded-2xl border flex items-center justify-center transition transform hover:scale-105 ${
+                                  newAgentIcon === emoji
+                                    ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/30 scale-105"
+                                    : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 hover:bg-slate-100 dark:hover:bg-gray-800"
+                                }`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
 
-                    {/* Otonomi Seviyesi & 3-Katmanlı Hafıza */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                          🛡️ Otonomi Seviyesi
-                        </label>
-                        <select
-                          value={newAgentAutonomy}
-                          onChange={(e) => setNewAgentAutonomy(e.target.value)}
-                          className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3 py-2.5 text-xs text-slate-900 dark:text-white font-bold"
-                        >
-                          <option value="AUTONOMOUS">🚀 Tam Otonom (Doğrudan Yürüt)</option>
-                          <option value="CONFIRMATION_REQUIRED">✋ Onay Bekleyen (Kritik Adımlarda Sor)</option>
-                          <option value="ADVISORY">💡 Sadece Öneri Veren (Bilgilendirici)</option>
-                        </select>
-                      </div>
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            2. Asistanınıza Bir İsim Verin
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={newAgentName}
+                            onChange={(e) => setNewAgentName(e.target.value)}
+                            placeholder="Örn: Günlük Teknoloji & AI Bülteni Asistanım"
+                            className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                          />
+                          <p className="text-[11px] text-slate-400">Bu ismi daha sonra dilediğiniz gibi değiştirebilirsiniz.</p>
+                        </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                          🧠 3-Katmanlı Akıllı Hafıza
-                        </label>
-                        <div className="px-3 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 text-[11px] font-bold text-purple-700 dark:text-purple-300 flex items-center justify-between">
-                          <span>%75+ Token Tasarrufu</span>
-                          <span className="text-[10px] bg-purple-600 text-white px-1.5 py-0.5 rounded">Aktif</span>
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            3. Bu Bot Ne Yapsın? (Kendi Cümlelerinizle Yazın)
+                          </label>
+                          <textarea
+                            rows={3}
+                            required
+                            value={newAgentPrompt}
+                            onChange={(e) => setNewAgentPrompt(e.target.value)}
+                            placeholder="Örn: İnternetten her sabah en önemli yapay zeka haberlerini bul, Türkçe olarak 3 maddede özetle ve bana Telegram'dan bildir."
+                            className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl p-3.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium leading-relaxed"
+                          />
+                          <p className="text-[11px] text-slate-400">Botunuza bir insanla konuşur gibi ne yapmasını istediğinizi söylemeniz yeterlidir.</p>
                         </div>
                       </div>
-                    </div>
+                    )}
 
-                    {/* Bilgi Kaynakları & Local RAG */}
-                    <div className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/80 dark:border-indigo-900/60 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-indigo-900 dark:text-indigo-300">
-                          📚 Özel Bilgi Kaynağı (Website URL / Dokümantasyon Linki - RAG)
-                        </label>
-                        <span className="text-[10px] bg-indigo-100 dark:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded font-bold">
-                          Maliyetsiz Vektör RAG
-                        </span>
+                    {/* ADIM 2: ÖZEL BİLGİ KAYNAKLARI (RAG) */}
+                    {wizardStep === 2 && (
+                      <div className="space-y-5 animate-in fade-in">
+                        <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900/60 flex items-start gap-3">
+                          <span className="text-xl">💡</span>
+                          <div className="space-y-1">
+                            <h4 className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+                              Botunuzu Özel Bilgilerinizle Eğitin (İsteğe Bağlı)
+                            </h4>
+                            <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300 leading-relaxed">
+                              Botunuzun internet genelinden farklı olarak yalnızca sizin şirketinizin web sitesini, ürün fiyatlarını veya özel kurallarını bilmesini sağlayabilirsiniz.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            🌐 Web Sitesi / Dokümantasyon Linki
+                          </label>
+                          <input
+                            type="url"
+                            value={newAgentKnowledgeUrl}
+                            onChange={(e) => setNewAgentKnowledgeUrl(e.target.value)}
+                            placeholder="https://sirketiniz.com/sss veya https://docs.example.com"
+                            className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                          />
+                          <p className="text-[11px] text-slate-400">Botunuz bu linkteki metinleri otomatik okur ve hafızasına kaydeder.</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            📝 Özel Notlarınız & Şirket Kurallarınız
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={newAgentKnowledgeText}
+                            onChange={(e) => setNewAgentKnowledgeText(e.target.value)}
+                            placeholder="Örn: Çalışma saatlerimiz 09:00 - 18:00 arasındadır. İade süresi 14 gündür. Kargo 500 TL üzeri ücretsizdir."
+                            className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl p-3.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                          />
+                          <p className="text-[11px] text-slate-400">Bu notlar botun hafızasında kalıcı olarak saklanır ve yanıtlarda öncelikli kullanılır.</p>
+                        </div>
                       </div>
-                      <input
-                        type="url"
-                        value={newAgentKnowledgeUrl}
-                        onChange={(e) => setNewAgentKnowledgeUrl(e.target.value)}
-                        placeholder="https://example.com/docs veya https://api.site.com/data.json"
-                        className="w-full bg-white dark:bg-gray-900 border border-indigo-200 dark:border-indigo-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                      />
-                      <textarea
-                        rows={2}
-                        value={newAgentKnowledgeText}
-                        onChange={(e) => setNewAgentKnowledgeText(e.target.value)}
-                        placeholder="Opsiyonel: Botun bilmesini istediğiniz özel şirket notları, ürün fiyatları veya kurallar..."
-                        className="w-full bg-white dark:bg-gray-900 border border-indigo-200 dark:border-indigo-800 rounded-xl p-2.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                      />
-                    </div>
+                    )}
 
-                    {/* Sistem Promptu */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                        Sistem Rolü & Talimatları (Prompt)
-                      </label>
-                      <textarea
-                        rows={3}
-                        required
-                        value={newAgentPrompt}
-                        onChange={(e) => setNewAgentPrompt(e.target.value)}
-                        placeholder="Sen canlı internet verilerini tarayan, analiz edip özetleyen bir otonom asistansın."
-                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl p-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                      />
-                    </div>
+                    {/* ADIM 3: YETENEKLER & ZAMANLAMA */}
+                    {wizardStep === 3 && (
+                      <div className="space-y-5 animate-in fade-in">
+                        <div className="space-y-3">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            1. Botunuz Hangi Yetenekleri Kullansın?
+                          </label>
 
-                    {/* Yetenekler / Tools */}
-                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-3">
-                      <div className="text-xs font-bold text-slate-900 dark:text-white">Bot Yetenekleri & Kanalları:</div>
-                      
-                      <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-gray-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agentWebSearchTool}
-                          onChange={(e) => setAgentWebSearchTool(e.target.checked)}
-                          className="w-4 h-4 rounded text-indigo-600 accent-indigo-600"
-                        />
-                        <span className="font-bold">🌐 Canlı İnternet & Haber Arama (Web Search)</span>
-                      </label>
+                          <div className="grid grid-cols-1 gap-2.5">
+                            <label className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
+                              agentWebSearchTool
+                                ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/50 text-indigo-950 dark:text-white"
+                                : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300"
+                            }`}>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xl">🌐</span>
+                                <div>
+                                  <div className="text-xs font-bold">Canlı İnternet Araştırması (Web Search)</div>
+                                  <div className="text-[11px] text-slate-500 dark:text-gray-400">Son haberleri, borsa fiyatlarını ve güncel bilgileri Google/Web üzerinden tarar.</div>
+                                </div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={agentWebSearchTool}
+                                onChange={(e) => setAgentWebSearchTool(e.target.checked)}
+                                className="w-5 h-5 rounded text-indigo-600 accent-indigo-600"
+                              />
+                            </label>
 
-                      <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-gray-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agentTelegramTool}
-                          onChange={(e) => setAgentTelegramTool(e.target.checked)}
-                          className="w-4 h-4 rounded text-indigo-600 accent-indigo-600"
-                        />
-                        <span className="font-bold">📱 Telegram ile Çift Yönlü İletişim & Bildirim</span>
-                      </label>
+                            <label className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
+                              agentTelegramTool
+                                ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/50 text-indigo-950 dark:text-white"
+                                : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300"
+                            }`}>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xl">📱</span>
+                                <div>
+                                  <div className="text-xs font-bold">Telegram'a Bildirim Gönderme</div>
+                                  <div className="text-[11px] text-slate-500 dark:text-gray-400">Hazırladığı raporları ve uyarıları doğrudan Telegram telefonunuza iletir.</div>
+                                </div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={agentTelegramTool}
+                                onChange={(e) => setAgentTelegramTool(e.target.checked)}
+                                className="w-5 h-5 rounded text-indigo-600 accent-indigo-600"
+                              />
+                            </label>
 
-                      <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-gray-300 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={agentEmailTool}
-                          onChange={(e) => setAgentEmailTool(e.target.checked)}
-                          className="w-4 h-4 rounded text-indigo-600 accent-indigo-600"
-                        />
-                        <span className="font-medium">📧 Raporları E-Posta ile de gönder</span>
-                      </label>
-                    </div>
+                            <label className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
+                              agentEmailTool
+                                ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/50 text-indigo-950 dark:text-white"
+                                : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300"
+                            }`}>
+                              <div className="flex items-center gap-3">
+                                <span className="text-xl">📧</span>
+                                <div>
+                                  <div className="text-xs font-bold">E-Posta ile Raporlama</div>
+                                  <div className="text-[11px] text-slate-500 dark:text-gray-400">Detaylı analiz bültenlerini e-posta kutunuza da postalar.</div>
+                                </div>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={agentEmailTool}
+                                onChange={(e) => setAgentEmailTool(e.target.checked)}
+                                className="w-5 h-5 rounded text-indigo-600 accent-indigo-600"
+                              />
+                            </label>
+                          </div>
+                        </div>
 
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            2. Botunuz Ne Zaman Otomatik Çalışsın?
+                          </label>
+                          <select
+                            value={agentScheduleCron}
+                            onChange={(e) => setAgentScheduleCron(e.target.value)}
+                            className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-xs text-slate-900 dark:text-white font-medium"
+                          >
+                            <option value="">🔘 Sadece Ben İstediğimde (Panelden veya Telegram'dan tetikleyince)</option>
+                            <option value="0 9 * * *">🌅 Her Sabah Saat 09:00'da (Günlük Sabah Özeti)</option>
+                            <option value="0 * * * *">⏰ Her Saat Başı (Canlı Piyasa & Kritik Takip)</option>
+                            <option value="*/30 * * * *">⚡ Her 30 Dakikada Bir (Anlık Haber & Fırsat Radarı)</option>
+                            <option value="0 9 * * 1">📅 Her Pazartesi Sabah 09:00'da (Haftalık Strateji Raporu)</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
 
-                    {/* Zamanlayıcı (Cron) */}
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-gray-300 mb-1">
-                        Otomatik Zamanlayıcı (Cron)
-                      </label>
-                      <select
-                        value={agentScheduleCron}
-                        onChange={(e) => setAgentScheduleCron(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 dark:text-white"
-                      >
-                        <option value="">Manuel / Sadece Telegram veya Panelden Tetiklendiğinde</option>
-                        <option value="*/30 * * * *">Her 30 Dakikada Bir Otomatik Çalıştır (*/30 * * * *)</option>
-                        <option value="0 * * * *">Her Saat Başı Otomatik Çalıştır (0 * * * *)</option>
-                        <option value="0 9 * * *">Her Sabah Saat 09:00'da Günlük Rapor Gönder (0 9 * * *)</option>
-                        <option value="0 9 * * 1">Her Pazartesi 09:00'da Haftalık Rapor (0 9 * * 1)</option>
-                      </select>
-                    </div>
+                    {/* ADIM 4: ZEKA DÜZEYİ & ONAY */}
+                    {wizardStep === 4 && (
+                      <div className="space-y-5 animate-in fade-in">
+                        <div className="space-y-3">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            1. Botunuzun Zeka & Güç Düzeyini Seçin
+                          </label>
 
-                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-gray-800">
-                      <button
-                        type="button"
-                        onClick={() => setShowAgentModal(false)}
-                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-gray-800 text-xs font-bold text-slate-700 dark:text-gray-300"
-                      >
-                        İptal
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20"
-                      >
-                        {editingAgent ? "Değişiklikleri Kaydet" : "Botu Oluştur & Başlat"}
-                      </button>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {[
+                              {
+                                id: "amazon.nova-micro-v1:0",
+                                icon: "⚡",
+                                title: "Süper Hızlı & Bütçe Dostu",
+                                modelName: "Amazon Nova Micro",
+                                desc: "Rutin haber özetleri ve hatırlatıcılar için harikadır. Neredeyse tamamen ücretsizdir.",
+                                badge: "Önerilen"
+                              },
+                              {
+                                id: "anthropic.claude-3-5-haiku-20241022-v1:0",
+                                icon: "🚀",
+                                title: "Akıllı & Becerikli",
+                                modelName: "Claude 3.5 Haiku",
+                                desc: "Soru-cevap, müşteri desteği ve akıllı metin üretimi için mükemmel dengeli zeka.",
+                                badge: "Popüler"
+                              },
+                              {
+                                id: "anthropic.claude-3-7-sonnet-20250219-v1:0",
+                                icon: "🧠",
+                                title: "Üst Düzey Dahi",
+                                modelName: "Claude 3.7 Sonnet",
+                                desc: "Karmaşık mantık yürütme, derin veri analizi ve kodlama için en güçlü beyin.",
+                                badge: "İleri Seviye"
+                              }
+                            ].map((m) => (
+                              <div
+                                key={m.id}
+                                onClick={() => setNewAgentModel(m.id)}
+                                className={`p-4 rounded-2xl border cursor-pointer transition flex flex-col justify-between space-y-2 ${
+                                  newAgentModel === m.id
+                                    ? "bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-600 ring-2 ring-indigo-600/30 text-indigo-950 dark:text-white"
+                                    : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 hover:border-slate-300 dark:hover:border-gray-700"
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xl">{m.icon}</span>
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
+                                      {m.badge}
+                                    </span>
+                                  </div>
+                                  <div className="font-bold text-xs text-slate-900 dark:text-white">{m.title}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">{m.modelName}</div>
+                                </div>
+                                <p className="text-[11px] text-slate-500 dark:text-gray-400 leading-relaxed">
+                                  {m.desc}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Bot Özeti Önizleme */}
+                        <div className="p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 space-y-2 text-xs">
+                          <div className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <span>✨ Hazırlanan Asistan Özeti:</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-gray-400">
+                            <div><strong>Adı:</strong> {newAgentName || "İsimsiz Asistan"}</div>
+                            <div><strong>İkon:</strong> {newAgentIcon}</div>
+                            <div><strong>Web Arama:</strong> {agentWebSearchTool ? "✅ Açık" : "❌ Kapalı"}</div>
+                            <div><strong>Telegram:</strong> {agentTelegramTool ? "✅ Açık" : "❌ Kapalı"}</div>
+                            <div className="col-span-2"><strong>Çalışma Zamanı:</strong> {agentScheduleCron ? agentScheduleCron : "Sadece İstenildiğinde"}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Gezinme Butonları (Geri / İleri / Oluştur) */}
+                    <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-gray-800">
+                      <div>
+                        {wizardStep > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => setWizardStep((prev) => Math.max(1, prev - 1))}
+                            className="px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-gray-800 hover:bg-slate-200 dark:hover:bg-gray-700 text-xs font-bold text-slate-700 dark:text-gray-300 transition flex items-center gap-1.5"
+                          >
+                            <span>← Geri</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowAgentModal(false)}
+                            className="px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-gray-800 text-xs font-bold text-slate-700 dark:text-gray-300 hover:bg-slate-200 dark:hover:bg-gray-700 transition"
+                          >
+                            İptal
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {wizardStep < 4 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (wizardStep === 1 && !newAgentName.trim()) {
+                                alert("Lütfen botunuza bir isim verin.");
+                                return;
+                              }
+                              setWizardStep((prev) => Math.min(4, prev + 1));
+                            }}
+                            className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5"
+                          >
+                            <span>İleri Adım →</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="submit"
+                            className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:opacity-90 text-white text-xs font-black shadow-lg shadow-indigo-600/30 transition flex items-center gap-2"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            <span>{editingAgent ? "Değişiklikleri Kaydet" : "✨ Asistanı Hayata Geçir (Oluştur)"}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </form>
                 </div>
               </div>
             )}
+
 
           </div>
         )}
