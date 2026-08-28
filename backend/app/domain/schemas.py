@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional, Dict, Any, Union, Literal
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 import uuid
 
 
@@ -47,6 +47,8 @@ class TokenResponse(BaseModel):
 
 
 class UserProfileResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     email: str
     full_name: Optional[str] = None
@@ -57,9 +59,6 @@ class UserProfileResponse(BaseModel):
     role: str
     mfa_enabled: bool
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class MFASetupResponse(BaseModel):
@@ -110,6 +109,8 @@ class ApiKeyCreatedResponse(BaseModel):
 
 
 class ApiKeyListItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     name: str
     prefix: str
@@ -121,23 +122,21 @@ class ApiKeyListItem(BaseModel):
     last_used_at: Optional[datetime]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 # ==========================================
 # Wallet & Billing Schemas
 # ==========================================
 class WalletResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     balance_usd: Decimal
     currency: str = "USD"
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class WalletTransactionItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     amount_usd: Decimal
     type: str
@@ -145,9 +144,6 @@ class WalletTransactionItem(BaseModel):
     reference_id: Optional[str]
     description: Optional[str]
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class CreditPackageItem(BaseModel):
@@ -173,6 +169,8 @@ class CheckoutSessionResponse(BaseModel):
 # Model Catalog Schemas
 # ==========================================
 class ModelPricingSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     provider_input_price_per_1k: Decimal
     provider_output_price_per_1k: Decimal
     customer_input_price_per_1k: Decimal
@@ -180,11 +178,10 @@ class ModelPricingSchema(BaseModel):
     margin_percent: Decimal
     per_image_charge_usd: Decimal
 
-    class Config:
-        from_attributes = True
-
 
 class ModelCatalogItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: uuid.UUID
     model_id: str
     provider: str
@@ -195,9 +192,6 @@ class ModelCatalogItem(BaseModel):
     is_enabled: bool
     capabilities: Dict[str, Any]
     pricing: Optional[ModelPricingSchema]
-
-    class Config:
-        from_attributes = True
 
 
 # ==========================================

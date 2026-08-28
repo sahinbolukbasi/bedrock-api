@@ -197,9 +197,11 @@ export default function ChatInputDock({
       setIsRecording(true);
       // Simulate speech recognition transcription placeholder
       setTimeout(() => {
-        setInputPrompt((prev) => (prev ? `${prev} AWS Bedrock modellerini karşılaştır.` : "AWS Bedrock modellerini karşılaştır."));
+        const appended = inputPrompt ? `${inputPrompt} AWS Bedrock modellerini karşılaştır.` : "AWS Bedrock modellerini karşılaştır.";
+        setInputPrompt(appended);
         setIsRecording(false);
       }, 3000);
+
     }
   };
 
