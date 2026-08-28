@@ -1,12 +1,18 @@
 global:
   scrape_interval: 5s
   evaluation_interval: 5s
+  scrape_timeout: 4s
 
 scrape_configs:
   - job_name: "bedrock-gateway-api"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:80", "127.0.0.1:8000", "backend:8000"]
+      - targets:
+          - "host.docker.internal:8000"
+          - "bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:80"
+          - "127.0.0.1:8000"
+          - "backend:8000"
         labels:
           environment: "production"
           service: "bedrock-gateway-backend"
+
