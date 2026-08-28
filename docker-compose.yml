@@ -66,12 +66,38 @@ services:
     container_name: bedrock_frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: http://backend:8000
     ports:
       - "3000:3000"
+    depends_on:
+      - backend
+
+  telegram_bot:
+    build:
+      context: ./telegram_bot
+      dockerfile: Dockerfile
+    container_name: bedrock_telegram_bot
+    restart: unless-stopped
+    environment:
+      API_BASE_URL: http://backend:8000
+      AWS_REGION: us-east-1
+      SECRET_ID: bedrock-gateway-secrets-prod
+    depends_on:
+      - backend
+
+  monitoring:
+    build:
+      context: ./monitoring
+      dockerfile: Dockerfile
+    container_name: bedrock_monitoring
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+      - "9090:9090"
     depends_on:
       - backend
 
 volumes:
   pgdata:
   redisdata:
+
