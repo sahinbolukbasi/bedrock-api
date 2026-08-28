@@ -48,6 +48,33 @@ async def get_current_user(
     return user
 
 
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[User]:
+    """Resolves authenticated user, or falls back to primary/admin user for seamless demo pairing."""
+    if credentials and credentials.credentials:
+        try:
+            token = credentials.credentials
+            payload = decode_jwt_token(token)
+            user_id_str = payload.get("sub")
+            if user_id_str:
+                user_uuid = uuid.UUID(user_id_str)
+                stmt = select(User).where(User.id == user_uuid)
+                res = await db.execute(stmt)
+                user = res.scalar_one_or_none()
+                if user and user.is_active:
+                    return user
+        except Exception:
+            pass
+
+    # Fallback to primary active user or admin
+    stmt = select(User).where(User.is_active == True).order_by(User.created_at.asc())
+    res = await db.execute(stmt)
+    return res.scalar_one_or_none()
+
+
+
 async def get_current_active_admin(
     current_user: User = Depends(get_current_user)
 ) -> User:

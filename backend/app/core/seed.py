@@ -433,86 +433,80 @@ INITIAL_MODELS = [
 
 async def seed_database():
     try:
-        async with asyncio.timeout(5.0):
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-            async with AsyncSessionLocal() as db:
-                # Seed Admin User
-                admin_stmt = select(User).where(User.email == settings.ADMIN_EMAIL)
-                admin_res = await db.execute(admin_stmt)
-                admin_user = admin_res.scalar_one_or_none()
-    except Exception as e:
-        logger.warning(f"Database connection / seed note: {e}. Running with cached state.")
-        return
+        async with AsyncSessionLocal() as db:
+            # Seed Admin User
+            admin_stmt = select(User).where(User.email == settings.ADMIN_EMAIL)
+            admin_res = await db.execute(admin_stmt)
+            admin_user = admin_res.scalar_one_or_none()
 
-
-        if not admin_user:
-            admin_user = User(
-                email=settings.ADMIN_EMAIL,
-                hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
-                full_name="Platform Super Admin",
-                role="admin",
-                is_active=True,
-                is_verified=True
-            )
-            db.add(admin_user)
-            await db.flush()
-
-            admin_wallet = Wallet(user_id=admin_user.id, balance_usd=Decimal("1000.000000"))
-            db.add(admin_wallet)
-            logger.info(f"Created admin user: {settings.ADMIN_EMAIL}")
-        else:
-            # Sync admin password and active status on every startup
-            admin_user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
-            admin_user.role = "admin"
-            admin_user.is_active = True
-            admin_user.is_verified = True
-            logger.info(f"Synchronized admin user credentials for: {settings.ADMIN_EMAIL}")
-
-        # Seed Models & Pricing
-        for m_data in INITIAL_MODELS:
-            stmt = select(ModelCatalog).where(ModelCatalog.model_id == m_data["model_id"])
-            res = await db.execute(stmt)
-            model_obj = res.scalar_one_or_none()
-
-            if not model_obj:
-                model_obj = ModelCatalog(
-                    model_id=m_data["model_id"],
-                    name=m_data["name"],
-                    display_name=m_data["display_name"],
-                    provider=m_data["provider"],
-                    type=m_data["type"],
-                    context_window=m_data["context_window"],
-                    capabilities=m_data["capabilities"],
-                    is_enabled=True,
-                    region=settings.AWS_REGION
+            if not admin_user:
+                admin_user = User(
+                    email=settings.ADMIN_EMAIL,
+                    hashed_password=get_password_hash(settings.ADMIN_PASSWORD),
+                    full_name="Platform Super Admin",
+                    role="admin",
+                    is_active=True,
+                    is_verified=True
                 )
-                db.add(model_obj)
+                db.add(admin_user)
                 await db.flush()
 
-                p_data = m_data["pricing"]
-                pricing_obj = ModelPricing(
-                    model_id=model_obj.id,
-                    provider_input_price_per_1k=p_data["provider_in"],
-                    provider_output_price_per_1k=p_data["provider_out"],
-                    customer_input_price_per_1k=p_data["customer_in"],
-                    customer_output_price_per_1k=p_data["customer_out"],
-                    margin_percent=p_data["margin"],
-                    per_image_cost_usd=p_data.get("per_image_cost", Decimal("0.04")),
-                    per_image_charge_usd=p_data.get("per_image_charge", Decimal("0.05"))
-                )
-                db.add(pricing_obj)
-                logger.info(f"Seeded model: {m_data['display_name']}")
+                admin_wallet = Wallet(user_id=admin_user.id, balance_usd=Decimal("1000.000000"))
+                db.add(admin_wallet)
+                logger.info(f"Created admin user: {settings.ADMIN_EMAIL}")
             else:
-                # Update display name and capabilities if changed
-                model_obj.display_name = m_data["display_name"]
-                model_obj.capabilities = m_data["capabilities"]
-                model_obj.context_window = m_data["context_window"]
+                admin_user.hashed_password = get_password_hash(settings.ADMIN_PASSWORD)
+                admin_user.role = "admin"
+                admin_user.is_active = True
+                admin_user.is_verified = True
 
-        await db.commit()
-        logger.info("Database seeding completed successfully.")
+            # Seed Models & Pricing
+            for m_data in INITIAL_MODELS:
+                stmt = select(ModelCatalog).where(ModelCatalog.model_id == m_data["model_id"])
+                res = await db.execute(stmt)
+                model_obj = res.scalar_one_or_none()
+
+                if not model_obj:
+                    model_obj = ModelCatalog(
+                        model_id=m_data["model_id"],
+                        name=m_data["name"],
+                        display_name=m_data["display_name"],
+                        provider=m_data["provider"],
+                        type=m_data["type"],
+                        context_window=m_data["context_window"],
+                        capabilities=m_data["capabilities"],
+                        is_enabled=True,
+                        region=settings.AWS_REGION
+                    )
+                    db.add(model_obj)
+                    await db.flush()
+
+                    p_data = m_data["pricing"]
+                    pricing_obj = ModelPricing(
+                        model_id=model_obj.id,
+                        provider_input_price_per_1k=p_data["provider_in"],
+                        provider_output_price_per_1k=p_data["provider_out"],
+                        customer_input_price_per_1k=p_data["customer_in"],
+                        customer_output_price_per_1k=p_data["customer_out"],
+                        margin_percent=p_data["margin"],
+                        per_image_cost_usd=p_data.get("per_image_cost", Decimal("0.04")),
+                        per_image_charge_usd=p_data.get("per_image_charge", Decimal("0.05"))
+                    )
+                    db.add(pricing_obj)
+                else:
+                    model_obj.display_name = m_data["display_name"]
+                    model_obj.capabilities = m_data["capabilities"]
+                    model_obj.context_window = m_data["context_window"]
+
+            await db.commit()
+            logger.info("Database seeding completed successfully.")
+    except Exception as e:
+        logger.warning(f"Database seed note: {e}")
 
 
 if __name__ == "__main__":
     asyncio.run(seed_database())
+

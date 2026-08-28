@@ -8,17 +8,19 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   async rewrites() {
+    const backendUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
     return [
       {
         source: "/api/:path*",
-        destination: "http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com/api/:path*",
+        destination: `${backendUrl}/api/:path*`,
       },
       {
         source: "/v1/:path*",
-        destination: "http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com/v1/:path*",
+        destination: `${backendUrl}/v1/:path*`,
       },
     ];
   },
 };
 
 module.exports = nextConfig;
+
