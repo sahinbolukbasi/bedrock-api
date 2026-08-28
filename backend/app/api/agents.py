@@ -364,17 +364,16 @@ async def get_telegram_status(
 ):
     """
     Returns current Telegram connection status, chat ID, username, and active pairing code.
-    Always generates a valid pairing code even in demo / initial launch state.
+    Always generates and returns an active pairing code and direct 1-click deep link.
     """
     if not current_user:
-        # Resolve or create demo/guest user
         u_stmt = select(User).where(User.is_active == True).limit(1)
         res = await db.execute(u_stmt)
         current_user = res.scalar_one_or_none()
 
     if current_user:
         pairing_code = current_user.telegram_pairing_code
-        if not pairing_code and not current_user.telegram_chat_id:
+        if not pairing_code:
             pairing_code = await TelegramBotService.generate_pairing_code(current_user.id, db)
 
         return {
@@ -383,7 +382,7 @@ async def get_telegram_status(
             "username": current_user.telegram_username,
             "pairing_code": pairing_code,
             "bot_username": DEFAULT_TELEGRAM_BOT_USERNAME,
-            "deep_link": f"https://t.me/{DEFAULT_TELEGRAM_BOT_USERNAME}?start={pairing_code}" if pairing_code else f"https://t.me/{DEFAULT_TELEGRAM_BOT_USERNAME}"
+            "deep_link": f"https://t.me/{DEFAULT_TELEGRAM_BOT_USERNAME}?start={pairing_code}"
         }
 
     # Fallback pairing code
@@ -419,17 +418,31 @@ async def generate_telegram_pairing_code(
     }
 
 
-
 @router.post("/telegram/disconnect")
 async def disconnect_telegram(
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_user),
     db: AsyncSession = Depends(get_db)
 ):
-    current_user.telegram_chat_id = None
-    current_user.telegram_username = None
-    current_user.telegram_pairing_code = None
-    await db.commit()
-    return {"message": "Telegram connection removed successfully"}
+    if not current_user:
+        u_stmt = select(User).where(User.is_active == True).order_by(User.created_at.asc()).limit(1)
+        res = await db.execute(u_stmt)
+        current_user = res.scalars().first()
+
+    if current_user:
+        current_user.telegram_chat_id = None
+        current_user.telegram_username = None
+        new_code = await TelegramBotService.generate_pairing_code(current_user.id, db)
+    else:
+        new_code = "TG-" + "".join(random.choices(string.digits, k=6))
+
+    return {
+        "message": "Telegram bağlantısı sıfırlandı. Yeni eşleştirme kodu oluşturuldu.",
+        "pairing_code": new_code,
+        "deep_link": f"https://t.me/{DEFAULT_TELEGRAM_BOT_USERNAME}?start={new_code}",
+        "is_connected": False
+    }
+
+
 
 
 @router.post("/telegram/test")

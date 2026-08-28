@@ -69,9 +69,10 @@ async def get_optional_user(
             pass
 
     # Fallback to primary active user or admin
-    stmt = select(User).where(User.is_active == True).order_by(User.created_at.asc())
+    stmt = select(User).where(User.is_active == True).order_by(User.created_at.asc()).limit(1)
     res = await db.execute(stmt)
-    return res.scalar_one_or_none()
+    return res.scalars().first()
+
 
 
 

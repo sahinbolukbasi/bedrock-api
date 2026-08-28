@@ -618,7 +618,11 @@ export default function RootPage() {
   const handleGenerateNewTelegramCode = async () => {
     try {
       const data = await fetchApi("/api/agents/telegram/generate-code", { method: "POST" });
-      setTelegramStatus((prev: any) => ({ ...prev, pairing_code: data.pairing_code, deep_link: data.deep_link }));
+      setTelegramStatus((prev: any) => ({ 
+        ...prev, 
+        pairing_code: data.pairing_code, 
+        deep_link: data.deep_link || `https://t.me/BedrocksAiBot?start=${data.pairing_code}` 
+      }));
     } catch (err: any) {
       alert(err.message || "Eşleştirme kodu üretilemedi.");
     }
@@ -627,12 +631,20 @@ export default function RootPage() {
   const handleDisconnectTelegram = async () => {
     if (!confirm("Telegram bağlantısını kaldırmak istediğinize emin misiniz?")) return;
     try {
-      await fetchApi("/api/agents/telegram/disconnect", { method: "POST" });
-      loadTelegramStatus();
+      const data = await fetchApi("/api/agents/telegram/disconnect", { method: "POST" });
+      setTelegramStatus({
+        is_connected: false,
+        chat_id: null,
+        username: null,
+        pairing_code: data.pairing_code,
+        bot_username: "BedrocksAiBot",
+        deep_link: data.deep_link || `https://t.me/BedrocksAiBot?start=${data.pairing_code}`
+      });
     } catch (err: any) {
       alert(err.message || "Bağlantı kaldırılamadı.");
     }
   };
+
 
   const handleTestTelegram = async () => {
     setTelegramTestStatus(null);
@@ -2787,12 +2799,12 @@ export default function RootPage() {
                         onClick={handleDisconnectTelegram}
                         className="px-3 py-2 rounded-xl bg-red-600/30 hover:bg-red-600/50 text-red-300 text-xs font-bold transition border border-red-500/30"
                       >
-                        Bağlantıyı Kes
+                        Bağlantıyı Kes & Yenile
                       </button>
                     </div>
                   ) : (
                     <a
-                      href={telegramStatus?.deep_link || `https://t.me/${telegramStatus?.bot_username || "BedrockGatewayBot"}?start=${telegramStatus?.pairing_code || ""}`}
+                      href={telegramStatus?.deep_link || `https://t.me/${telegramStatus?.bot_username || "BedrocksAiBot"}?start=${telegramStatus?.pairing_code || ""}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 rounded-xl bg-blue-500 hover:bg-blue-400 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-blue-500/30"
@@ -2832,7 +2844,7 @@ export default function RootPage() {
                   </div>
                   <div>
                     <span className="text-blue-300/70 text-[11px] block font-medium">Bot Kullanıcı Adı</span>
-                    <span className="font-mono font-bold text-blue-300 text-xs">@{telegramStatus.bot_username || "BedrockGatewayBot"}</span>
+                    <span className="font-mono font-bold text-blue-300 text-xs">@{telegramStatus.bot_username || "BedrocksAiBot"}</span>
                   </div>
                 </div>
               ) : (
@@ -2857,7 +2869,7 @@ export default function RootPage() {
                     <button
                       type="button"
                       onClick={handleGenerateNewTelegramCode}
-                      className="text-[10px] text-blue-300 hover:text-blue-200 underline"
+                      className="text-[10px] text-blue-300 hover:text-blue-200 underline font-semibold"
                     >
                       Yeni Kod Üret
                     </button>
@@ -2870,10 +2882,10 @@ export default function RootPage() {
                       <span>Botu Başlatın</span>
                     </div>
                     <p className="text-[11px] text-gray-300 leading-relaxed">
-                      Telegram'da <strong>@{telegramStatus?.bot_username || "BedrockGatewayBot"}</strong> botunu açıp <strong>Başlat (Start)</strong> butonuna tıklayın.
+                      Telegram'da <strong>@{telegramStatus?.bot_username || "BedrocksAiBot"}</strong> botunu açıp <strong>Başlat (Start)</strong> butonuna tıklayın.
                     </p>
                     <a
-                      href={`https://t.me/${telegramStatus?.bot_username || "BedrockGatewayBot"}`}
+                      href={`https://t.me/${telegramStatus?.bot_username || "BedrocksAiBot"}?start=${telegramStatus?.pairing_code || ""}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-[11px] text-indigo-300 hover:text-indigo-200 font-bold"
@@ -2889,11 +2901,12 @@ export default function RootPage() {
                       <span>Kodu Gönderin</span>
                     </div>
                     <p className="text-[11px] text-gray-300 leading-relaxed">
-                      Bota <code>/pair {telegramStatus?.pairing_code || "TG-XXXXXX"}</code> mesajını gönderin. Hesabınız anında eşleşecektir.
+                      Bota <code>/pair {telegramStatus?.pairing_code || "TG-XXXXXX"}</code> mesajını gönderin veya yukarıdaki otomatik bağlama linkini kullanın.
                     </p>
                   </div>
                 </div>
               )}
+
             </div>
 
             {/* ============================================================= */}
