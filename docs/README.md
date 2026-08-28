@@ -1,33 +1,53 @@
-# 📚 AWS Bedrock AI Gateway — Master Documentation & LLM Guide
+# 📚 AWS Bedrock AI Gateway — Ana Teknik Dokümantasyon Portalı
 
-Bu dizin, **AWS Bedrock AI Gateway Platformu** için tüm teknik mimariyi, AWS kaynak kataloğunu, API uç noktalarını, otonom ajan motorunu, izleme stack'ini ve yapay zeka geliştiricileri için el kitabını barındırır.
-
----
-
-## 🧭 Dokümantasyon Modülleri
-
-| Doküman | İçerik & Amaç |
-| 🚀 **[DEVELOPER_ONBOARDING.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DEVELOPER_ONBOARDING.md)** | **Yeni Yazılımcı & DevOps için 5 dakikada hızlı başlangıç, mimari ve geliştirme kuralları** |
-| 🤖 **[AI_AGENT_PLAYBOOK.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AI_AGENT_PLAYBOOK.md)** | **Yapay zeka ajanları & LLM'ler için sistemi bozmadan müdahale etme el kitabı** |
-| 🌐 **[AWS_RESOURCE_CATALOG.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AWS_RESOURCE_CATALOG.md)** | Resource Group (`bedrock-gateway-production-resources`), 36+ AWS kaynağının ARN ve ID haritası |
-| 🏛️ **[ARCHITECTURE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/ARCHITECTURE.md)** | ECS Fargate, ALB, RDS, ElastiCache, Secrets Manager ve Bedrock uçtan uca mimarisi |
-
-| 📱 **[TELEGRAM_AND_AUTONOMOUS_BOTS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/TELEGRAM_AND_AUTONOMOUS_BOTS.md)** | Telegram Botu (`@BedrocksAiBot`), Cron Scheduler, SNS SMS & SES Mail, Öğrenen Bellek Cache |
-| 📡 **[API_REFERENCE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/API_REFERENCE.md)** | OpenAI uyumlu `/v1/chat/completions`, `/v1/models` ve Gateway yönetim API uç noktaları |
-| 🗄️ **[DATABASE_SCHEMA.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DATABASE_SCHEMA.md)** | RDS PostgreSQL entity modelleri, ilişkiler, indeksler ve Redis anahtar yapısı |
-| 📊 **[MONITORING_AND_LOGS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/MONITORING_AND_LOGS.md)** | Grafana Dashboard, Prometheus metrikleri ve CloudWatch logları |
-| 🚀 **[DEPLOYMENT.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DEPLOYMENT.md)** | Terraform altyapı kurulumu, ECR build & push, ECS rolling deployment |
-| 🔒 **[SECURITY.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/SECURITY.md)** | IAM least-privilege, API key hashleme, Redis token-bucket rate limiter, WAF |
-| 🛠️ **[TROUBLESHOOTING.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/TROUBLESHOOTING.md)** | 502 Bad Gateway, CloudWatch log akışları, Bedrock kota aşımı çözüm rehberi |
+Bu portal; **AWS Bedrock AI Gateway**, **Otonom Agent Platformu**, **Bulut Altyapısı (AWS ECS Fargate / RDS / Redis)** ve **DevOps CI/CD Mimarisi** için tek ve kesin teknik referans kaynağıdır.
 
 ---
 
-## ⚡ Canlı Sistem Bilgileri
+## ⚡ 1. Canlı Sistem & Erişim Noktaları Tablosu
 
-* **Web Konsolu & Portalı:** `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com`
-* **API Ağ Geçidi:** `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000` (veya port 80 üzerinden `/api/*`, `/v1/*`)
-* **Telegram Botu:** `@BedrocksAiBot` ([https://t.me/BedrocksAiBot](https://t.me/BedrocksAiBot))
-* **AWS Bölgesi:** `us-east-1` (N. Virginia)
-* **AWS Resource Group:** `bedrock-gateway-production-resources`
-* **Admin Hesabı:** `admin@bedrockgateway.com` / `AdminPassword123!`
-* **AWS Secrets Manager:** `bedrock-gateway-secrets-prod`
+| Servis / Katman | Canlı Erişim Adresi | Port | Konteyner / AWS Servisi |
+| :--- | :--- | :---: | :--- |
+| 🎨 **Frontend Web Portalı** | `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com` | `3000` (ALB: 80) | AWS ECS Fargate: `bedrock-gateway-frontend-svc` |
+| ⚙️ **Backend API Servisi** | `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:8000` | `8000` | AWS ECS Fargate: `bedrock-gateway-backend-svc` |
+| 📖 **Swagger / OpenAPI** | `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com/docs` | `8000` | FastAPI Interactive Swagger UI |
+| 📊 **Grafana Canlı İzleme** | `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:3001` | `3001` | AWS ECS Fargate: `bedrock-gateway-monitoring-svc` |
+| 📈 **Prometheus Metrikleri**| `http://bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com/metrics` | `8000` | Prometheus Scrape Endpoint |
+| 📱 **Telegram Asistan Botu**| `https://t.me/BedrocksAiBot` (`@BedrocksAiBot`) | Polling | AWS ECS Fargate: `bedrock-gateway-telegram-svc` |
+| 🗄️ **RDS PostgreSQL DB** | `bedrock-gateway-db.cobqqmqcs7xh.us-east-1.rds.amazonaws.com` | `5432` | AWS RDS PostgreSQL 16 (Multi-AZ VPC) |
+| ⚡ **ElastiCache Redis** | `bedrock-gateway-redis.hmoplf.0001.use1.cache.amazonaws.com` | `6379` | AWS ElastiCache Redis Cluster |
+| 🔐 **AWS Secrets Manager** | `bedrock-gateway-secrets-prod` | API | AWS Secrets Manager (us-east-1) |
+| 📝 **CloudWatch Log Grubu** | `/ecs/bedrock-gateway` | AWS CLI | AWS CloudWatch Log Streams |
+
+---
+
+## 🧭 2. Dokümantasyon Modülleri İndeksi
+
+```mermaid
+graph TD
+    Root[docs/ Master Portal] --> Arch[ARCHITECTURE.md<br/>Uçtan Uca Sistem & Ağ Mimarisi]
+    Root --> Catalog[AWS_RESOURCE_CATALOG.md<br/>36+ AWS Kaynağının ARN & ID Haritası]
+    Root --> Deploy[DEPLOYMENT.md<br/>5 Path-Based Micro-CI/CD & GitOps]
+    Root --> API[API_REFERENCE.md<br/>Eksiksiz REST API & OpenAI /v1]
+    Root --> DB[DATABASE_SCHEMA.md<br/>PostgreSQL Tabloları & Redis Anahtarları]
+    Root --> Monitor[MONITORING_AND_LOGS.md<br/>Grafana Dashboards & PromQL Metrikleri]
+    Root --> Security[SECURITY.md<br/>Guardrails, PII Filtreleme & DevSecOps]
+    Root --> Bot[TELEGRAM_AND_AUTONOMOUS_BOTS.md<br/>Telegram Stateful Engine & Cron]
+    Root --> Agent[AI_AGENT_PLAYBOOK.md<br/>ReAct Muhakeme & Yaşayan Agent IQ]
+    Root --> Onboarding[DEVELOPER_ONBOARDING.md<br/>Yazılımcı & DevOps Hızlı Başlangıç]
+    Root --> Debug[TROUBLESHOOTING.md<br/>Hata Çözüm & Olay Müdahale Rehberi]
+```
+
+| Doküman | Teknik Kapsam & İçerik |
+| :--- | :--- |
+| 🏛️ **[ARCHITECTURE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/ARCHITECTURE.md)** | AWS ECS Fargate, ALB, Multi-AZ VPC, 10 Bileşenli Agent Motoru, 3-Katmanlı Hafıza, Local RAG, Stateful MCP. |
+| 🌐 **[AWS_RESOURCE_CATALOG.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AWS_RESOURCE_CATALOG.md)** | Resource Group, Tüm ARN'ler, Security Group ID'leri, Bedrock Model ID'leri ve Fiyatlandırma. |
+| 🚀 **[DEPLOYMENT.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DEPLOYMENT.md)** | 5 Path-Based CI/CD Workflow (`backend`, `frontend`, `telegram`, `monitoring`, `infra`), Main-only deploy, Terraform IaC. |
+| 📡 **[API_REFERENCE.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/API_REFERENCE.md)** | OpenAI uyumlu `/v1/chat/completions`, `/api/agents`, `/api/agents/{id}/knowledge`, API Keys, Wallet. |
+| 🗄️ **[DATABASE_SCHEMA.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DATABASE_SCHEMA.md)** | SQLAlchemy Asyncpg PostgreSQL entity modelleri, DDL şeması, Foreign Key'ler ve Redis Token Bucket anahtarları. |
+| 📊 **[MONITORING_AND_LOGS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/MONITORING_AND_LOGS.md)** | Grafana `:3001` Canlı Paneli, Prometheus Scrape konfigürasyonu, PromQL sorguları, CloudWatch Log okuma. |
+| 🔒 **[SECURITY.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/SECURITY.md)** | Bedrock Guardrails (PII Maskeleme & Prompt Injection Koruması), AWS Secrets Manager, Gitleaks, SigV4. |
+| 📱 **[TELEGRAM_AND_AUTONOMOUS_BOTS.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/TELEGRAM_AND_AUTONOMOUS_BOTS.md)** | Telegram Bot Worker (`@BedrocksAiBot`), Eşleştirme Kodları (`TG-XXXXXX`), Cron Zamanlayıcı. |
+| 🤖 **[AI_AGENT_PLAYBOOK.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/AI_AGENT_PLAYBOOK.md)** | ReAct Muhakeme & Self-Reflection, Living Agent IQ (Lv 1-4), Maliyetsiz Yerel Vektör RAG motoru. |
+| 🚀 **[DEVELOPER_ONBOARDING.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/DEVELOPER_ONBOARDING.md)** | 5 dakikada yerel kurulum, Docker Compose, 37 Pytest testi, GitOps PR kuralları. |
+| 🛠️ **[TROUBLESHOOTING.md](file:///Users/sahinbolukbasi/Development/bedrock/docs/TROUBLESHOOTING.md)** | 502 Bad Gateway, ECS Task çökme teşhisi, Redis bağlantı hataları, Bedrock kota aşım runbook'u. |

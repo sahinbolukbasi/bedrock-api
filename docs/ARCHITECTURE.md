@@ -1,102 +1,106 @@
-# Bedrock AI Gateway & Otonom Agent Sistem Mimarisi
+# 🏛️ Sistem & Bulut Mimarisi (End-to-End System Architecture)
 
-Bu doküman; **AWS Bedrock AI Gateway**, **10 Temel Mimari Bileşenli Otonom Agent Motoru**, **Mem0 Standardı Semantik Hafıza Grafı**, **Maliyetsiz Yerel Vektör RAG**, **Büyüyen Ajan (Living Agent IQ & Evolution)** ve **Stateful MCP Server** katmanlarının teknik mimarisini detaylandırmaktadır.
+Bu doküman; **AWS Bedrock AI Gateway**, **Otonom Agent Motoru** ve **AWS Bulut Altyapısı**'nın uçtan uca teknik mimarisini, veri akışını, ağ topolojisini ve güvenlik sınırlarını detaylandırmaktadır.
 
 ---
 
-## 🏛️ 1. Genel Sistem Mimarisi & Veri Akışı
+## ☁️ 1. AWS Bulut Altyapı Topolojisi (VPC & Container Architecture)
 
 ```mermaid
 flowchart TD
-    subgraph ClientChannels [Kullanıcı & İstemci Kanalları]
-        Web[💻 Frontier Chat Studio - Next.js 14]
-        TG[📱 Telegram Çift Yönlü Asistan Botu]
-        API[🔌 OpenAI Uyumlu REST API /v1/chat/completions]
+    subgraph InternetLayer [Genel İnternet & İstemciler]
+        WebUsers[💻 Web Kullanıcıları]
+        TelegramClients[📱 Telegram Kullanıcıları]
+        APICallers[🔌 REST API & SDK İstemcileri]
     end
 
-    subgraph SecurityGate [🛡️ Güvenlik, Kimlik & Guardrails]
-        Auth[JWT & API Key Doğrulama + Rate Limiter]
-        Guardrails[AWS Bedrock Guardrails: PII Maskeleme & Prompt Injection Koruması]
+    subgraph AWSVPC [AWS Production VPC - us-east-1]
+        subgraph PublicSubnets [Public Subnets - Multi-AZ]
+            ALB["AWS Application Load Balancer (ALB)<br/>bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com<br/>• Port 80/443: Web & API<br/>• Port 3001: Grafana Canlı İzleme"]
+        end
+
+        subgraph PrivateAppSubnets [Private App Subnets - ECS Fargate Kümesi]
+            FrontendSvc["🎨 Frontend Service (Port: 3000)<br/>Next.js 14 App Router"]
+            BackendSvc["⚙️ Backend Service (Port: 8000)<br/>FastAPI Asenkron Motoru + RAG"]
+            TelegramSvc["📱 Telegram Worker Service<br/>Stateful Polling Engine"]
+            MonitoringSvc["📊 Monitoring Service (Port: 3000 / 9090)<br/>Grafana 10.4 + Prometheus"]
+        end
+
+        subgraph PrivateDataSubnets [Private Isolated Data Subnets]
+            RDSPostgres["🗄️ AWS RDS PostgreSQL 16 (Multi-AZ)<br/>bedrock-gateway-db.cobqqmqcs7xh.us-east-1.rds.amazonaws.com:5432"]
+            RedisCluster["⚡ AWS ElastiCache Redis Cluster<br/>bedrock-gateway-redis.hmoplf.0001.use1.cache.amazonaws.com:6379"]
+        end
     end
 
-    subgraph MemoryOptimization [🧠 3-Katmanlı Akıllı Hafıza & Semantik Fact Graph]
-        L1[Katman 1: Kısa Süreli / Sliding Window + Yuvarlanan Özet]
-        L2[Katman 2: Uzun Süreli / Mem0 Semantik Tercih & Fact Graph]
-        L3[Katman 3: Çalışma Hafızası / Scratchpad & Ara Planlar]
+    subgraph AWSSaaS [AWS Yönetilen Bulut & Güvenlik Servisleri]
+        BedrockService["🧠 AWS Bedrock Foundation Models<br/>• Claude 3.7 Sonnet, Claude 3.5 Haiku<br/>• Amazon Nova Micro, Titan Embeddings"]
+        GuardrailsService["🛡️ AWS Bedrock Guardrails<br/>PII Maskeleme & Prompt Injection Koruması"]
+        SecretsMgr["🔐 AWS Secrets Manager<br/>bedrock-gateway-secrets-prod"]
+        S3Corpus["📦 Amazon S3 Bucket<br/>bedrock-gateway-artifacts-prod"]
+        CloudWatchLogs["📝 Amazon CloudWatch Logs<br/>/ecs/bedrock-gateway"]
     end
 
-    subgraph LocalRAG [📚 Maliyetsiz Kişisel Vektör RAG Motoru]
-        Ingest[Web Scraper & REST API Chunking Motoru]
-        BM25[Yerel Hibrit BM25 / Cosine Benzerlik İndeksi]
-    end
+    InternetLayer --> ALB
+    ALB -->|/ & UI Sayfaları| FrontendSvc
+    ALB -->|/api/* , /v1/* , /docs| BackendSvc
+    ALB -->|:3001 İzleme| MonitoringSvc
+    TelegramClients <--> TelegramSvc
 
-    subgraph AgentReasoning [🎯 AWS Bedrock AgentCore & ReAct Muhakeme Motoru]
-        Converse[AWS Bedrock Converse API with Native toolConfig]
-        ReActLoop[ReAct Döngüsü: Thought ➔ Action ➔ Observation ➔ Reflection]
-        MCP[Stateful MCP Server: Oturum Bağlamı & Araç Yönetimi]
-    end
+    FrontendSvc <--> BackendSvc
+    TelegramSvc <--> BackendSvc
+    BackendSvc <--> RDSPostgres
+    BackendSvc <--> RedisCluster
+    BackendSvc <--> S3Corpus
+    BackendSvc <--> SecretsMgr
+    BackendSvc <--> GuardrailsService
+    GuardrailsService <--> BedrockService
 
-    subgraph GrowthEngine [🌱 Büyüyen Ajan & IQ Sistemi]
-        Leveling[Seviyeler: 🌱 Yenidoğan ➔ 🌿 Çırak ➔ 🎓 Uzman ➔ 👑 Üstat]
-        XPTracker[Dinamik IQ & XP Puanı: Görevler, Web Verisi, Kullanıcı Beğenisi]
-    end
-
-    subgraph BedrockModels [☁️ AWS Bedrock Model Kataloğu]
-        ClaudeSonnet[Anthropic Claude 3.7 Sonnet - Hybrid Reasoning]
-        ClaudeHaiku[Anthropic Claude 3.5 Haiku - Ultra Hızlı Agent]
-        NovaSeries[Amazon Nova Micro / Lite / Pro]
-    end
-
-    ClientChannels --> SecurityGate
-    SecurityGate --> MemoryOptimization
-    MemoryOptimization --> LocalRAG
-    LocalRAG --> AgentReasoning
-    AgentReasoning <--> MCP
-    AgentReasoning <--> BedrockModels
-    AgentReasoning --> GrowthEngine
+    MonitoringSvc -->|Scrapes /metrics| BackendSvc
+    PrivateAppSubnets --> CloudWatchLogs
 ```
 
 ---
 
-## 🌟 2. 10 Temel Mimari Bileşen
+## 🤖 2. 10 Temel Mimari Bileşenli Otonom Agent Motoru
 
-### 2.1. Kimlik ve Amaç Tanımı (Persona & System Prompt)
-- Her agent için **Rol**, **Hedef & Başarı Kriteri** (`goal_definition`), **İletişim Tonu** (Resmi, Samimi, Teknik) ve **Sınırlar** net olarak tanımlanır.
-- "Bu agent'ın var olma sebebi tek cümleyle nedir?" sorusunun yanıtı doğrudan hedef tanımı olarak kaydedilir.
+Platform, otonom yapay zeka ajanlarını 10 modüler bileşen üzerinden yönetir:
 
-### 2.2. 3-Katmanlı Hafıza & Token / Maliyet Tasarrufu (`memory_engine.py` & `semantic_memory.py`)
-- **Katman 1 (Kısa Süreli):** Son 6 mesaj canlı tutulur, eski konuşmalar tek paragrafa sıkıştırılır (**%75+ token tasarrufu**).
-- **Katman 2 (Uzun Süreli / Mem0 Standardı):** Kullanıcı adı, uzmanlığı, dil ve kodlama tercihleri yapılandırılmış `SemanticMemoryFact` grafında saklanır. Sadece soruyla semantik olarak ilgili maddeler çekilir.
-- **Katman 3 (Çalışma Hafızası / Scratchpad):** Çok adımlı görevlerde ara araştırma verileri hafızada tutulur.
+### 2.1. Kimlik ve Persona Tanımı (`goal_definition`)
+- Her agent için **Rol**, **Hedef Tanımı (`goal_definition`)**, **İletişim Tonu** ve **Sınırları** açıkça yapılandırılır. Model, her göreve bu kimlik çerçevesinde başlar.
 
-### 2.3. Minimal Araç Seti & Native Bedrock Tool Calling (`bedrock_tools.py`)
+### 2.2. 3-Katmanlı Hafıza Motoru (`memory_engine.py` & `semantic_memory.py`)
+- **Katman 1 (Kısa Süreli Hafıza):** Son 6 mesaj tam metin tutulur; eski mesajlar tek bir arka plan paragrafına sıkıştırılır (**%75+ token tasarrufu**).
+- **Katman 2 (Uzun Süreli Hafıza / Mem0 Standardı):** Kullanıcının tercihleri, uzmanlık alanı, dili ve kuralları yapılandırılmış `SemanticMemoryFact` grafında saklanır. Soruyla ilgili maddeler semantik benzerlikle çekilir.
+- **Katman 3 (Çalışma Hafızası / Scratchpad):** Çok adımlı ReAct görevlerinde ara bulgular saklanır.
+
+### 2.3. Native AWS Bedrock Converse API Tool Calling (`bedrock_tools.py`)
 - Regex metin taklidi yerine AWS Bedrock'un resmi **`toolConfig`** standardı kullanılır:
   - `web_search`: DuckDuckGo canlı internet ve haber taraması.
   - `python_interpreter`: İzolasyonlu stdout/globals sandbox ortamında güvenli Python kod çalıştırma.
-  - `finance_market_data`: Anlık borsa/kripto fiyat ve kur sorgulama.
+  - `finance_market_data`: Anlık borsa, kripto ve döviz kurları.
   - `schedule_reminder`: Zamanlayıcı ve alarmlar.
 
-### 2.4. Planlama ve Muhakeme (ReAct Engine - `reasoning_engine.py`)
-- Model `Thought ➔ Action ➔ Observation ➔ Reflection (Öz-Değerlendirme)` adımlarıyla akıl yürütür.
+### 2.4. ReAct Muhakeme & Öz-Değerlendirme (Self-Reflection)
+- Model `Thought ➔ Action ➔ Observation ➔ Reflection (Öz-Değerlendirme)` adımlarını izler. Araçtan gelen veriyi hedefe göre denetler; eksikse ek arama yapar, tamamsa nihai cevabı üretir.
 
-### 2.5. Otonomi Seviyeleri (Human-in-the-Loop)
-- **`AUTONOMOUS` (Tam Otonom):** Araçları doğrudan yürütür.
-- **`CONFIRMATION_REQUIRED` (Onay Bekleyen):** Kritik eylemlerde onay ister.
-- **`ADVISORY` (Öneri Veren):** Kararı kullanıcıya bırakır.
+### 2.5. Otonomi Düzeyleri (Human-in-the-Loop)
+- **`AUTONOMOUS`:** Görevi baştan sona kendi başına tamamlar.
+- **`CONFIRMATION_REQUIRED`:** Kritik eylemlerde kullanıcı onayı ister.
+- **`ADVISORY`:** Yalnızca tavsiye ve bilgi sunar.
 
-### 2.6. Bilgi Kaynağı (Maliyetsiz Vektör RAG - `local_rag.py`)
-- Harici pahalı veritabanı gerektirmeden web URL'leri veya API verileri 450 karakterlik parçalara bölünür ve BM25/Cosine benzerlik algoritmasıyla yalnızca en alakalı parçalar prompt'a dahil edilir.
+### 2.6. Maliyetsiz Yerel Vektör RAG (`local_rag.py`)
+- Harici pahalı vektör veritabanı gerektirmeden kullanıcı tarafından verilen Website URL'leri veya dokümanlar 450 karakterlik parçalara (overlapping chunks) bölünür; BM25 ve Cosine benzerlik algoritmasıyla sadece en alakalı parçalar prompt'a enjekte edilir.
 
-### 2.7. Güvenlik & Guardrails (`guardrails.py`)
-- Kredi kartı, e-posta ve telefon numaraları için **PII Maskeleme**.
-- **Prompt Injection & Jailbreak Filtresi** ile model güvenliği sağlanır.
+### 2.7. AWS Bedrock Guardrails & Güvenlik (`guardrails.py`)
+- Kredi kartı, telefon ve e-posta numaraları için **PII Maskeleme (Anonymization)**.
+- Sistem talimatlarını aşmaya yönelik **Prompt Injection & Jailbreak Koruması**.
 
-### 2.8. Gözlemlenebilirlik & İzleme
-- Tüm araç çağrıları, yürütme süreleri (ms), tüketilen tokenlar ve maliyetler `agent_execution_logs` tablosunda saklanır.
+### 2.8. Stateful Model Context Protocol (MCP) Server (`mcp_server.py`)
+- Standart MCP protokolü ile oturumlar arası bağlam saklama ve dinamik araç çalıştırma yeteneği.
 
 ### 2.9. Yaşayan & Büyüyen Ajan (Living Agent IQ - `agent_growth.py`)
-- Botlar **Lv. 1 🌱 Yenidoğan ➔ Lv. 2 🌿 Çırak ➔ Lv. 3 🎓 Uzman ➔ Lv. 4 👑 Üstat** şeklinde XP kazanarak seviye atlar.
-- Görev tamamlama, canlı veri işleme ve kullanıcı beğenileriyle dinamik IQ puanı yükselir.
+- Botlar **🌱 Yenidoğan (Lv 1) ➔ 🌿 Çırak (Lv 2) ➔ 🎓 Uzman (Lv 3) ➔ 👑 Üstat (Lv 4)** seviyelerine yükselir.
+- Görev tamamlama (+20 XP), canlı veri işleme (+30 XP) ve kullanıcı beğenileriyle (+50 XP) dinamik IQ puanı artar.
 
-### 2.10. Çok Kanallı Entegrasyon (Web & Telegram)
-- Frontier Web Chat ve Telegram Bot ortak hafıza ve yetenek havuzunu kullanır.
+### 2.10. Çok Kanallı İletişim (Web Studio & Telegram Bot)
+- Frontier Web Studio ve Telegram Asistan Botu (`@BedrocksAiBot`) aynı hafıza ve model havuzunu paylaşır.
