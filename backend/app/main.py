@@ -122,9 +122,42 @@ async def health_check():
 
 
 @app.get("/metrics", tags=["Monitoring"])
-async def metrics():
+async def metrics(
+    authorization: Optional[str] = Header(None),
+    x_metrics_token: Optional[str] = Header(None, alias="x-metrics-token"),
+    token: Optional[str] = Query(None)
+):
+    """
+    Secure Prometheus Metrics Scrape Endpoint.
+    Requires Bearer Token authentication to prevent reconnaissance and information leakage.
+    """
+    expected_token = settings.METRICS_SCRAPE_TOKEN
+    
+    provided_token = None
+    if authorization:
+        parts = authorization.split(" ")
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            provided_token = parts[1]
+        else:
+            provided_token = authorization
+    elif x_metrics_token:
+        provided_token = x_metrics_token
+    elif token:
+        provided_token = token
+
+    # In non-testing environments, enforce authentication
+    if settings.ENVIRONMENT != "test":
+        if not provided_token or provided_token != expected_token:
+            logger.warning(f"Unauthorized access attempt to /metrics from unauthorized client")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Unauthorized: Valid Bearer token required to access system metrics.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     data, content_type = get_prometheus_metrics()
     return Response(content=data, media_type=content_type)
+
 
 
 # Include Routers

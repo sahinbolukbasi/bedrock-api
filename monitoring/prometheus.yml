@@ -6,6 +6,7 @@ global:
 scrape_configs:
   - job_name: "bedrock-gateway-api-production"
     metrics_path: "/metrics"
+    bearer_token: "bedrock-metrics-secret-token-key-2026"
     static_configs:
       - targets:
           - "bedrock-gateway-alb-664380835.us-east-1.elb.amazonaws.com:80"
@@ -17,5 +18,6 @@ scrape_configs:
           service: "bedrock-gateway-backend"
           aws_region: "us-east-1"
           cluster: "bedrock-gateway-cluster-prod"
+
 
 

@@ -58,8 +58,15 @@ class Settings(BaseSettings):
     # Telegram Bot
     TELEGRAM_BOT_TOKEN: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN")
 
+    # Metrics Security
+    METRICS_SCRAPE_TOKEN: str = Field(
+        default=os.getenv("METRICS_SCRAPE_TOKEN", "bedrock-metrics-secret-token-key-2026"),
+        description="Bearer token required to scrape /metrics endpoint"
+    )
+
 
 settings = Settings()
+
 
 if not settings.TELEGRAM_BOT_TOKEN:
     from app.core.secrets_manager import AWSSecretsManagerService
