@@ -24,11 +24,16 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing AWS Bedrock AI Gateway (v1.0.1 - Metrics Auth Hardened)...")
     await init_redis()
 
+    from app.core.database import Base
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
 
     try:
         await seed_database()
     except Exception as e:
         logger.warning(f"Seed database warning: {e}")
+
 
     try:
         await BackgroundSchedulerService.start()

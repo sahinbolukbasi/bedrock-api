@@ -57,11 +57,13 @@ async def register_user(body: UserRegisterRequest, db: AsyncSession = Depends(ge
 
     # Generate secure 6-digit OTP code
     otp_code = str(secrets.randbelow(900000) + 100000)
+    now = time.time()
     _VERIFICATION_CODES[email_clean] = {
         "code": otp_code,
         "password": body.password,
         "full_name": body.full_name,
-        "expires_at": time.time() + 600  # 10 minutes
+        "expires_at": now + 600,  # 10 minutes
+        "last_sent_at": now
     }
 
     # Dispatch verification code via AWS SES / SMTP
@@ -149,26 +151,43 @@ async def verify_email_and_login(body: EmailVerificationRequest, db: AsyncSessio
 @router.post("/resend-code")
 async def resend_verification_code(body: ResendVerificationRequest):
     email_clean = body.email.strip().lower()
+    pending = _VERIFICATION_CODES.get(email_clean)
+    now = time.time()
+
+    # Enforce 2-minute (120 seconds) anti-spam cooldown
+    COOLDOWN_SECONDS = 120
+    if pending and "last_sent_at" in pending:
+        elapsed = now - pending["last_sent_at"]
+        if elapsed < COOLDOWN_SECONDS:
+            remaining = int(COOLDOWN_SECONDS - elapsed)
+            mins = remaining // 60
+            secs = remaining % 60
+            raise GatewayAPIException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                message=f"Yeni doğrulama kodu istemeden önce lütfen {mins:02d}:{secs:02d} ({remaining} saniye) bekleyiniz."
+            )
+
     otp_code = str(secrets.randbelow(900000) + 100000)
-    
-    pending = _VERIFICATION_CODES.get(email_clean, {})
     _VERIFICATION_CODES[email_clean] = {
-        **pending,
+        **(pending or {}),
         "code": otp_code,
-        "expires_at": time.time() + 600
+        "expires_at": now + 600,
+        "last_sent_at": now
     }
 
     try:
-        asyncio.create_task(EmailService.send_verification_code_email(email_clean, otp_code, pending.get("full_name")))
+        asyncio.create_task(EmailService.send_verification_code_email(email_clean, otp_code, pending.get("full_name") if pending else None))
     except Exception:
         pass
 
     return {
         "status": "code_resent",
         "email": email_clean,
-        "message": f"Yeni doğrulama kodu {email_clean} adresine iletildi.",
-        "code_preview": otp_code
+        "message": f"Yeni doğrulama kodu {email_clean} adresine gönderildi.",
+        "code_preview": otp_code,
+        "cooldown_seconds": COOLDOWN_SECONDS
     }
+
 
 
 @router.post("/login", response_model=TokenResponse)

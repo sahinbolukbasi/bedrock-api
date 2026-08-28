@@ -112,6 +112,8 @@ export default function RootPage() {
   const [verifySuccess, setVerifySuccess] = useState("");
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSuccess, setResendSuccess] = useState("");
+  const [resendCooldown, setResendCooldown] = useState<number>(120);
+
 
   // Guest Forgot Password state
   const [forgotEmail, setForgotEmail] = useState("");
@@ -976,6 +978,7 @@ export default function RootPage() {
 
       setVerificationEmail(emailClean);
       setIsVerifyingEmail(true);
+      setResendCooldown(120);
       setVerifySuccess(data?.message || "6 haneli doğrulama kodu e-posta adresinize gönderildi.");
     } catch (err: any) {
       setRegError(err.message || "Kayıt olurken bir hata oluştu.");
@@ -983,6 +986,19 @@ export default function RootPage() {
       setRegLoading(false);
     }
   };
+
+  // 2-minute (120s) countdown timer effect for OTP resend
+  useEffect(() => {
+    let timer: any = null;
+    if (isVerifyingEmail && resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isVerifyingEmail, resendCooldown]);
 
   // Verify Email OTP Code -> logs into the system & lands on chat screen!
   const handleVerifyEmailSubmit = async (e: React.FormEvent) => {
@@ -1025,8 +1041,9 @@ export default function RootPage() {
     }
   };
 
-  // Resend OTP code
+  // Resend OTP code with 2-minute cooldown
   const handleResendCode = async () => {
+    if (resendCooldown > 0) return;
     setResendLoading(true);
     setResendSuccess("");
     setVerifyError("");
@@ -1036,6 +1053,7 @@ export default function RootPage() {
         body: JSON.stringify({ email: verificationEmail }),
       });
       setResendSuccess(data?.message || "Yeni doğrulama kodu e-postanıza gönderildi.");
+      setResendCooldown(data?.cooldown_seconds || 120);
       setTimeout(() => setResendSuccess(""), 4000);
     } catch (err: any) {
       setVerifyError(err.message || "Kod gönderilirken bir hata oluştu.");
@@ -1043,6 +1061,7 @@ export default function RootPage() {
       setResendLoading(false);
     }
   };
+
 
 
   // Guest Forgot Password Submit
@@ -2043,12 +2062,21 @@ export default function RootPage() {
                       </button>
                       <button
                         type="button"
-                        disabled={resendLoading}
+                        disabled={resendLoading || resendCooldown > 0}
                         onClick={handleResendCode}
-                        className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold"
+                        className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold disabled:opacity-50 disabled:no-underline flex items-center gap-1 text-xs"
                       >
-                        {resendLoading ? "Gönderiliyor..." : "Kodu Tekrar Gönder"}
+                        {resendLoading ? (
+                          <span>Gönderiliyor...</span>
+                        ) : resendCooldown > 0 ? (
+                          <span className="text-slate-400 font-mono">
+                            Tekrar Gönder ({Math.floor(resendCooldown / 60).toString().padStart(2, "0")}:{(resendCooldown % 60).toString().padStart(2, "0")})
+                          </span>
+                        ) : (
+                          <span>Kodu Tekrar Gönder</span>
+                        )}
                       </button>
+
                     </div>
                   </div>
                 ) : (

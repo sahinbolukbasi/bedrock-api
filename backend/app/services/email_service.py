@@ -127,7 +127,9 @@ class EmailService:
     @classmethod
     async def send_verification_code_email(cls, to_email: str, code: str, full_name: Optional[str] = None):
         name = full_name or to_email.split("@")[0]
+        logger.info(f"🔑 [AUTH_OTP] 6-DIGIT VERIFICATION CODE FOR {to_email} IS: [{code}]")
         content = f"""
+
         <h2 style="color:#ffffff; margin-top:0;">Hesabınızı Doğrulayın ✉️</h2>
         <p>Merhaba <strong>{name}</strong>, Bedrock AI Gateway platformuna kaydınızı tamamlamak için aşağıdaki 6 haneli güvenlik kodunu giriniz:</p>
         
