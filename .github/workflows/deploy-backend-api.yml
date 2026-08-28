@@ -2,12 +2,12 @@ name: Deploy Backend API
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
       - 'backend/**'
       - '.github/workflows/deploy-backend-api.yml'
   workflow_dispatch:
+
 
 
 env:
