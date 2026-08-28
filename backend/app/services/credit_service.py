@@ -1,6 +1,6 @@
 import uuid
 from decimal import Decimal
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from app.models.entities import Wallet, WalletTransaction, User
