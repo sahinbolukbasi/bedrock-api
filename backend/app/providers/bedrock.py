@@ -139,6 +139,31 @@ class AWSBedrockProvider(IModelProvider):
         model_entity: ModelCatalog
     ) -> Tuple[ChatCompletionResponse, int, int]:
         system_prompts, converse_messages = self._convert_openai_messages_to_bedrock_converse(request.messages)
+        from app.services.guardrails import EnterpriseGuardrailService
+
+        # Guardrails pre-inspection & PII Sanitization
+        for msg in converse_messages:
+            for content_block in msg.get("content", []):
+                if "text" in content_block:
+                    sanitized_text, is_safe, block_reason = EnterpriseGuardrailService.sanitize_and_inspect(content_block["text"])
+                    if not is_safe:
+                        logger.warning(f"[BedrockProvider] Guardrail blocked request: {block_reason}")
+                        blocked_response = ChatCompletionResponse(
+                            id=f"chatcmpl-guardrail-{uuid.uuid4().hex[:12]}",
+                            created=int(time.time()),
+                            model=model_entity.model_id,
+                            choices=[
+                                ChatChoice(
+                                    index=0,
+                                    message=ChatChoiceMessage(role="assistant", content=block_reason),
+                                    finish_reason="stop"
+                                )
+                            ],
+                            usage=UsageInfo(prompt_tokens=10, completion_tokens=20, total_tokens=30)
+                        )
+                        return blocked_response, 10, 20
+                    content_block["text"] = sanitized_text
+
         inference_config = {
             "temperature": float(request.temperature) if request.temperature is not None else 0.7,
             "maxTokens": request.max_tokens or 4096,
@@ -153,11 +178,20 @@ class AWSBedrockProvider(IModelProvider):
         try:
             from app.services.bedrock_tools import BedrockToolRegistry
 
+            params = {
+                "modelId": actual_model_id,
+                "messages": converse_messages,
+                "inferenceConfig": inference_config
+            }
+            if system_prompts:
+                params["system"] = system_prompts
+
             # Check if tools are enabled / requested
             tool_config = None
             if getattr(request, "tools", None) or getattr(model_entity, "capabilities", {}).get("tools"):
                 tool_config = BedrockToolRegistry.get_bedrock_tool_config()
                 params["toolConfig"] = tool_config
+
 
             response = self._client.converse(**params)
             
