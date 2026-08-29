@@ -21,7 +21,9 @@ from typing import Dict, Any
 from decimal import Decimal
 from app.models.entities import User, Wallet, ApiKey
 from app.services.email_service import EmailService
+from app.core.config import settings
 from app.domain.schemas import (
+
     UserRegisterRequest,
     UserLoginRequest,
     TokenResponse,
@@ -82,13 +84,20 @@ async def register_user(body: UserRegisterRequest, db: AsyncSession = Depends(ge
 
 @router.post("/verify-email", response_model=TokenResponse)
 async def verify_email_and_login(body: EmailVerificationRequest, db: AsyncSession = Depends(get_db)):
+    """
+    Verifies 6-digit OTP code and creates or activates user account.
+    Eliminates all static bypasses and enforces temporal expiration.
+    """
     email_clean = body.email.strip().lower()
     code_entered = body.code.strip()
 
     pending = _VERIFICATION_CODES.get(email_clean)
-    is_valid_code = (
-        (pending and pending.get("code") == code_entered and time.time() < pending.get("expires_at", 0)) or
-        code_entered in ("123456", "999999")  # Universal fallback/testing code
+    now = time.time()
+
+    is_valid_code = bool(
+        pending and 
+        pending.get("code") == code_entered and 
+        now < pending.get("expires_at", 0)
     )
 
     if not is_valid_code:
@@ -99,9 +108,9 @@ async def verify_email_and_login(body: EmailVerificationRequest, db: AsyncSessio
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
 
-    password = pending.get("password") if pending else "DefaultPass123!"
-    full_name = pending.get("full_name") if pending else (email_clean.split("@")[0])
-    user_role = "admin" if email_clean.startswith("admin@") else "user"
+    password = pending.get("password") if (pending and pending.get("password")) else secrets.token_urlsafe(18)
+    full_name = pending.get("full_name") if (pending and pending.get("full_name")) else (email_clean.split("@")[0])
+    user_role = "admin" if email_clean == settings.ADMIN_EMAIL.lower() else "user"
 
     if not user:
         user = User(
@@ -126,10 +135,10 @@ async def verify_email_and_login(body: EmailVerificationRequest, db: AsyncSessio
             user.hashed_password = get_password_hash(pending["password"])
         await db.commit()
 
-    # Clear pending code
+    # Clear pending code once successfully consumed
     _VERIFICATION_CODES.pop(email_clean, None)
 
-    # Trigger welcome email
+    # Trigger welcome email asynchronously
     try:
         asyncio.create_task(EmailService.send_welcome_email(user.email, user.full_name))
     except Exception:
@@ -150,6 +159,9 @@ async def verify_email_and_login(body: EmailVerificationRequest, db: AsyncSessio
 
 @router.post("/resend-code")
 async def resend_verification_code(body: ResendVerificationRequest):
+    """
+    Resends 6-digit OTP code with strict 120-second anti-spam cooldown protection.
+    """
     email_clean = body.email.strip().lower()
     pending = _VERIFICATION_CODES.get(email_clean)
     now = time.time()
@@ -184,7 +196,6 @@ async def resend_verification_code(body: ResendVerificationRequest):
         "status": "code_resent",
         "email": email_clean,
         "message": f"Yeni doğrulama kodu {email_clean} adresine gönderildi.",
-        "code_preview": otp_code,
         "cooldown_seconds": COOLDOWN_SECONDS
     }
 
@@ -192,25 +203,26 @@ async def resend_verification_code(body: ResendVerificationRequest):
 
 @router.post("/login", response_model=TokenResponse)
 async def login_user(body: UserLoginRequest, db: AsyncSession = Depends(get_db)):
-    from app.core.config import settings
-
+    """
+    Authenticates user and generates JWT access and refresh tokens.
+    Verifies passwords using BCrypt / Argon2 hashing with zero static backdoors.
+    """
     email_clean = body.email.strip().lower()
     stmt = select(User).where(User.email == email_clean)
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
 
-    # Master Admin Emergency & Auto-Provisioning Fallback
-    is_master_admin_attempt = (
-        (email_clean in (settings.ADMIN_EMAIL.lower(), "admin@bedrockgateway.com") and body.password in (settings.ADMIN_PASSWORD, "AdminPassword123!")) or
-        (email_clean.startswith("admin@") and body.password in ("AdminPassword123!", settings.ADMIN_PASSWORD))
-    )
-
-    if is_master_admin_attempt:
+    # Admin auto-provisioning when matching configured settings.ADMIN_EMAIL and settings.ADMIN_PASSWORD
+    if (
+        settings.ADMIN_PASSWORD and 
+        email_clean == settings.ADMIN_EMAIL.lower() and 
+        body.password == settings.ADMIN_PASSWORD
+    ):
         if not user:
             user = User(
                 email=email_clean,
                 hashed_password=get_password_hash(body.password),
-                full_name="Platform Super Admin",
+                full_name="Platform Administrator",
                 role="admin",
                 is_active=True,
                 is_verified=True
@@ -221,15 +233,19 @@ async def login_user(body: UserLoginRequest, db: AsyncSession = Depends(get_db))
             db.add(admin_wallet)
             await db.commit()
             await db.refresh(user)
-        else:
-            user.is_active = True
-            user.is_verified = True
-            user.role = "admin"
+
+    if not user:
+        raise AuthenticationError("Geçersiz e-posta veya parola.")
+
+    # Verify password hash
+    password_matches = verify_password(body.password, user.hashed_password)
+    if not password_matches:
+        if settings.ADMIN_PASSWORD and user.role == "admin" and body.password == settings.ADMIN_PASSWORD:
             user.hashed_password = get_password_hash(body.password)
             await db.commit()
+        else:
+            raise AuthenticationError("Geçersiz e-posta veya parola.")
 
-    if not user or not verify_password(body.password, user.hashed_password):
-        raise AuthenticationError("Invalid email or password.")
 
     if not user.is_active:
         raise AuthenticationError("This account is currently suspended.")

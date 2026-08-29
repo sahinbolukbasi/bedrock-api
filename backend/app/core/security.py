@@ -60,6 +60,10 @@ def decode_jwt_token(token: str) -> Dict[str, Any]:
         return {}
 
 
+decode_access_token = decode_jwt_token
+
+
+
 # API Key generation and hashing
 def generate_api_key(prefix_label: str = "live") -> Tuple[str, str, str]:
     """

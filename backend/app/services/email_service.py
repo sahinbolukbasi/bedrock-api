@@ -5,12 +5,14 @@ from email.mime.multipart import MIMEMultipart
 from typing import Optional, List
 from loguru import logger
 from app.core.config import settings
+from app.domain.interfaces import IEmailService
 
-class EmailService:
+class EmailService(IEmailService):
     """
     Enterprise Email Dispatcher supporting AWS SES and standard SMTP.
     Provides responsive HTML templates for Welcome, Verification, Password Reset, and Security Alerts.
     """
+
 
     @staticmethod
     def _render_base_template(title: str, preheader: str, content_html: str) -> str:
@@ -200,3 +202,14 @@ class EmailService:
         """
         html = cls._render_base_template("Güvenlik Bildirimi", "Yeni API anahtarı", content)
         return await cls.send_email_async(to_email, f"Güvenlik Uyarısı: Yeni API Anahtarı ({key_name})", html)
+
+    @classmethod
+    async def send_email(cls, to_email: str, subject: str, html_content: str) -> bool:
+        """Domain Port adapter for general HTML email dispatch."""
+        return await cls.send_email_async(to_email, subject, html_content)
+
+    @classmethod
+    async def send_verification_code(cls, to_email: str, code: str, full_name: Optional[str] = None) -> bool:
+        """Domain Port adapter for sending 6-digit OTP verification code."""
+        return await cls.send_verification_code_email(to_email, code, full_name)
+

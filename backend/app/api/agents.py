@@ -9,7 +9,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_user, get_optional_user
 from app.models.entities import User, CustomAgent, AgentExecutionLog, Wallet
 from app.services.email_service import EmailService
-from app.services.telegram_bot import TelegramBotService, DEFAULT_TELEGRAM_BOT_USERNAME, DEFAULT_TELEGRAM_BOT_TOKEN
+from app.services.telegram_bot import TelegramBotService, get_telegram_bot_username, get_telegram_bot_token
 from app.services.scheduler import AgentAutonomousEngine
 from loguru import logger
 
@@ -410,19 +410,17 @@ async def get_telegram_status(
             "chat_id": current_user.telegram_chat_id,
             "username": current_user.telegram_username,
             "pairing_code": pairing_code,
-            "bot_username": DEFAULT_TELEGRAM_BOT_USERNAME,
-            "deep_link": f"https://t.me/{DEFAULT_TELEGRAM_BOT_USERNAME}?start={pairing_code}"
+            "bot_username": get_telegram_bot_username(),
+            "deep_link": f"https://t.me/{get_telegram_bot_username()}?start={pairing_code}"
         }
 
-    # Fallback pairing code
-    fallback_code = "TG-" + "".join(random.choices(string.digits, k=6))
+    fallback_code = TelegramBotService.generate_pairing_code_static(current_user.id)
     return {
-        "is_connected": False,
+        "connected": False,
         "chat_id": None,
-        "username": None,
         "pairing_code": fallback_code,
-        "bot_username": DEFAULT_TELEGRAM_BOT_USERNAME,
-        "deep_link": f"https://t.me/{DEFAULT_TELEGRAM_BOT_USERNAME}?start={fallback_code}"
+        "bot_username": get_telegram_bot_username(),
+        "deep_link": f"https://t.me/{get_telegram_bot_username()}?start={fallback_code}"
     }
 
 
@@ -443,7 +441,7 @@ async def generate_telegram_pairing_code(
 
     return {
         "pairing_code": code,
-        "deep_link": f"https://t.me/{DEFAULT_TELEGRAM_BOT_USERNAME}?start={code}"
+        "deep_link": f"https://t.me/{get_telegram_bot_username()}?start={code}"
     }
 
 
@@ -459,16 +457,15 @@ async def disconnect_telegram(
 
     if current_user:
         current_user.telegram_chat_id = None
-        current_user.telegram_username = None
-        new_code = await TelegramBotService.generate_pairing_code(current_user.id, db)
-    else:
-        new_code = "TG-" + "".join(random.choices(string.digits, k=6))
+        await db.commit()
 
+    new_code = TelegramBotService.generate_pairing_code_static(current_user.id if current_user else "default")
     return {
-        "message": "Telegram bağlantısı sıfırlandı. Yeni eşleştirme kodu oluşturuldu.",
+        "status": "disconnected",
+        "message": "Telegram bağlantısı başarıyla kesildi.",
         "pairing_code": new_code,
-        "deep_link": f"https://t.me/{DEFAULT_TELEGRAM_BOT_USERNAME}?start={new_code}",
-        "is_connected": False
+        "deep_link": f"https://t.me/{get_telegram_bot_username()}?start={new_code}",
+        "bot_username": get_telegram_bot_username()
     }
 
 
@@ -504,6 +501,6 @@ async def telegram_bot_webhook(
     bot_token: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    token_to_use = bot_token or DEFAULT_TELEGRAM_BOT_TOKEN
+    token_to_use = bot_token or get_telegram_bot_token()
     result = await TelegramBotService.process_webhook_update(token_to_use, update, db)
     return result

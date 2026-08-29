@@ -21,9 +21,20 @@ from app.core.metrics import TELEGRAM_MESSAGES_TOTAL
 from loguru import logger
 import asyncio
 
-# Default Telegram Bot Token & Username (Dynamically loaded from Secrets Manager / Environment)
-DEFAULT_TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8613347978:AAF0oVmP_GYBIA702VFXH4W5cy0BXS7DTbI")
-DEFAULT_TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "BedrocksAiBot")
+from app.core.config import settings
+from app.core.secrets_manager import AWSSecretsManagerService
+
+
+def get_telegram_bot_token() -> Optional[str]:
+    """Dynamically resolves the active Telegram bot token with zero static fallback leaks."""
+    return os.getenv("TELEGRAM_BOT_TOKEN") or settings.TELEGRAM_BOT_TOKEN or AWSSecretsManagerService.get_secret("TELEGRAM_BOT_TOKEN")
+
+
+def get_telegram_bot_username() -> str:
+    """Dynamically resolves the Telegram bot username."""
+    return os.getenv("TELEGRAM_BOT_USERNAME") or settings.TELEGRAM_BOT_USERNAME or AWSSecretsManagerService.get_secret("TELEGRAM_BOT_USERNAME", default="BedrocksAiBot")
+
+
 
 
 
@@ -68,7 +79,7 @@ class TelegramBotService:
         parse_mode: str = "Markdown",
         reply_markup: Optional[Dict[str, Any]] = None
     ) -> bool:
-        token = bot_token or DEFAULT_TELEGRAM_BOT_TOKEN
+        token = bot_token or get_telegram_bot_token()
         if not token or not chat_id or not text:
             return False
         try:
@@ -111,7 +122,7 @@ class TelegramBotService:
         parse_mode: str = "Markdown",
         reply_markup: Optional[Dict[str, Any]] = None
     ) -> bool:
-        token = bot_token or DEFAULT_TELEGRAM_BOT_TOKEN
+        token = bot_token or get_telegram_bot_token()
         if not token or not chat_id or not photo:
             return False
         try:
@@ -150,7 +161,7 @@ class TelegramBotService:
         callback_query_id: str,
         text: Optional[str] = None
     ) -> bool:
-        token = bot_token or DEFAULT_TELEGRAM_BOT_TOKEN
+        token = bot_token or get_telegram_bot_token()
         try:
             url = f"{cls.TELEGRAM_API_BASE}{token}/answerCallbackQuery"
             async with httpx.AsyncClient(timeout=10.0) as client:
@@ -210,7 +221,7 @@ class TelegramBotService:
         update_data: Dict[str, Any], 
         db: AsyncSession
     ) -> Dict[str, Any]:
-        token = bot_token or DEFAULT_TELEGRAM_BOT_TOKEN
+        token = bot_token or get_telegram_bot_token()
         try:
             TELEGRAM_MESSAGES_TOTAL.labels(direction="incoming").inc()
         except Exception:
@@ -851,12 +862,13 @@ class TelegramBotService:
         """Starts background self-healing Telegram long-polling worker."""
         if cls._is_polling:
             return
-        token = DEFAULT_TELEGRAM_BOT_TOKEN
+        token = get_telegram_bot_token()
         if not token:
+            logger.warning("[TelegramBotService] No Telegram bot token configured. Polling worker disabled.")
             return
         cls._is_polling = True
         cls._polling_task = asyncio.create_task(cls._polling_loop())
-        logger.info(f"[TelegramBotService] Background Telegram polling worker started for @{DEFAULT_TELEGRAM_BOT_USERNAME}")
+        logger.info(f"[TelegramBotService] Background Telegram polling worker started for @{get_telegram_bot_username()}")
 
     @classmethod
     async def stop_polling_worker(cls):
@@ -873,12 +885,12 @@ class TelegramBotService:
     @classmethod
     async def _polling_loop(cls):
         from app.core.database import AsyncSessionLocal
-        token = DEFAULT_TELEGRAM_BOT_TOKEN
+        token = get_telegram_bot_token()
         if not token:
             return
         offset = 0
         url = f"{cls.TELEGRAM_API_BASE}{token}/getUpdates"
-        logger.info(f"[TelegramBotService] Polling active for bot: @{DEFAULT_TELEGRAM_BOT_USERNAME}")
+        logger.info(f"[TelegramBotService] Polling active for bot: @{get_telegram_bot_username()}")
         
         while cls._is_polling:
             try:
