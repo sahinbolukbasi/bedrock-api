@@ -63,14 +63,14 @@ jobs:
       - name: Run Backend Pytest Suite
         env:
           PYTHONPATH: backend
-          DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@localhost:5432/bedrock_test
-          REDIS_URL: redis://localhost:6379/0
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          ENVIRONMENT: test
           SECRET_KEY: ci-secret-key-32-characters-minimum
-          AWS_ACCESS_KEY_ID: mock_key
-          AWS_SECRET_ACCESS_KEY: mock_secret
+          AWS_REGION: us-east-1
+          TELEGRAM_BOT_TOKEN: test_bot_token_123456
+          METRICS_SCRAPE_TOKEN: bedrock-metrics-secret-token-key-2026
         run: |
-          cd backend
-          pytest -v tests/ --cov=app --cov-report=xml --cov-report=term
+          PYTHONPATH=backend pytest backend/tests/ -v
 
   # -------------------------------------------------------------
   # 2. Frontend Verification & Next.js Build

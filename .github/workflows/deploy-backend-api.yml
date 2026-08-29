@@ -26,10 +26,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: "pip"
 
       - name: Install Dependencies
@@ -43,8 +43,11 @@ jobs:
           DATABASE_URL: sqlite+aiosqlite:///:memory:
           ENVIRONMENT: test
           SECRET_KEY: test-secret-key-32-characters-min-test
+          AWS_REGION: us-east-1
+          TELEGRAM_BOT_TOKEN: test_bot_token_123456
+          METRICS_SCRAPE_TOKEN: bedrock-metrics-secret-token-key-2026
         run: |
-          PYTHONPATH=backend pytest backend/tests/
+          PYTHONPATH=backend pytest backend/tests/ -v
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
