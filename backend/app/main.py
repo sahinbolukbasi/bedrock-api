@@ -11,7 +11,7 @@ from app.core.redis import init_redis, close_redis
 from app.core.seed import seed_database
 from app.core.errors import GatewayAPIException
 from app.api.v1 import chat, models, images
-from app.api import auth, api_keys, wallet, usage, admin, chat_ui, agents
+from app.api import auth, api_keys, wallet, usage, admin, chat_ui, agents, webhooks
 from loguru import logger
 
 
@@ -51,7 +51,12 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE custom_agents ADD COLUMN evolution_stage VARCHAR(64) DEFAULT '🌱 Yenidoğan'",
             "ALTER TABLE custom_agents ADD COLUMN growth_history JSON DEFAULT '[]'",
             "ALTER TABLE custom_agents ADD COLUMN total_runs INTEGER DEFAULT 0",
-            "ALTER TABLE custom_agents ADD COLUMN last_run_at TIMESTAMP"
+            "ALTER TABLE custom_agents ADD COLUMN last_run_at TIMESTAMP",
+            "ALTER TABLE custom_agents ADD COLUMN whatsapp_phone_id VARCHAR(128)",
+            "ALTER TABLE custom_agents ADD COLUMN whatsapp_token VARCHAR(512)",
+            "ALTER TABLE custom_agents ADD COLUMN instagram_account_id VARCHAR(128)",
+            "ALTER TABLE custom_agents ADD COLUMN instagram_token VARCHAR(512)",
+            "ALTER TABLE custom_agents ADD COLUMN meta_verify_token VARCHAR(128)"
         ]
         for col_stmt in alter_stmts:
             try:
@@ -219,3 +224,4 @@ app.include_router(usage.router, prefix="/api/usage", tags=["Usage & Analytics"]
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin & Margins"])
 app.include_router(chat_ui.router, prefix="/api/chat-ui", tags=["Dashboard Chat Persistence"])
 app.include_router(agents.router, prefix="/api/agents", tags=["AI Agents & Telegram/Email Tools"])
+app.include_router(webhooks.router, prefix="/api/webhooks", tags=["Meta Webhooks"])

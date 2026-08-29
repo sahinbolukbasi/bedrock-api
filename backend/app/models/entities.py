@@ -275,6 +275,13 @@ class CustomAgent(Base):
     memory_settings = Column(JSON, default=dict, nullable=False)  # {"compression": true, "max_context": 4000}
     tools_config = Column(JSON, default=dict, nullable=False)  # {"web_search": true, "telegram": true, "math": true}
     
+    # Meta (WhatsApp & Instagram) BYOK Credentials
+    whatsapp_phone_id = Column(String(128), nullable=True, index=True)
+    whatsapp_token = Column(String(512), nullable=True)
+    instagram_account_id = Column(String(128), nullable=True, index=True)
+    instagram_token = Column(String(512), nullable=True)
+    meta_verify_token = Column(String(128), nullable=True)
+    
     # Knowledge Sources (URLs, REST APIs, Raw Docs)
     knowledge_sources = Column(JSON, default=list, nullable=False)  # [{"type": "url", "name": "...", "content": "..."}]
     

@@ -200,6 +200,53 @@ export default function RootPage() {
   const [editingAgent, setEditingAgent] = useState<any | null>(null);
   const [wizardStep, setWizardStep] = useState<number>(1);
   const [newAgentName, setNewAgentName] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const handleCategorySelect = (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    switch (categoryId) {
+      case "customer_support":
+        setNewAgentIcon("🎧");
+        setNewAgentType("custom");
+        setNewAgentName("Müşteri Destek Asistanı");
+        setNewAgentGoal("Müşteri sorularını hızlıca yanıtlamak, iade ve kargo süreçlerinde yardımcı olmak.");
+        setNewAgentPrompt("Sen şirketimizin 7/24 müşteri destek asistanısın. Kullanıcılara kibar, profesyonel ve çözüm odaklı yaklaş. Kargo, iade ve ürün detayları hakkında net bilgi ver.");
+        setAgentChannelTelegram(true);
+        setAgentChannelWebWidget(true);
+        break;
+      case "sales_marketing":
+        setNewAgentIcon("🛍️");
+        setNewAgentType("custom");
+        setNewAgentName("Satış & Pazarlama Uzmanı");
+        setNewAgentGoal("Ürün önermek, kampanyaları tanıtmak ve satış dönüşüm oranını artırmak.");
+        setNewAgentPrompt("Sen bir satış ve pazarlama uzmanısın. Kullanıcıların ihtiyaçlarını anlayıp onlara en uygun ürünleri tavsiye et, güncel kampanyalarımızdan bahset.");
+        setAgentChannelTelegram(true);
+        break;
+      case "finance_analysis":
+        setNewAgentIcon("📈");
+        setNewAgentType("custom");
+        setNewAgentName("Finans & Analiz Botu");
+        setNewAgentGoal("Finansal verileri analiz etmek, piyasa durumunu raporlamak ve bütçe planlaması yapmak.");
+        setNewAgentPrompt("Sen bir finansal analistsin. Piyasa verilerini inceleyerek özetler çıkar, trendleri yorumla ve kullanıcıya güvenilir, veri odaklı tavsiyelerde bulun.");
+        setAgentWebSearchTool(true);
+        break;
+      case "software_it":
+        setNewAgentIcon("💻");
+        setNewAgentType("custom");
+        setNewAgentName("Yazılım & IT Destek");
+        setNewAgentGoal("Teknik sorunları gidermek, kod hata ayıklama yapmak ve sistem durumunu izlemek.");
+        setNewAgentPrompt("Sen uzman bir yazılım geliştirici ve sistem yöneticisisin. Kullanıcılara teknik sorunların çözümünde, kod incelemesinde ve altyapı yönetiminde doğrudan yardımcı ol.");
+        break;
+      case "blank":
+      default:
+        setNewAgentIcon("🤖");
+        setNewAgentType("custom");
+        setNewAgentName("");
+        setNewAgentGoal("");
+        setNewAgentPrompt("Sen yardımcı bir yapay zeka asistanısın.");
+        break;
+    }
+  };
 
   const [newAgentIcon, setNewAgentIcon] = useState("📰");
   const [newAgentType, setNewAgentType] = useState("news");
@@ -222,9 +269,13 @@ export default function RootPage() {
   const [scrapingMultiUrls, setScrapingMultiUrls] = useState(false);
   const [scrapedPreviewResults, setScrapedPreviewResults] = useState<any[]>([]);
   const [agentChannelTelegram, setAgentChannelTelegram] = useState(true);
-  const [agentChannelWhatsApp, setAgentChannelWhatsApp] = useState(false);
-  const [agentChannelInstagram, setAgentChannelInstagram] = useState(false);
   const [agentChannelWebWidget, setAgentChannelWebWidget] = useState(false);
+  const [agentChannelWhatsApp, setAgentChannelWhatsApp] = useState(false);
+  const [whatsappPhoneId, setWhatsappPhoneId] = useState("");
+  const [whatsappToken, setWhatsappToken] = useState("");
+  const [agentChannelInstagram, setAgentChannelInstagram] = useState(false);
+  const [instagramAccountId, setInstagramAccountId] = useState("");
+  const [instagramToken, setInstagramToken] = useState("");
   const [agentWebSearchTool, setAgentWebSearchTool] = useState(true);
   const [agentTelegramTool, setAgentTelegramTool] = useState(true);
   const [agentEmailTool, setAgentEmailTool] = useState(false);
@@ -709,8 +760,6 @@ export default function RootPage() {
       setAgentTelegramTool(true);
       setAgentEmailTool(true);
       setAgentChannelTelegram(true);
-      setAgentChannelWhatsApp(false);
-      setAgentChannelInstagram(false);
       setAgentChannelWebWidget(false);
       setAgentScheduleCron("*/15 * * * *");
     } else if (tplKey === "research") {
@@ -728,8 +777,6 @@ export default function RootPage() {
       setAgentTelegramTool(true);
       setAgentEmailTool(true);
       setAgentChannelTelegram(true);
-      setAgentChannelWhatsApp(false);
-      setAgentChannelInstagram(false);
       setAgentChannelWebWidget(false);
       setAgentScheduleCron("");
     } else if (tplKey === "crypto" || tplKey === "finance") {
@@ -747,8 +794,6 @@ export default function RootPage() {
       setAgentTelegramTool(true);
       setAgentEmailTool(false);
       setAgentChannelTelegram(true);
-      setAgentChannelWhatsApp(false);
-      setAgentChannelInstagram(false);
       setAgentChannelWebWidget(false);
       setAgentScheduleCron("0 * * * *");
     } else if (tplKey === "ecommerce") {
@@ -767,8 +812,6 @@ export default function RootPage() {
       setAgentTelegramTool(true);
       setAgentEmailTool(false);
       setAgentChannelTelegram(true);
-      setAgentChannelWhatsApp(true);
-      setAgentChannelInstagram(true);
       setAgentChannelWebWidget(true);
       setAgentScheduleCron("");
     } else if (tplKey === "news") {
@@ -786,8 +829,6 @@ export default function RootPage() {
       setAgentTelegramTool(true);
       setAgentEmailTool(false);
       setAgentChannelTelegram(true);
-      setAgentChannelWhatsApp(false);
-      setAgentChannelInstagram(false);
       setAgentChannelWebWidget(false);
       setAgentScheduleCron("0 9 * * *");
     } else if (tplKey === "security") {
@@ -805,8 +846,6 @@ export default function RootPage() {
       setAgentTelegramTool(true);
       setAgentEmailTool(true);
       setAgentChannelTelegram(true);
-      setAgentChannelWhatsApp(false);
-      setAgentChannelInstagram(false);
       setAgentChannelWebWidget(false);
       setAgentScheduleCron("0 9 * * 1");
     } else {
@@ -824,8 +863,6 @@ export default function RootPage() {
       setAgentTelegramTool(true);
       setAgentEmailTool(false);
       setAgentChannelTelegram(true);
-      setAgentChannelWhatsApp(false);
-      setAgentChannelInstagram(false);
       setAgentChannelWebWidget(false);
       setAgentScheduleCron("");
     }
@@ -984,11 +1021,15 @@ export default function RootPage() {
         custom_api_url: customApiUrl.trim() || undefined,
         custom_api_method: customApiMethod,
         custom_api_auth: customApiAuth.trim() || undefined,
+        whatsapp_phone_id: whatsappPhoneId.trim() || undefined,
+        whatsapp_token: whatsappToken.trim() || undefined,
+        instagram_account_id: instagramAccountId.trim() || undefined,
+        instagram_token: instagramToken.trim() || undefined,
         channels: {
           telegram: agentChannelTelegram,
+          web_widget: agentChannelWebWidget,
           whatsapp: agentChannelWhatsApp,
           instagram: agentChannelInstagram,
-          web_widget: agentChannelWebWidget,
         },
       },
     };
@@ -3656,13 +3697,14 @@ export default function RootPage() {
                     </button>
                   </div>
 
-                  {/* 4-Adımlı İlerleme Çubuğu */}
-                  <div className="grid grid-cols-4 gap-2">
+                  {/* 5-Adımlı İlerleme Çubuğu */}
+                  <div className="grid grid-cols-5 gap-2">
                     {[
-                      { step: 1, label: "1. Kimlik & Amaç", icon: "🤖" },
-                      { step: 2, label: "2. Özel Bilgiler", icon: "📚" },
-                      { step: 3, label: "3. Yetenekler", icon: "🛠️" },
-                      { step: 4, label: "4. Zeka Düzeyi", icon: "🧠" },
+                      { step: 1, label: "1. Kategori", icon: "📑" },
+                      { step: 2, label: "2. Kimlik & Amaç", icon: "🤖" },
+                      { step: 3, label: "3. Özel Bilgiler", icon: "📚" },
+                      { step: 4, label: "4. Yetenekler", icon: "🛠️" },
+                      { step: 5, label: "5. Zeka Düzeyi", icon: "🧠" },
                     ].map((s) => (
                       <button
                         key={s.step}
@@ -3683,8 +3725,44 @@ export default function RootPage() {
                   </div>
 
                   <form onSubmit={handleSaveAgent} className="space-y-6">
-                    {/* ADIM 1: KİMLİK & AMAÇ */}
+                    {/* ADIM 1: KATEGORİ & ŞABLON */}
                     {wizardStep === 1 && (
+                      <div className="space-y-5 animate-in fade-in">
+                        <div className="space-y-2">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            Lütfen asistanınızın temel amacını seçin:
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {[
+                              { id: "customer_support", title: "Müşteri Hizmetleri & Destek", icon: "🎧", desc: "Soruları yanıtlar, iade/kargo bilgisi verir." },
+                              { id: "sales_marketing", title: "Satış & Pazarlama", icon: "🛍️", desc: "Ürün önerir, kampanya tanıtır, satışı artırır." },
+                              { id: "finance_analysis", title: "Finans & Analiz", icon: "📈", desc: "Veri analizi yapar, piyasa trendlerini yorumlar." },
+                              { id: "software_it", title: "Yazılım & IT Desteği", icon: "💻", desc: "Kod yazar, hata ayıklar, sistem sorunlarını çözer." },
+                              { id: "blank", title: "Özel / Boş Şablon", icon: "⚙️", desc: "Kendi amacınıza göre baştan yapılandırın." },
+                            ].map((cat) => (
+                              <div
+                                key={cat.id}
+                                onClick={() => handleCategorySelect(cat.id)}
+                                className={`p-4 rounded-2xl border cursor-pointer transition flex gap-3 items-center ${
+                                  selectedCategory === cat.id
+                                    ? "bg-indigo-50/80 dark:bg-indigo-950/60 border-indigo-600 ring-2 ring-indigo-600/30 text-indigo-950 dark:text-white"
+                                    : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 hover:border-slate-300 dark:hover:border-gray-700"
+                                }`}
+                              >
+                                <span className="text-3xl">{cat.icon}</span>
+                                <div>
+                                  <div className="font-bold text-xs text-slate-900 dark:text-white">{cat.title}</div>
+                                  <div className="text-[10px] text-slate-500 dark:text-gray-400 mt-1">{cat.desc}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ADIM 2: KİMLİK & AMAÇ */}
+                    {wizardStep === 2 && (
                       <div className="space-y-5 animate-in fade-in">
                         <div className="space-y-2">
                           <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
@@ -3740,8 +3818,8 @@ export default function RootPage() {
                       </div>
                     )}
 
-                    {/* ADIM 2: ÖZEL BİLGİ KAYNAKLARI (ÇOKLU WEB & API DOKÜMANTASYONU) */}
-                    {wizardStep === 2 && (
+                    {/* ADIM 3: ÖZEL BİLGİ KAYNAKLARI (ÇOKLU WEB & API DOKÜMANTASYONU) */}
+                    {wizardStep === 3 && (
                       <div className="space-y-5 animate-in fade-in">
                         <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900/60 flex items-start gap-3">
                           <span className="text-xl">💡</span>
@@ -3865,8 +3943,8 @@ export default function RootPage() {
                       </div>
                     )}
 
-                    {/* ADIM 3: HARİCİ API'LER, KANALLAR & YETENEKLER */}
-                    {wizardStep === 3 && (
+                    {/* ADIM 4: YETENEKLER VE KANALLAR */}
+                    {wizardStep === 4 && (
                       <div className="space-y-5 animate-in fade-in">
                         {/* 1. Harici API Entegrasyonu & Canlı Test */}
                         <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-slate-950 border border-indigo-500/30 space-y-3">
@@ -3956,42 +4034,8 @@ export default function RootPage() {
                               agentChannelTelegram ? "bg-sky-50 dark:bg-sky-950/60 border-sky-500 text-sky-900 dark:text-sky-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
                             }`}>
                               <span className="text-2xl">✈️</span>
-                              <span className="text-xs">Telegram Bot</span>
-                              <span className="text-[9px] text-slate-400 font-normal">Anlık Bildirim & Alarm</span>
-                              <input
-                                type="checkbox"
-                                checked={agentChannelTelegram}
-                                onChange={(e) => setAgentChannelTelegram(e.target.checked)}
-                                className="w-4 h-4 accent-sky-500 mt-1"
-                              />
-                            </label>
-
-                            <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
-                              agentChannelWhatsApp ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
-                            }`}>
-                              <span className="text-2xl">💬</span>
-                              <span className="text-xs">WhatsApp Bot</span>
-                              <span className="text-[9px] text-slate-400 font-normal">Müşteri & Sipariş Hattı</span>
-                              <input
-                                type="checkbox"
-                                checked={agentChannelWhatsApp}
-                                onChange={(e) => setAgentChannelWhatsApp(e.target.checked)}
-                                className="w-4 h-4 accent-emerald-500 mt-1"
-                              />
-                            </label>
-
-                            <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
-                              agentChannelInstagram ? "bg-pink-50 dark:bg-pink-950/60 border-pink-500 text-pink-900 dark:text-pink-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
-                            }`}>
-                              <span className="text-2xl">📸</span>
-                              <span className="text-xs">Instagram DM</span>
-                              <span className="text-[9px] text-slate-400 font-normal">7/24 Karşılama & Satış</span>
-                              <input
-                                type="checkbox"
-                                checked={agentChannelInstagram}
-                                onChange={(e) => setAgentChannelInstagram(e.target.checked)}
-                                className="w-4 h-4 accent-pink-500 mt-1"
-                              />
+                              <span className="text-xs">Telegram</span>
+                              <input type="checkbox" checked={agentChannelTelegram} onChange={(e) => setAgentChannelTelegram(e.target.checked)} className="w-4 h-4 accent-sky-500 mt-1" />
                             </label>
 
                             <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
@@ -3999,51 +4043,85 @@ export default function RootPage() {
                             }`}>
                               <span className="text-2xl">🌐</span>
                               <span className="text-xs">Web Widget</span>
-                              <span className="text-[9px] text-slate-400 font-normal">Sitenize Canlı Chat</span>
-                              <input
-                                type="checkbox"
-                                checked={agentChannelWebWidget}
-                                onChange={(e) => setAgentChannelWebWidget(e.target.checked)}
-                                className="w-4 h-4 accent-indigo-500 mt-1"
-                              />
+                              <input type="checkbox" checked={agentChannelWebWidget} onChange={(e) => setAgentChannelWebWidget(e.target.checked)} className="w-4 h-4 accent-indigo-500 mt-1" />
+                            </label>
+
+                            <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelWhatsApp ? "bg-green-50 dark:bg-green-950/60 border-green-500 text-green-900 dark:text-green-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
+                            }`}>
+                              <span className="text-2xl">💬</span>
+                              <span className="text-xs">WhatsApp</span>
+                              <input type="checkbox" checked={agentChannelWhatsApp} onChange={(e) => setAgentChannelWhatsApp(e.target.checked)} className="w-4 h-4 accent-green-500 mt-1" />
+                            </label>
+
+                            <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelInstagram ? "bg-pink-50 dark:bg-pink-950/60 border-pink-500 text-pink-900 dark:text-pink-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
+                            }`}>
+                              <span className="text-2xl">📸</span>
+                              <span className="text-xs">Instagram</span>
+                              <input type="checkbox" checked={agentChannelInstagram} onChange={(e) => setAgentChannelInstagram(e.target.checked)} className="w-4 h-4 accent-pink-500 mt-1" />
                             </label>
                           </div>
 
-                          {/* Instagram DM Detaylı Açıklama & Webhook Rehberi */}
-                          {agentChannelInstagram && (
-                            <div className="p-4 rounded-2xl bg-gradient-to-br from-pink-500/10 via-purple-500/5 to-transparent border border-pink-500/30 space-y-2 animate-in fade-in">
-                              <div className="flex items-center gap-2 text-pink-600 dark:text-pink-400 font-bold text-xs">
-                                <span>📸</span>
-                                <span>Instagram DM Satış & Otomasyon Rehberi:</span>
-                              </div>
-                              <p className="text-[11px] text-slate-600 dark:text-gray-300 leading-relaxed">
-                                Instagram işletme sayfanıza DM atan müşterileri <strong>7/24 otomatik karşılar</strong>, ürün kataloğunuzdan fiyat/stok bilgisi verir, kargo/iade sorularını yanıtlar ve sipariş toplar.
-                              </p>
-                              <div className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-pink-500/20 text-[10px] font-mono text-pink-300">
-                                <span>Meta Webhook: <code className="text-white">/api/agents/webhooks/instagram</code></span>
-                                <span className="text-emerald-400 font-bold">● Canlı & Aktif</span>
+                          {/* Web Widget Embed Code */}
+                          {agentChannelWebWidget && (
+                            <div className="p-4 mt-2 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/50 space-y-3">
+                              <h5 className="text-xs font-bold text-indigo-900 dark:text-indigo-300 flex items-center justify-between">
+                                <span>🌐 Web Widget Entegrasyon Kodu</span>
+                                <span className="text-[9px] font-normal px-2 py-1 bg-indigo-100 dark:bg-indigo-900 rounded-md">Sitenize ekleyin</span>
+                              </h5>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400">Aşağıdaki kodu web sitenizin <code className="bg-slate-200 dark:bg-gray-800 px-1 rounded">&lt;body&gt;</code> etiketinin en altına yapıştırın:</p>
+                              <div className="relative">
+                                <pre className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-[10px] font-mono text-emerald-400 overflow-x-auto whitespace-pre-wrap selection:bg-indigo-500/30">
+{`<script 
+  src="https://api.bedrock-gateway.com/widget/v1.js" 
+  data-agent-id="${editingAgent ? editingAgent.id : "[BOT_OLUSTURULDUKTAN_SONRA_ID_BURAYA_GELECEK]"}"
+></script>`}
+                                </pre>
                               </div>
                             </div>
                           )}
 
-                          {/* WhatsApp Cloud Detaylı Açıklama */}
+                          {/* WhatsApp Settings */}
                           {agentChannelWhatsApp && (
-                            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 animate-in fade-in">
-                              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
-                                <span>💬</span>
-                                <span>WhatsApp Cloud API Müşteri Temsilcisi:</span>
+                            <div className="p-4 mt-2 rounded-2xl bg-green-50/50 dark:bg-green-950/20 border border-green-200 dark:border-green-900/50 space-y-3">
+                              <h5 className="text-xs font-bold text-green-900 dark:text-green-300">💬 WhatsApp API Ayarları (Meta)</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1">Phone Number ID</label>
+                                  <input type="text" value={whatsappPhoneId} onChange={(e) => setWhatsappPhoneId(e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs" placeholder="Örn: 10492839281" />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1">Access Token</label>
+                                  <input type="text" value={whatsappToken} onChange={(e) => setWhatsappToken(e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs" placeholder="EAAB..." />
+                                </div>
                               </div>
-                              <p className="text-[11px] text-slate-600 dark:text-gray-300 leading-relaxed">
-                                WhatsApp hattınıza gelen mesajları anında yanıtlar, menü ve sipariş linklerini paylaşır, randevu veya destek taleplerini organize eder.
-                              </p>
-                              <div className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-emerald-500/20 text-[10px] font-mono text-emerald-300">
-                                <span>Meta Webhook: <code className="text-white">/api/agents/webhooks/whatsapp</code></span>
-                                <span className="text-emerald-400 font-bold">● Canlı & Aktif</span>
+                            </div>
+                          )}
+
+                          {/* Instagram Settings */}
+                          {agentChannelInstagram && (
+                            <div className="p-4 mt-2 rounded-2xl bg-pink-50/50 dark:bg-pink-950/20 border border-pink-200 dark:border-pink-900/50 space-y-3">
+                              <h5 className="text-xs font-bold text-pink-900 dark:text-pink-300">📸 Instagram API Ayarları (Meta)</h5>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1">Account ID</label>
+                                  <input type="text" value={instagramAccountId} onChange={(e) => setInstagramAccountId(e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs" placeholder="Örn: 17841400000000" />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1">Access Token</label>
+                                  <input type="text" value={instagramToken} onChange={(e) => setInstagramToken(e.target.value)} className="w-full bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg px-3 py-2 text-xs" placeholder="EAAB..." />
+                                </div>
                               </div>
                             </div>
                           )}
                         </div>
+                      </div>
+                    )}
 
+                    {/* ADIM 5: YAPAY ZEKA BEYNİ & ZAMANLAMA */}
+                    {wizardStep === 5 && (
+                      <div className="space-y-5 animate-in fade-in">
                         {/* 3. Canlı Arama & Zamanlama */}
                         <div className="space-y-3">
                           <div className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-950">
@@ -4183,15 +4261,19 @@ export default function RootPage() {
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {wizardStep < 4 ? (
+                        {wizardStep < 5 ? (
                           <button
                             type="button"
                             onClick={() => {
-                              if (wizardStep === 1 && !newAgentName.trim()) {
+                              if (wizardStep === 1 && !selectedCategory) {
+                                alert("Lütfen devam etmek için bir kategori seçin.");
+                                return;
+                              }
+                              if (wizardStep === 2 && !newAgentName.trim()) {
                                 alert("Lütfen botunuza bir isim verin.");
                                 return;
                               }
-                              setWizardStep((prev) => Math.min(4, prev + 1));
+                              setWizardStep((prev) => Math.min(5, prev + 1));
                             }}
                             className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5"
                           >

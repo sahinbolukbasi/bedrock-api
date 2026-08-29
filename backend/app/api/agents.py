@@ -95,6 +95,9 @@ async def create_agent(
     if not current_user:
         raise HTTPException(status_code=401, detail="Lütfen önce giriş yapın.")
 
+    tools_cfg = body.tools_config or {}
+    meta_verify_token = str(uuid.uuid4())[:8]
+
     agent = CustomAgent(
         user_id=current_user.id,
         name=body.name,
@@ -103,14 +106,19 @@ async def create_agent(
         goal_definition=body.goal_definition or "",
         autonomy_level=body.autonomy_level or "AUTONOMOUS",
         description=body.description,
-        model_id=body.model_id,
-        system_prompt=body.system_prompt,
+        model_id=body.model_id or "amazon.nova-micro-v1:0",
+        system_prompt=body.system_prompt or "Sen yardımcı bir yapay zeka asistanısın. Kullanıcının sorularını net ve doğru bir şekilde cevapla.",
         schedule_cron=body.schedule_cron,
         schedule_enabled=body.schedule_enabled,
         learned_memory_cache=body.learned_memory_cache or "",
         memory_settings=body.memory_settings or {},
-        tools_config=body.tools_config or {},
-        knowledge_sources=body.knowledge_sources or []
+        tools_config=tools_cfg,
+        knowledge_sources=body.knowledge_sources or [],
+        whatsapp_phone_id=tools_cfg.get("whatsapp_phone_id"),
+        whatsapp_token=tools_cfg.get("whatsapp_token"),
+        instagram_account_id=tools_cfg.get("instagram_account_id"),
+        instagram_token=tools_cfg.get("instagram_token"),
+        meta_verify_token=meta_verify_token
     )
     db.add(agent)
     await db.commit()
@@ -160,6 +168,11 @@ async def update_agent(
         agent.memory_settings = body.memory_settings
     if body.tools_config is not None:
         agent.tools_config = body.tools_config
+        agent.whatsapp_phone_id = body.tools_config.get("whatsapp_phone_id", agent.whatsapp_phone_id)
+        agent.whatsapp_token = body.tools_config.get("whatsapp_token", agent.whatsapp_token)
+        agent.instagram_account_id = body.tools_config.get("instagram_account_id", agent.instagram_account_id)
+        agent.instagram_token = body.tools_config.get("instagram_token", agent.instagram_token)
+
     if body.knowledge_sources is not None:
         agent.knowledge_sources = body.knowledge_sources
 
@@ -411,7 +424,10 @@ async def get_telegram_status(
     if current_user:
         pairing_code = current_user.telegram_pairing_code
         if not pairing_code:
-            pairing_code = await TelegramBotService.generate_pairing_code(current_user.id, db)
+            digits = "".join(secrets.choice(string.digits) for _ in range(6))
+            pairing_code = f"TG-{digits}"
+            current_user.telegram_pairing_code = pairing_code
+            await db.commit()
 
         bot_user = get_telegram_bot_username()
         return {
@@ -447,7 +463,10 @@ async def generate_telegram_pairing_code(
         current_user = res.scalar_one_or_none()
 
     if current_user:
-        code = await TelegramBotService.generate_pairing_code(current_user.id, db)
+        digits = "".join(secrets.choice(string.digits) for _ in range(6))
+        code = f"TG-{digits}"
+        current_user.telegram_pairing_code = code
+        await db.commit()
     else:
         digits = "".join(secrets.choice(string.digits) for _ in range(6))
         code = f"TG-{digits}"
@@ -473,6 +492,8 @@ async def disconnect_telegram(
     if current_user:
         current_user.telegram_chat_id = None
         current_user.telegram_username = None
+        
+        # Generate new pairing code
         digits = "".join(secrets.choice(string.digits) for _ in range(6))
         new_code = f"TG-{digits}"
         current_user.telegram_pairing_code = new_code

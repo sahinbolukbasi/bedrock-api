@@ -109,6 +109,20 @@ class AgentAutonomousEngine:
     ) -> Dict[str, Any]:
         logger.info(f"[AgentEngine] Executing agent '{agent.name}' (ID: {agent.id}) via {trigger_type}")
 
+        # 0. Security Guardrails (Prompt Injection & PII Masking)
+        from app.services.guardrails import EnterpriseGuardrailService
+        sanitized_input, is_safe, block_reason = EnterpriseGuardrailService.sanitize_and_inspect(input_text)
+        if not is_safe:
+            logger.warning(f"[AgentEngine] Guardrail blocked input for agent {agent.id}. Reason: {block_reason}")
+            return {
+                "response": f"🚨 {block_reason}",
+                "status": "blocked",
+                "usage": {"total_tokens": 0}
+            }
+        
+        # Override input_text with the sanitized (PII masked) version
+        input_text = sanitized_input
+
         # 1. Fetch user & wallet
         u_stmt = select(User).where(User.id == agent.user_id)
         u_res = await db.execute(u_stmt)
