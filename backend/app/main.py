@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE users ADD COLUMN telegram_active_agent_id VARCHAR(64)",
             "ALTER TABLE conversations ADD COLUMN summary_context TEXT DEFAULT ''",
             "ALTER TABLE conversations ADD COLUMN scratchpad TEXT DEFAULT ''",
-            "ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP WITH TIME ZONE",
+            "ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP",
             "ALTER TABLE custom_agents ADD COLUMN goal_definition TEXT DEFAULT ''",
             "ALTER TABLE custom_agents ADD COLUMN autonomy_level VARCHAR(32) DEFAULT 'AUTONOMOUS'",
             "ALTER TABLE custom_agents ADD COLUMN learned_memory_cache TEXT DEFAULT ''",
