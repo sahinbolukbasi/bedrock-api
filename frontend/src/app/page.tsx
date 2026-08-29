@@ -685,12 +685,16 @@ export default function RootPage() {
   // Agent Creator & Templates Handlers
   // ==========================================
   const handleSelectAgentTemplate = (tplKey: string) => {
+    setWizardStep(1);
     setScrapedPreviewResults([]);
     setCustomApiTestResult(null);
     setUploadedApiSpecInfo(null);
+    setNewAgentGoal("Kullanıcının talep ettiği güncel bilgileri hızlı, doğru ve kaynak belirterek teslim etmek.");
+    setNewAgentAutonomy("AUTONOMOUS");
+    setNewAgentKnowledgeText("");
 
-    if (tplKey === "crypto") {
-      setNewAgentName("Kripto & Borsa Otomasyon Asistanı");
+    if (tplKey === "crypto" || tplKey === "finance") {
+      setNewAgentName("Kripto & Borsa API Botu");
       setNewAgentIcon("🪙");
       setNewAgentType("finance");
       setNewAgentModel("amazon.nova-micro-v1:0");
@@ -699,14 +703,17 @@ export default function RootPage() {
       setNewAgentMultiUrls(["https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT"]);
       setCustomApiUrl("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
       setCustomApiMethod("GET");
+      setCustomApiAuth("");
       setAgentWebSearchTool(true);
       setAgentTelegramTool(true);
+      setAgentEmailTool(false);
       setAgentChannelTelegram(true);
       setAgentChannelWhatsApp(false);
       setAgentChannelInstagram(false);
+      setAgentChannelWebWidget(false);
       setAgentScheduleCron("0 * * * *");
     } else if (tplKey === "ecommerce") {
-      setNewAgentName("Instagram & WhatsApp Satış ve Sipariş Asistanı");
+      setNewAgentName("Instagram & WhatsApp Satış ve Destek Asistanı");
       setNewAgentIcon("🛍️");
       setNewAgentType("sales");
       setNewAgentModel("amazon.nova-micro-v1:0");
@@ -716,53 +723,52 @@ export default function RootPage() {
       setNewAgentKnowledgeText("Çalışma Saatleri: 7/24. Kargo 500 TL üzeri ücretsizdir. İade süresi 14 gündür. WhatsApp Sipariş Hattı: +90 555 000 00 00.");
       setCustomApiUrl("");
       setCustomApiMethod("GET");
+      setCustomApiAuth("");
       setAgentWebSearchTool(false);
       setAgentTelegramTool(true);
+      setAgentEmailTool(false);
       setAgentChannelTelegram(true);
       setAgentChannelWhatsApp(true);
       setAgentChannelInstagram(true);
       setAgentChannelWebWidget(true);
       setAgentScheduleCron("");
     } else if (tplKey === "news") {
-      setNewAgentName("Canlı Haber & Teknoloji Casusu");
+      setNewAgentName("Çoklu Web & Teknoloji Haber Casusu");
       setNewAgentIcon("📰");
       setNewAgentType("news");
       setNewAgentModel("amazon.nova-micro-v1:0");
       setNewAgentPrompt("Sen canlı internet haberlerini, son dakika gelişmelerini ve yapay zeka/teknoloji trendlerini sürekli tarayan, özetleyen ve Telegram üzerinden kullanıcıya ileten otonom bir haber asistanısın.");
       setNewAgentDesc("İnternetten güncel haberleri ve AI gelişmelerini anlık tarayıp Telegram'a aktarır.");
       setNewAgentMultiUrls(["https://news.ycombinator.com", "https://techcrunch.com"]);
+      setCustomApiUrl("");
+      setCustomApiMethod("GET");
+      setCustomApiAuth("");
       setAgentWebSearchTool(true);
       setAgentTelegramTool(true);
+      setAgentEmailTool(false);
       setAgentChannelTelegram(true);
       setAgentChannelWhatsApp(false);
       setAgentChannelInstagram(false);
-      setAgentEmailTool(false);
+      setAgentChannelWebWidget(false);
       setAgentScheduleCron("0 9 * * *");
-    } else if (tplKey === "finance") {
-      setNewAgentName("Kripto & Finans Piyasa Takipçisi");
-      setNewAgentIcon("📈");
-      setNewAgentType("finance");
-      setNewAgentModel("amazon.nova-micro-v1:0");
-      setNewAgentPrompt("Sen finansal piyasaları, Bitcoin, Ethereum, hisse senetleri ve altın fiyatlarını internetten tarayan, kritik kırılımları ve fiyat hareketlerini analiz eden uzman bir piyasa botusun.");
-      setNewAgentDesc("Piyasa verilerini ve kripto haberlerini takip edip kritik hareketleri bildirir.");
-      setNewAgentMultiUrls(["https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"]);
-      setAgentWebSearchTool(true);
-      setAgentTelegramTool(true);
-      setAgentChannelTelegram(true);
-      setAgentEmailTool(false);
-      setAgentScheduleCron("0 * * * *");
     } else if (tplKey === "security") {
-      setNewAgentName("Siber Güvenlik & Zaafiyet Analisti");
+      setNewAgentName("Siber Güvenlik Nöbetçisi & Zaafiyet Analisti");
       setNewAgentIcon("🛡️");
       setNewAgentType("security");
-      setNewAgentModel("amazon.nova-micro-v1:0");
+      setNewAgentModel("anthropic.claude-3-5-sonnet-20241022-v2:0");
       setNewAgentPrompt("Sen siber güvenlik bültenlerini, yeni çıkan CVE zaafiyetlerini ve sistem yamalarını tarayıp risk puanlarıyla raporlayan ileri düzey güvenlik asistanısın.");
       setNewAgentDesc("Son çıkan kritik CVE ve güvenlik açıklarını analiz eder.");
       setNewAgentMultiUrls(["https://cve.mitre.org"]);
+      setCustomApiUrl("");
+      setCustomApiMethod("GET");
+      setCustomApiAuth("");
       setAgentWebSearchTool(true);
       setAgentTelegramTool(true);
-      setAgentChannelTelegram(true);
       setAgentEmailTool(true);
+      setAgentChannelTelegram(true);
+      setAgentChannelWhatsApp(false);
+      setAgentChannelInstagram(false);
+      setAgentChannelWebWidget(false);
       setAgentScheduleCron("0 9 * * 1");
     } else {
       setNewAgentName("");
@@ -773,12 +779,15 @@ export default function RootPage() {
       setNewAgentDesc("");
       setNewAgentMultiUrls([""]);
       setCustomApiUrl("");
+      setCustomApiMethod("GET");
+      setCustomApiAuth("");
       setAgentWebSearchTool(true);
       setAgentTelegramTool(true);
+      setAgentEmailTool(false);
       setAgentChannelTelegram(true);
       setAgentChannelWhatsApp(false);
       setAgentChannelInstagram(false);
-      setAgentEmailTool(false);
+      setAgentChannelWebWidget(false);
       setAgentScheduleCron("");
     }
     setEditingAgent(null);
