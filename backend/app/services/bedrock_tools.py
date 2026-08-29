@@ -103,6 +103,65 @@ class BedrockToolRegistry:
                         }
                     }
                 }
+            },
+            {
+                "toolSpec": {
+                    "name": "custom_api_request",
+                    "description": "Executes dynamic REST API HTTP requests (GET, POST, PUT, DELETE) to external APIs such as crypto exchanges (Binance, Bybit), Instagram Graph API, WhatsApp Cloud API, CRMs, or custom web services.",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "endpoint_url": {
+                                    "type": "string",
+                                    "description": "The full destination HTTP/HTTPS API URL to invoke."
+                                },
+                                "http_method": {
+                                    "type": "string",
+                                    "enum": ["GET", "POST", "PUT", "DELETE"],
+                                    "default": "GET",
+                                    "description": "HTTP request method."
+                                },
+                                "headers": {
+                                    "type": "object",
+                                    "description": "Optional HTTP request headers (Authorization Bearer token, API keys, Content-Type, etc.)."
+                                },
+                                "query_params": {
+                                    "type": "object",
+                                    "description": "Optional query string parameters to append to the URL."
+                                },
+                                "body_json": {
+                                    "type": "object",
+                                    "description": "JSON payload body for POST or PUT requests."
+                                }
+                            },
+                            "required": ["endpoint_url"]
+                        }
+                    }
+                }
+            },
+            {
+                "toolSpec": {
+                    "name": "multi_url_fetcher",
+                    "description": "Crawls and scrapes real-time content from one or multiple websites, documentation pages, RSS feeds, or news portals simultaneously.",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "urls": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "description": "List of URLs (e.g. ['https://example.com/api', 'https://docs.site.com']) to fetch and extract content from."
+                                },
+                                "query_filter": {
+                                    "type": "string",
+                                    "description": "Optional keyword or topic filter to extract specific sections."
+                                }
+                            },
+                            "required": ["urls"]
+                        }
+                    }
+                }
             }
         ]
 
@@ -142,25 +201,79 @@ class BedrockToolRegistry:
                     "latency_ms": int((time.time() - start_t) * 1000)
                 }
 
+            elif tool_name == "custom_api_request":
+                url = tool_input.get("endpoint_url", "").strip()
+                method = tool_input.get("http_method", "GET").upper().strip()
+                headers = tool_input.get("headers") or {}
+                params = tool_input.get("query_params") or {}
+                body = tool_input.get("body_json")
+
+                if not url.startswith("http://") and not url.startswith("https://"):
+                    return {"error": f"Geçersiz URL şeması: '{url}'. http:// veya https:// ile başlamalıdır."}
+
+                async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+                    resp = await client.request(
+                        method=method,
+                        url=url,
+                        headers=headers,
+                        params=params,
+                        json=body if method in ("POST", "PUT", "PATCH") else None
+                    )
+                    
+                    try:
+                        resp_data = resp.json()
+                    except Exception:
+                        resp_data = resp.text[:2000]
+
+                    return {
+                        "status_code": resp.status_code,
+                        "is_success": resp.is_success,
+                        "data": resp_data,
+                        "url": str(resp.url),
+                        "latency_ms": int((time.time() - start_t) * 1000)
+                    }
+
+            elif tool_name == "multi_url_fetcher":
+                urls = tool_input.get("urls", [])
+                if isinstance(urls, str):
+                    urls = [urls]
+
+                results = []
+                async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+                    for u in urls[:5]:
+                        try:
+                            if not u.startswith("http"):
+                                u = f"https://{u}"
+                            resp = await client.get(u, headers={"User-Agent": "Mozilla/5.0 BedrockGatewayBot/1.0"})
+                            clean_text = re.sub(r"<script.*?</script>", "", resp.text, flags=re.DOTALL | re.IGNORECASE)
+                            clean_text = re.sub(r"<style.*?</style>", "", clean_text, flags=re.DOTALL | re.IGNORECASE)
+                            clean_text = re.sub(r"<[^>]+>", " ", clean_text)
+                            clean_text = " ".join(clean_text.split())[:1500]
+                            results.append({"url": u, "status": resp.status_code, "content_snippet": clean_text})
+                        except Exception as e:
+                            results.append({"url": u, "error": str(e)})
+
+                return {
+                    "fetched_count": len(results),
+                    "sources": results,
+                    "latency_ms": int((time.time() - start_t) * 1000)
+                }
+
             elif tool_name == "python_interpreter":
                 code = tool_input.get("code", "")
                 if not code:
                     return {"error": "Çalıştırılacak Python kodu verilmedi."}
                 
-                # Check prohibited dangerous modules
                 forbidden = ["os.system", "subprocess", "shutil.rmtree", "__import__('os')", "open(", "socket", "eval(", "exec("]
                 for fb in forbidden:
                     if fb in code:
                         return {"error": f"Güvenlik ihlali: '{fb}' kullanımı bu sandbox ortamında engellenmiştir."}
 
-                # Run in isolated stdout redirect with safe globals
                 old_stdout = sys.stdout
                 redirected = io.StringIO()
                 sys.stdout = redirected
                 safe_env = {
-                    "math": math,
-                    "json": json,
-                    "re": re,
+                    "math": math, "json": json, "re": re,
                     "abs": abs, "min": min, "max": max, "sum": sum, "len": len,
                     "round": round, "sorted": sorted, "range": range, "list": list,
                     "dict": dict, "set": set, "str": str, "int": int, "float": float
@@ -180,7 +293,6 @@ class BedrockToolRegistry:
 
             elif tool_name == "finance_market_data":
                 symbol = tool_input.get("symbol", "BTC").upper().strip()
-                # Fast live price query or web market lookup
                 search_query = f"{symbol} price live market quote current"
                 results = await WebSearchService.search(search_query, max_results=2)
                 if results:

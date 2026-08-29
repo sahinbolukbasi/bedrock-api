@@ -209,6 +209,21 @@ export default function RootPage() {
   const [newAgentAutonomy, setNewAgentAutonomy] = useState("AUTONOMOUS");
   const [newAgentKnowledgeUrl, setNewAgentKnowledgeUrl] = useState("");
   const [newAgentKnowledgeText, setNewAgentKnowledgeText] = useState("");
+  const [newAgentMultiUrls, setNewAgentMultiUrls] = useState<string[]>([""]);
+  const [uploadedApiSpecInfo, setUploadedApiSpecInfo] = useState<any | null>(null);
+  const [uploadingSpec, setUploadingSpec] = useState(false);
+  const [customApiUrl, setCustomApiUrl] = useState("");
+  const [customApiMethod, setCustomApiMethod] = useState("GET");
+  const [customApiAuth, setCustomApiAuth] = useState("");
+  const [customApiBody, setCustomApiBody] = useState("");
+  const [customApiTestResult, setCustomApiTestResult] = useState<any | null>(null);
+  const [testingCustomApi, setTestingCustomApi] = useState(false);
+  const [scrapingMultiUrls, setScrapingMultiUrls] = useState(false);
+  const [scrapedPreviewResults, setScrapedPreviewResults] = useState<any[]>([]);
+  const [agentChannelTelegram, setAgentChannelTelegram] = useState(true);
+  const [agentChannelWhatsApp, setAgentChannelWhatsApp] = useState(false);
+  const [agentChannelInstagram, setAgentChannelInstagram] = useState(false);
+  const [agentChannelWebWidget, setAgentChannelWebWidget] = useState(false);
   const [agentWebSearchTool, setAgentWebSearchTool] = useState(true);
   const [agentTelegramTool, setAgentTelegramTool] = useState(true);
   const [agentEmailTool, setAgentEmailTool] = useState(false);
@@ -669,37 +684,83 @@ export default function RootPage() {
   // Agent Creator & Templates Handlers
   // ==========================================
   const handleSelectAgentTemplate = (tplKey: string) => {
-    if (tplKey === "news") {
+    setScrapedPreviewResults([]);
+    setCustomApiTestResult(null);
+    setUploadedApiSpecInfo(null);
+
+    if (tplKey === "crypto") {
+      setNewAgentName("Kripto & Borsa Otomasyon Asistanı");
+      setNewAgentIcon("🪙");
+      setNewAgentType("finance");
+      setNewAgentModel("amazon.nova-micro-v1:0");
+      setNewAgentPrompt("Sen canlı kripto para ve borsa verilerini (Binance, Bybit, CoinGecko) API üzerinden sorgulayan, anlık fiyat değişimlerini ve alım-satım sinyallerini analiz edip kullanıcıya bildiren uzman bir finans botusun.");
+      setNewAgentDesc("Binance/Kripto API'lerine bağlanıp canlı fiyat ve piyasa emirlerini takip eder.");
+      setNewAgentMultiUrls(["https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT"]);
+      setCustomApiUrl("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT");
+      setCustomApiMethod("GET");
+      setAgentWebSearchTool(true);
+      setAgentTelegramTool(true);
+      setAgentChannelTelegram(true);
+      setAgentChannelWhatsApp(false);
+      setAgentChannelInstagram(false);
+      setAgentScheduleCron("0 * * * *");
+    } else if (tplKey === "ecommerce") {
+      setNewAgentName("Instagram & WhatsApp Satış ve Sipariş Asistanı");
+      setNewAgentIcon("🛍️");
+      setNewAgentType("sales");
+      setNewAgentModel("amazon.nova-micro-v1:0");
+      setNewAgentPrompt("Sen bir e-ticaret mağazasının Instagram DM, WhatsApp ve Web sitesi üzerinden gelen müşterilerini karşılayan, ürünleri tanıtan, stok/fiyat bilgisi veren ve sipariş alan profesyonel bir satış temsilcisisin.");
+      setNewAgentDesc("Instagram, WhatsApp ve Web üzerinden müşterilere 7/24 kesintisiz satış ve destek sunar.");
+      setNewAgentMultiUrls(["https://sirketiniz.com/urunler", "https://sirketiniz.com/sss"]);
+      setNewAgentKnowledgeText("Çalışma Saatleri: 7/24. Kargo 500 TL üzeri ücretsizdir. İade süresi 14 gündür. WhatsApp Sipariş Hattı: +90 555 000 00 00.");
+      setCustomApiUrl("");
+      setCustomApiMethod("GET");
+      setAgentWebSearchTool(false);
+      setAgentTelegramTool(true);
+      setAgentChannelTelegram(true);
+      setAgentChannelWhatsApp(true);
+      setAgentChannelInstagram(true);
+      setAgentChannelWebWidget(true);
+      setAgentScheduleCron("");
+    } else if (tplKey === "news") {
       setNewAgentName("Canlı Haber & Teknoloji Casusu");
       setNewAgentIcon("📰");
       setNewAgentType("news");
       setNewAgentModel("amazon.nova-micro-v1:0");
       setNewAgentPrompt("Sen canlı internet haberlerini, son dakika gelişmelerini ve yapay zeka/teknoloji trendlerini sürekli tarayan, özetleyen ve Telegram üzerinden kullanıcıya ileten otonom bir haber asistanısın.");
       setNewAgentDesc("İnternetten güncel haberleri ve AI gelişmelerini anlık tarayıp Telegram'a aktarır.");
+      setNewAgentMultiUrls(["https://news.ycombinator.com", "https://techcrunch.com"]);
       setAgentWebSearchTool(true);
       setAgentTelegramTool(true);
+      setAgentChannelTelegram(true);
+      setAgentChannelWhatsApp(false);
+      setAgentChannelInstagram(false);
       setAgentEmailTool(false);
       setAgentScheduleCron("0 9 * * *");
     } else if (tplKey === "finance") {
       setNewAgentName("Kripto & Finans Piyasa Takipçisi");
       setNewAgentIcon("📈");
       setNewAgentType("finance");
-      setNewAgentModel("meta.llama3-2-3b-instruct-v1:0");
+      setNewAgentModel("amazon.nova-micro-v1:0");
       setNewAgentPrompt("Sen finansal piyasaları, Bitcoin, Ethereum, hisse senetleri ve altın fiyatlarını internetten tarayan, kritik kırılımları ve fiyat hareketlerini analiz eden uzman bir piyasa botusun.");
       setNewAgentDesc("Piyasa verilerini ve kripto haberlerini takip edip kritik hareketleri bildirir.");
+      setNewAgentMultiUrls(["https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"]);
       setAgentWebSearchTool(true);
       setAgentTelegramTool(true);
+      setAgentChannelTelegram(true);
       setAgentEmailTool(false);
       setAgentScheduleCron("0 * * * *");
     } else if (tplKey === "security") {
       setNewAgentName("Siber Güvenlik & Zaafiyet Analisti");
       setNewAgentIcon("🛡️");
       setNewAgentType("security");
-      setNewAgentModel("anthropic.claude-3-5-sonnet-20241022-v2:0");
+      setNewAgentModel("amazon.nova-micro-v1:0");
       setNewAgentPrompt("Sen siber güvenlik bültenlerini, yeni çıkan CVE zaafiyetlerini ve sistem yamalarını tarayıp risk puanlarıyla raporlayan ileri düzey güvenlik asistanısın.");
       setNewAgentDesc("Son çıkan kritik CVE ve güvenlik açıklarını analiz eder.");
+      setNewAgentMultiUrls(["https://cve.mitre.org"]);
       setAgentWebSearchTool(true);
       setAgentTelegramTool(true);
+      setAgentChannelTelegram(true);
       setAgentEmailTool(true);
       setAgentScheduleCron("0 9 * * 1");
     } else {
@@ -709,8 +770,13 @@ export default function RootPage() {
       setNewAgentModel("amazon.nova-micro-v1:0");
       setNewAgentPrompt("Sen verilen görevleri analiz edip özetleyen bir otonom asistansın.");
       setNewAgentDesc("");
+      setNewAgentMultiUrls([""]);
+      setCustomApiUrl("");
       setAgentWebSearchTool(true);
       setAgentTelegramTool(true);
+      setAgentChannelTelegram(true);
+      setAgentChannelWhatsApp(false);
+      setAgentChannelInstagram(false);
       setAgentEmailTool(false);
       setAgentScheduleCron("");
     }
@@ -718,25 +784,132 @@ export default function RootPage() {
     setShowAgentModal(true);
   };
 
+  const handleAddMultiUrl = () => {
+    setNewAgentMultiUrls((prev) => [...prev, ""]);
+  };
+
+  const handleRemoveMultiUrl = (index: number) => {
+    setNewAgentMultiUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleMultiUrlChange = (index: number, val: string) => {
+    setNewAgentMultiUrls((prev) => {
+      const copy = [...prev];
+      copy[index] = val;
+      return copy;
+    });
+  };
+
+  const handleScrapeMultiUrls = async () => {
+    const validUrls = newAgentMultiUrls.filter((u) => u.trim().length > 0);
+    if (validUrls.length === 0) {
+      alert("Lütfen taranacak en az bir URL adresi girin.");
+      return;
+    }
+    setScrapingMultiUrls(true);
+    try {
+      const res = await apiRequest("/api/agents/scrape-sources", {
+        method: "POST",
+        body: JSON.stringify({ urls: validUrls }),
+      });
+      setScrapedPreviewResults(res.sources || []);
+    } catch (err: any) {
+      alert(`Tarama hatası: ${err.message || "İçerik çekilemedi"}`);
+    } finally {
+      setScrapingMultiUrls(false);
+    }
+  };
+
+  const handleUploadApiSpec = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingSpec(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const token = localStorage.getItem("access_token");
+      const resp = await fetch("/api/agents/upload-spec", {
+        method: "POST",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: formData,
+      });
+      if (!resp.ok) throw new Error("Dosya yüklenemedi");
+      const data = await resp.json();
+      setUploadedApiSpecInfo(data);
+      if (data.extracted_content) {
+        setNewAgentKnowledgeText((prev) => (prev ? `${prev}\n\n[API DOKÜMANI: ${data.filename}]\n${data.extracted_content}` : data.extracted_content));
+      }
+    } catch (err: any) {
+      alert(`Doküman yükleme hatası: ${err.message}`);
+    } finally {
+      setUploadingSpec(false);
+    }
+  };
+
+  const handleTestCustomApi = async () => {
+    if (!customApiUrl.trim()) {
+      alert("Lütfen test edilecek bir API URL adresi girin.");
+      return;
+    }
+    setTestingCustomApi(true);
+    setCustomApiTestResult(null);
+    try {
+      let headersObj: Record<string, string> = {};
+      if (customApiAuth.trim()) {
+        headersObj["Authorization"] = customApiAuth.trim().startsWith("Bearer ")
+          ? customApiAuth.trim()
+          : `Bearer ${customApiAuth.trim()}`;
+      }
+      let bodyObj = undefined;
+      if (customApiBody.trim()) {
+        try {
+          bodyObj = JSON.parse(customApiBody.trim());
+        } catch {
+          // ignore
+        }
+      }
+      const res = await apiRequest("/api/agents/test-api", {
+        method: "POST",
+        body: JSON.stringify({
+          endpoint_url: customApiUrl.trim(),
+          http_method: customApiMethod,
+          headers: Object.keys(headersObj).length ? headersObj : undefined,
+          body_json: bodyObj,
+        }),
+      });
+      setCustomApiTestResult(res);
+    } catch (err: any) {
+      setCustomApiTestResult({ is_success: false, error: err.message });
+    } finally {
+      setTestingCustomApi(false);
+    }
+  };
+
   const handleSaveAgent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAgentName.trim()) return;
 
     const knowledgeSources = editingAgent?.knowledge_sources || [];
-    if (newAgentKnowledgeUrl.trim()) {
-      knowledgeSources.push({
-        id: Math.random().toString(36).substring(2, 9),
-        type: "url",
-        name: newAgentKnowledgeUrl.trim(),
-        content: newAgentKnowledgeUrl.trim(),
-        created_at: new Date().toISOString(),
-      });
-    }
+    // Add multi URLs
+    newAgentMultiUrls.forEach((u) => {
+      if (u.trim()) {
+        knowledgeSources.push({
+          id: Math.random().toString(36).substring(2, 9),
+          type: "url",
+          name: u.trim(),
+          content: u.trim(),
+          created_at: new Date().toISOString(),
+        });
+      }
+    });
+
     if (newAgentKnowledgeText.trim()) {
       knowledgeSources.push({
         id: Math.random().toString(36).substring(2, 9),
         type: "text",
-        name: "Özel Kılavuz / Bilgi Notu",
+        name: "Özel Kılavuz & API Dokümantasyonu",
         content: newAgentKnowledgeText.trim(),
         created_at: new Date().toISOString(),
       });
@@ -758,6 +931,16 @@ export default function RootPage() {
         web_search: agentWebSearchTool,
         telegram: agentTelegramTool,
         email: agentEmailTool,
+        custom_api: Boolean(customApiUrl.trim()),
+        custom_api_url: customApiUrl.trim() || undefined,
+        custom_api_method: customApiMethod,
+        custom_api_auth: customApiAuth.trim() || undefined,
+        channels: {
+          telegram: agentChannelTelegram,
+          whatsapp: agentChannelWhatsApp,
+          instagram: agentChannelInstagram,
+          web_widget: agentChannelWebWidget,
+        },
       },
     };
 
@@ -2956,25 +3139,34 @@ export default function RootPage() {
                 <span className="text-xs text-slate-400">İhtiyacınıza göre seçip anında özelleştirin</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 {[
+                  {
+                    key: "crypto",
+                    icon: "🪙",
+                    title: "Kripto & Borsa API Botu",
+                    desc: "Binance & Bybit API'lerine bağlanır, canlı piyasa fiyatlarını ve alım-satım fırsatlarını bildirir.",
+                    model: "Nova Micro ($0.000035/1k)",
+                    badge: "Finans & Borsa",
+                    tools: ["⚡ Binance API", "🌐 Web Arama", "✈️ Telegram"]
+                  },
+                  {
+                    key: "ecommerce",
+                    icon: "🛍️",
+                    title: "Instagram & WhatsApp Satış",
+                    desc: "Instagram DM ve WhatsApp müşterilerini karşılar, ürün/stok bilgisi verir ve sipariş alır.",
+                    model: "Nova Micro",
+                    badge: "E-Ticaret & Satış",
+                    tools: ["💬 WhatsApp", "📸 Instagram", "🌐 Web Widget"]
+                  },
                   {
                     key: "news",
                     icon: "📰",
-                    title: "Canlı Haber & Gündem Casusu",
-                    desc: "Web & Google News kaynaklarını tarayıp AI ve teknoloji haberlerini Telegram'a iletir.",
-                    model: "Nova Micro ($0.000035/1k)",
-                    badge: "En Çok Kullanılan",
-                    tools: ["🌐 Web Arama", "📱 Telegram", "⏰ 09:00"]
-                  },
-                  {
-                    key: "finance",
-                    icon: "📈",
-                    title: "Kripto & Piyasa Analisti",
-                    desc: "Bitcoin, Borsa ve altın fiyatlarını internetten tarar, kritik kırılımları bildirir.",
-                    model: "Llama 3.2 3B ($0.00015/1k)",
-                    badge: "Finans & Ticaret",
-                    tools: ["🌐 Web Arama", "📱 Telegram", "⏰ Saatlik"]
+                    title: "Çoklu Web Haber Casusu",
+                    desc: "Birden fazla web sitesini ve RSS kaynaklarını tarayıp AI ve teknoloji haberlerini iletir.",
+                    model: "Nova Micro",
+                    badge: "Gündem & Takip",
+                    tools: ["🌐 Çoklu Web", "✈️ Telegram", "⏰ 09:00"]
                   },
                   {
                     key: "security",
@@ -2983,16 +3175,16 @@ export default function RootPage() {
                     desc: "Son çıkan kritik CVE güvenlik açıklarını ve sistem yamalarını raporlar.",
                     model: "Claude 3.5 Sonnet",
                     badge: "İleri Güvenlik",
-                    tools: ["🌐 Web Arama", "📧 E-Posta", "📱 Telegram"]
+                    tools: ["🌐 Web Arama", "📧 E-Posta", "✈️ Telegram"]
                   },
                   {
                     key: "custom",
                     icon: "🚀",
-                    title: "Özel AI Görev Botu",
-                    desc: "Sıfırdan belirleyeceğiniz rol, yetenekler ve zamanlayıcı ile çalışan bot.",
+                    title: "Özel REST API & Görev Botu",
+                    desc: "Dilediğiniz özel REST API, Swagger JSON veya şirket kuralları ile sıfırdan kurun.",
                     model: "Seçilebilir Model",
-                    badge: "Tam Özelleştirilebilir",
-                    tools: ["⚡ Sizin Belirleyeceğiniz Araçlar"]
+                    badge: "Özel Entegrasyon",
+                    tools: ["⚡ Harici API", "📚 Özel Dosya", "📱 Çok Kanallı"]
                   }
                 ].map((tpl) => (
                   <div
@@ -3471,137 +3663,300 @@ export default function RootPage() {
                       </div>
                     )}
 
-                    {/* ADIM 2: ÖZEL BİLGİ KAYNAKLARI (RAG) */}
+                    {/* ADIM 2: ÖZEL BİLGİ KAYNAKLARI (ÇOKLU WEB & API DOKÜMANTASYONU) */}
                     {wizardStep === 2 && (
                       <div className="space-y-5 animate-in fade-in">
                         <div className="p-4 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/80 dark:border-indigo-900/60 flex items-start gap-3">
                           <span className="text-xl">💡</span>
                           <div className="space-y-1">
                             <h4 className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
-                              Botunuzu Özel Bilgilerinizle Eğitin (İsteğe Bağlı)
+                              Çoklu Web Siteleri & Özel API Dokümantasyonu ile Eğitin
                             </h4>
                             <p className="text-[11px] text-indigo-900/80 dark:text-indigo-300 leading-relaxed">
-                              Botunuzun internet genelinden farklı olarak yalnızca sizin şirketinizin web sitesini, ürün fiyatlarını veya özel kurallarını bilmesini sağlayabilirsiniz.
+                              Botunuzun birden fazla web sitesini, kripto borsa verilerini, e-ticaret sayfalarını veya yükleyeceğiniz OpenAPI/Swagger dokümantasyonunu hafızasına almasını sağlayın.
                             </p>
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
-                            🌐 Web Sitesi / Dokümantasyon Linki
-                          </label>
-                          <input
-                            type="url"
-                            value={newAgentKnowledgeUrl}
-                            onChange={(e) => setNewAgentKnowledgeUrl(e.target.value)}
-                            placeholder="https://sirketiniz.com/sss veya https://docs.example.com"
-                            className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
-                          />
-                          <p className="text-[11px] text-slate-400">Botunuz bu linkteki metinleri otomatik okur ve hafızasına kaydeder.</p>
+                        {/* 1. Çoklu Web Siteleri / URL Listesi */}
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-slate-800 dark:text-gray-200 flex items-center gap-1.5">
+                              <span>🌐 Taranacak Web Siteleri & Kaynak Linkleri ({newAgentMultiUrls.length})</span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={handleAddMultiUrl}
+                              className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>+ Yeni Link Ekle</span>
+                            </button>
+                          </div>
+
+                          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                            {newAgentMultiUrls.map((url, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <input
+                                  type="url"
+                                  value={url}
+                                  onChange={(e) => handleMultiUrlChange(idx, e.target.value)}
+                                  placeholder={idx === 0 ? "https://api.binance.com/api/v3/ticker/price" : "https://sirketiniz.com/urunler"}
+                                  className="flex-1 bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-xl px-3.5 py-2 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
+                                />
+                                {newAgentMultiUrls.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveMultiUrl(idx)}
+                                    className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1">
+                            <p className="text-[10px] text-slate-400">Botunuz bu linklerdeki güncel içerikleri anlık olarak tarar ve hafızasında sentezler.</p>
+                            <button
+                              type="button"
+                              onClick={handleScrapeMultiUrls}
+                              disabled={scrapingMultiUrls}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-gray-800 hover:bg-slate-200 text-slate-700 dark:text-gray-300 text-[11px] font-bold transition flex items-center gap-1.5"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${scrapingMultiUrls ? "animate-spin" : ""}`} />
+                              <span>{scrapingMultiUrls ? "Siteler Taranıyor..." : "Canlı Önizle & Test Et"}</span>
+                            </button>
+                          </div>
+
+                          {/* Scraped Results Preview */}
+                          {scrapedPreviewResults.length > 0 && (
+                            <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 text-[11px] font-mono space-y-1.5 max-h-36 overflow-y-auto">
+                              <div className="text-emerald-400 font-bold text-[10px] uppercase">✅ Tarama Başarılı ({scrapedPreviewResults.length} kaynak):</div>
+                              {scrapedPreviewResults.map((s, i) => (
+                                <div key={i} className="text-slate-300 border-b border-slate-900 pb-1">
+                                  <span className="text-blue-400 font-bold">[{s.status_code || 200}]</span> {s.url}: {s.snippet?.substring(0, 80)}...
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
+                        {/* 2. API Dokümantasyonu / Dosya Yükleme Alanı */}
+                        <div className="space-y-2 p-4 rounded-2xl bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800">
+                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                            📄 API Dokümantasyonu veya Şirket Kılavuzu Yükle (OpenAPI/Swagger JSON, YAML, PDF, TXT)
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <label className="cursor-pointer px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-sm">
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>{uploadingSpec ? "İşleniyor..." : "Doküman / Swagger Yükle"}</span>
+                              <input
+                                type="file"
+                                accept=".json,.yaml,.yml,.txt,.md,.pdf"
+                                onChange={handleUploadApiSpec}
+                                disabled={uploadingSpec}
+                                className="hidden"
+                              />
+                            </label>
+                            {uploadedApiSpecInfo && (
+                              <div className="text-xs text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5">
+                                <CheckCircle className="w-4 h-4" />
+                                <span>{uploadedApiSpecInfo.summary}</span>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-400">
+                            Yüklenen doküman otomatik olarak taranır, tüm REST endpoint'ler ve kurallar botun yetenek şemasına dahil edilir.
+                          </p>
+                        </div>
+
+                        {/* 3. Özel Notlar */}
                         <div className="space-y-2">
                           <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
-                            📝 Özel Notlarınız & Şirket Kurallarınız
+                            📝 Özel Notlarınız, Şirket Kurallarınız & Ürün Bilgileri
                           </label>
                           <textarea
                             rows={3}
                             value={newAgentKnowledgeText}
                             onChange={(e) => setNewAgentKnowledgeText(e.target.value)}
-                            placeholder="Örn: Çalışma saatlerimiz 09:00 - 18:00 arasındadır. İade süresi 14 gündür. Kargo 500 TL üzeri ücretsizdir."
+                            placeholder="Örn: Kripto piyasasında RSI 30 altına indiğinde aşırı satım uyarısı ver. E-ticaret siparişlerinde 500 TL üzeri kargo bedava."
                             className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl p-3.5 text-xs text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-medium"
                           />
-                          <p className="text-[11px] text-slate-400">Bu notlar botun hafızasında kalıcı olarak saklanır ve yanıtlarda öncelikli kullanılır.</p>
                         </div>
                       </div>
                     )}
 
-                    {/* ADIM 3: YETENEKLER & ZAMANLAMA */}
+                    {/* ADIM 3: HARİCİ API'LER, KANALLAR & YETENEKLER */}
                     {wizardStep === 3 && (
                       <div className="space-y-5 animate-in fade-in">
-                        <div className="space-y-3">
+                        {/* 1. Harici API Entegrasyonu & Canlı Test */}
+                        <div className="p-4 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-purple-950/20 to-slate-950 border border-indigo-500/30 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">⚡</span>
+                              <div>
+                                <h4 className="text-xs font-bold text-white">Harici REST API Entegrasyonu (Kripto, Borsa, Instagram, WhatsApp, CRM)</h4>
+                                <p className="text-[10px] text-indigo-300/80">Botunuzun doğrudan veri çekebileceği veya sipariş/işlem gönderebileceği REST API.</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                            <div className="sm:col-span-1">
+                              <select
+                                value={customApiMethod}
+                                onChange={(e) => setCustomApiMethod(e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none"
+                              >
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                              </select>
+                            </div>
+                            <div className="sm:col-span-3">
+                              <input
+                                type="url"
+                                value={customApiUrl}
+                                onChange={(e) => setCustomApiUrl(e.target.value)}
+                                placeholder="https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={customApiAuth}
+                              onChange={(e) => setCustomApiAuth(e.target.value)}
+                              placeholder="Bearer Token veya API Key (İsteğe bağlı)"
+                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                            />
+                            <div className="flex items-center justify-end">
+                              <button
+                                type="button"
+                                onClick={handleTestCustomApi}
+                                disabled={testingCustomApi || !customApiUrl.trim()}
+                                className="w-full px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/30"
+                              >
+                                <Play className={`w-3.5 h-3.5 ${testingCustomApi ? "animate-spin" : ""}`} />
+                                <span>{testingCustomApi ? "API Test Ediliyor..." : "API Bağlantısını Test Et"}</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Custom API Test Sonucu */}
+                          {customApiTestResult && (
+                            <div className="p-3 rounded-xl bg-black/60 border border-slate-800 text-[11px] font-mono space-y-1">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className={customApiTestResult.is_success ? "text-emerald-400 font-bold" : "text-red-400 font-bold"}>
+                                  {customApiTestResult.is_success ? `✅ HTTP ${customApiTestResult.status_code || 200} OK` : `❌ Hata: ${customApiTestResult.error || "Bağlanamadı"}`}
+                                </span>
+                              </div>
+                              <pre className="text-slate-300 text-[10px] max-h-24 overflow-y-auto whitespace-pre-wrap">
+                                {typeof customApiTestResult.data === "object" ? JSON.stringify(customApiTestResult.data, null, 2) : String(customApiTestResult.data || customApiTestResult.error || "")}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 2. Çok Kanallı Dağıtım (Omnichannel) */}
+                        <div className="space-y-2">
                           <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
-                            1. Botunuz Hangi Yetenekleri Kullansın?
+                            📱 Çok Kanallı Yayın & Dağıtım (Omnichannel)
                           </label>
-
-                          <div className="grid grid-cols-1 gap-2.5">
-                            <label className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
-                              agentWebSearchTool
-                                ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/50 text-indigo-950 dark:text-white"
-                                : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300"
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <label className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelTelegram ? "bg-sky-50 dark:bg-sky-950/50 border-sky-500 text-sky-900 dark:text-sky-200 font-bold" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
                             }`}>
-                              <div className="flex items-center gap-3">
-                                <span className="text-xl">🌐</span>
-                                <div>
-                                  <div className="text-xs font-bold">Canlı İnternet Araştırması (Web Search)</div>
-                                  <div className="text-[11px] text-slate-500 dark:text-gray-400">Son haberleri, borsa fiyatlarını ve güncel bilgileri Google/Web üzerinden tarar.</div>
-                                </div>
-                              </div>
+                              <span className="text-xl">✈️</span>
+                              <span className="text-[11px]">Telegram Bot</span>
                               <input
                                 type="checkbox"
-                                checked={agentWebSearchTool}
-                                onChange={(e) => setAgentWebSearchTool(e.target.checked)}
-                                className="w-5 h-5 rounded text-indigo-600 accent-indigo-600"
+                                checked={agentChannelTelegram}
+                                onChange={(e) => setAgentChannelTelegram(e.target.checked)}
+                                className="w-4 h-4 accent-sky-500"
                               />
                             </label>
 
-                            <label className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
-                              agentTelegramTool
-                                ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/50 text-indigo-950 dark:text-white"
-                                : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300"
+                            <label className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelWhatsApp ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-bold" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
                             }`}>
-                              <div className="flex items-center gap-3">
-                                <span className="text-xl">📱</span>
-                                <div>
-                                  <div className="text-xs font-bold">Telegram'a Bildirim Gönderme</div>
-                                  <div className="text-[11px] text-slate-500 dark:text-gray-400">Hazırladığı raporları ve uyarıları doğrudan Telegram telefonunuza iletir.</div>
-                                </div>
-                              </div>
+                              <span className="text-xl">💬</span>
+                              <span className="text-[11px]">WhatsApp Bot</span>
                               <input
                                 type="checkbox"
-                                checked={agentTelegramTool}
-                                onChange={(e) => setAgentTelegramTool(e.target.checked)}
-                                className="w-5 h-5 rounded text-indigo-600 accent-indigo-600"
+                                checked={agentChannelWhatsApp}
+                                onChange={(e) => setAgentChannelWhatsApp(e.target.checked)}
+                                className="w-4 h-4 accent-emerald-500"
                               />
                             </label>
 
-                            <label className={`p-4 rounded-2xl border cursor-pointer transition flex items-center justify-between ${
-                              agentEmailTool
-                                ? "bg-indigo-50/80 dark:bg-indigo-950/40 border-indigo-500/50 text-indigo-950 dark:text-white"
-                                : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-700 dark:text-gray-300"
+                            <label className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelInstagram ? "bg-pink-50 dark:bg-pink-950/50 border-pink-500 text-pink-900 dark:text-pink-200 font-bold" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
                             }`}>
-                              <div className="flex items-center gap-3">
-                                <span className="text-xl">📧</span>
-                                <div>
-                                  <div className="text-xs font-bold">E-Posta ile Raporlama</div>
-                                  <div className="text-[11px] text-slate-500 dark:text-gray-400">Detaylı analiz bültenlerini e-posta kutunuza da postalar.</div>
-                                </div>
-                              </div>
+                              <span className="text-xl">📸</span>
+                              <span className="text-[11px]">Instagram DM</span>
                               <input
                                 type="checkbox"
-                                checked={agentEmailTool}
-                                onChange={(e) => setAgentEmailTool(e.target.checked)}
-                                className="w-5 h-5 rounded text-indigo-600 accent-indigo-600"
+                                checked={agentChannelInstagram}
+                                onChange={(e) => setAgentChannelInstagram(e.target.checked)}
+                                className="w-4 h-4 accent-pink-500"
+                              />
+                            </label>
+
+                            <label className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelWebWidget ? "bg-indigo-50 dark:bg-indigo-950/50 border-indigo-500 text-indigo-900 dark:text-indigo-200 font-bold" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
+                            }`}>
+                              <span className="text-xl">🌐</span>
+                              <span className="text-[11px]">Web Widget</span>
+                              <input
+                                type="checkbox"
+                                checked={agentChannelWebWidget}
+                                onChange={(e) => setAgentChannelWebWidget(e.target.checked)}
+                                className="w-4 h-4 accent-indigo-500"
                               />
                             </label>
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
-                            2. Botunuz Ne Zaman Otomatik Çalışsın?
-                          </label>
-                          <select
-                            value={agentScheduleCron}
-                            onChange={(e) => setAgentScheduleCron(e.target.value)}
-                            className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl px-4 py-3 text-xs text-slate-900 dark:text-white font-medium"
-                          >
-                            <option value="">🔘 Sadece Ben İstediğimde (Panelden veya Telegram'dan tetikleyince)</option>
-                            <option value="0 9 * * *">🌅 Her Sabah Saat 09:00'da (Günlük Sabah Özeti)</option>
-                            <option value="0 * * * *">⏰ Her Saat Başı (Canlı Piyasa & Kritik Takip)</option>
-                            <option value="*/30 * * * *">⚡ Her 30 Dakikada Bir (Anlık Haber & Fırsat Radarı)</option>
-                            <option value="0 9 * * 1">📅 Her Pazartesi Sabah 09:00'da (Haftalık Strateji Raporu)</option>
-                          </select>
+                        {/* 3. Canlı Arama & Zamanlama */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-950">
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-lg">🌐</span>
+                              <div>
+                                <div className="text-xs font-bold text-slate-800 dark:text-gray-200">Canlı Google/Web Arama Yeteneği</div>
+                                <div className="text-[10px] text-slate-400">Gerçek zamanlı haber ve piyasa verisi çekmek için web araması yapar.</div>
+                              </div>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={agentWebSearchTool}
+                              onChange={(e) => setAgentWebSearchTool(e.target.checked)}
+                              className="w-5 h-5 accent-indigo-600"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                              ⏰ Otomatik Çalışma Takvimi (Cron)
+                            </label>
+                            <select
+                              value={agentScheduleCron}
+                              onChange={(e) => setAgentScheduleCron(e.target.value)}
+                              className="w-full bg-slate-50 dark:bg-gray-950 border border-slate-200 dark:border-gray-800 rounded-2xl px-4 py-2.5 text-xs text-slate-900 dark:text-white font-medium"
+                            >
+                              <option value="">🔘 Sadece İstenildiğinde (Manuel / Tetikleme)</option>
+                              <option value="0 9 * * *">🌅 Her Sabah Saat 09:00'da</option>
+                              <option value="0 * * * *">⏰ Her Saat Başı (Kripto & Piyasa Takibi)</option>
+                              <option value="*/30 * * * *">⚡ Her 30 Dakikada Bir (Anlık Fırsat & Haber)</option>
+                              <option value="0 9 * * 1">📅 Her Pazartesi Sabah 09:00'da</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     )}

@@ -2,8 +2,10 @@ import uuid
 import secrets
 import string
 import httpx
+import json
+import re
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Body
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Body, UploadFile, File, Form
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -521,3 +523,150 @@ async def telegram_bot_webhook(
     token_to_use = bot_token or get_telegram_bot_token()
     result = await TelegramBotService.process_webhook_update(token_to_use, update, db)
     return result
+
+
+# =====================================================================
+# MULTI-SOURCE KNOWLEDGE & CUSTOM API INTEGRATIONS
+# =====================================================================
+
+class ExternalApiTestRequest(BaseModel):
+    endpoint_url: str
+    http_method: str = "GET"
+    headers: Optional[Dict[str, str]] = None
+    query_params: Optional[Dict[str, str]] = None
+    body_json: Optional[Dict[str, Any]] = None
+
+
+class MultiUrlScrapeRequest(BaseModel):
+    urls: List[str]
+    topic_filter: Optional[str] = None
+
+
+@router.post("/test-api")
+async def test_external_api_endpoint(
+    req: ExternalApiTestRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Tests an external REST API (e.g. Binance Crypto, Instagram Graph API, WhatsApp Webhook, CRM)
+    directly from the Agent Studio.
+    """
+    if not req.endpoint_url.startswith("http://") and not req.endpoint_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Geçersiz URL: 'http://' veya 'https://' ile başlamalıdır.")
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            resp = await client.request(
+                method=req.http_method.upper(),
+                url=req.endpoint_url,
+                headers=req.headers or {},
+                params=req.query_params or {},
+                json=req.body_json if req.http_method.upper() in ("POST", "PUT", "PATCH") else None
+            )
+            try:
+                data = resp.json()
+            except Exception:
+                data = resp.text[:2000]
+
+            return {
+                "status_code": resp.status_code,
+                "is_success": resp.is_success,
+                "headers": dict(resp.headers),
+                "data": data,
+                "url": str(resp.url)
+            }
+    except Exception as e:
+        logger.warning(f"External API test failed: {e}")
+        return {
+            "status_code": 500,
+            "is_success": False,
+            "error": str(e)
+        }
+
+
+@router.post("/upload-spec")
+async def upload_agent_api_spec(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Parses and extracts OpenAPI/Swagger JSON, Markdown, YAML, or TXT documentation
+    for the agent to learn how to call APIs or reference domain documents.
+    """
+    content_bytes = await file.read()
+    raw_text = content_bytes.decode("utf-8", errors="ignore")
+    filename = file.filename or "uploaded_spec.txt"
+
+    endpoints_found = []
+    summary_text = ""
+
+    # Attempt JSON parsing for OpenAPI / Swagger
+    if filename.endswith(".json") or raw_text.strip().startswith("{"):
+        try:
+            spec_json = json.loads(raw_text)
+            if "paths" in spec_json:
+                base_url = spec_json.get("servers", [{}])[0].get("url", "")
+                for path, methods in spec_json.get("paths", {}).items():
+                    for method, details in methods.items():
+                        if isinstance(details, dict):
+                            endpoints_found.append({
+                                "method": method.upper(),
+                                "path": path,
+                                "summary": details.get("summary") or details.get("description", ""),
+                                "base_url": base_url
+                            })
+                summary_text = f"OpenAPI Spec: {spec_json.get('info', {}).get('title', 'API')} ({len(endpoints_found)} endpoint tespit edildi)"
+        except Exception:
+            pass
+
+    if not summary_text:
+        # Markdown / Plain text extraction
+        lines = [line.strip() for line in raw_text.split("\n") if line.strip()]
+        summary_text = f"{filename} ({len(lines)} satır, {len(raw_text)} karakter)"
+
+    return {
+        "filename": filename,
+        "size_bytes": len(content_bytes),
+        "summary": summary_text,
+        "endpoints_count": len(endpoints_found),
+        "endpoints": endpoints_found[:20],
+        "extracted_content": raw_text[:8000]
+    }
+
+
+@router.post("/scrape-sources")
+async def scrape_agent_sources(
+    req: MultiUrlScrapeRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Scrapes and extracts clean text snippets from multiple target web URLs simultaneously.
+    """
+    results = []
+    async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+        for u in req.urls[:10]:
+            clean_u = u.strip()
+            if not clean_u:
+                continue
+            if not clean_u.startswith("http"):
+                clean_u = f"https://{clean_u}"
+            try:
+                resp = await client.get(clean_u, headers={"User-Agent": "Mozilla/5.0 BedrockGatewayBot/1.0"})
+                text = re.sub(r"<script.*?</script>", "", resp.text, flags=re.DOTALL | re.IGNORECASE)
+                text = re.sub(r"<style.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
+                text = re.sub(r"<[^>]+>", " ", text)
+                clean_snippet = " ".join(text.split())[:1200]
+                results.append({
+                    "url": clean_u,
+                    "status_code": resp.status_code,
+                    "is_success": resp.is_success,
+                    "snippet": clean_snippet
+                })
+            except Exception as err:
+                results.append({
+                    "url": clean_u,
+                    "is_success": False,
+                    "error": str(err)
+                })
+
+    return {"count": len(results), "sources": results}
