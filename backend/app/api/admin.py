@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from sqlalchemy.orm import selectinload
+from loguru import logger
 from app.core.database import get_db
 from app.api.deps import get_current_active_admin
 from app.domain.schemas import AdminOverviewStats, ModelCatalogItem

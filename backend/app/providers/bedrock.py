@@ -188,7 +188,8 @@ class AWSBedrockProvider(IModelProvider):
 
             # Check if tools are enabled / requested
             tool_config = None
-            if getattr(request, "tools", None) or getattr(model_entity, "capabilities", {}).get("tools"):
+            model_caps = getattr(model_entity, "capabilities", None) or {}
+            if getattr(request, "tools", None) or (isinstance(model_caps, dict) and model_caps.get("tools")):
                 tool_config = BedrockToolRegistry.get_bedrock_tool_config()
                 params["toolConfig"] = tool_config
 
