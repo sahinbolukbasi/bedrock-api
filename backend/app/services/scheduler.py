@@ -139,7 +139,27 @@ class AgentAutonomousEngine:
             except Exception as search_err:
                 logger.warning(f"[AgentEngine] Web search failed: {search_err}")
 
-        # 3. 3-Layer Memory & Local RAG Knowledge Retrieval
+        # 3. Dynamic Custom API Fetching (Binance, Bybit, Instagram, WhatsApp, CRM)
+        custom_api_url = tools.get("custom_api_url")
+        api_context_str = ""
+        if custom_api_url and (tools.get("custom_api") or "api" in tools):
+            try:
+                headers = {}
+                auth = tools.get("custom_api_auth")
+                if auth:
+                    headers["Authorization"] = auth if auth.startswith("Bearer ") else f"Bearer {auth}"
+                method = tools.get("custom_api_method", "GET").upper()
+                async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                    resp = await client.request(method=method, url=custom_api_url, headers=headers)
+                    try:
+                        api_data = resp.json()
+                        api_context_str = f"### CANLI HARİCİ API VERİSİ ({custom_api_url}):\n```json\n{json.dumps(api_data, ensure_ascii=False, indent=2)[:3000]}\n```"
+                    except Exception:
+                        api_context_str = f"### CANLI HARİCİ API YANITI ({custom_api_url}):\n{resp.text[:1500]}"
+            except Exception as api_err:
+                logger.warning(f"[AgentEngine] Custom API fetch failed: {api_err}")
+
+        # 4. 3-Layer Memory & Local RAG Knowledge Retrieval
         from app.services.memory_engine import MemoryOptimizer
         from app.services.reasoning_engine import ReActAgentRunner
         from app.services.local_rag import LocalRAGEngine
@@ -150,6 +170,9 @@ class AgentAutonomousEngine:
         goal_text = getattr(agent, "goal_definition", "")
         if goal_text:
             base_prompt += f"\n\n### HEDEF & BAŞARI KRİTERİ:\n{goal_text}"
+
+        if api_context_str:
+            base_prompt += f"\n\n{api_context_str}"
 
         # Ingest & Query Knowledge Sources (Zero-Cost Local RAG)
         knowledge_list = getattr(agent, "knowledge_sources", []) or []
