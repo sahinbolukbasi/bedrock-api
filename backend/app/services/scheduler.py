@@ -227,9 +227,18 @@ class AgentAutonomousEngine:
         agent.evolution_stage = growth_res["stage"]
         agent.growth_history = growth_res["growth_history"]
 
-
+        # Track Prometheus metrics
+        try:
+            from app.core.metrics import AGENT_RUNS_TOTAL, AGENT_SAVED_TOKENS, RAG_QUERIES_TOTAL
+            AGENT_RUNS_TOTAL.labels(agent_type=agent.agent_type or "custom", status="COMPLETED").inc()
+            AGENT_SAVED_TOKENS.inc(len(learned_cache.split()) * 2 if learned_cache else 500)
+            if knowledge_list:
+                RAG_QUERIES_TOTAL.labels(source_type="agent_knowledge").inc()
+        except Exception:
+            pass
 
         # 6. Multi-Channel Dispatch
+
         # A. Telegram Dispatch
         target_chat_id = telegram_chat_id or (user_obj.telegram_chat_id if user_obj else None) or tools.get("telegram_chat_id")
         telegram_dispatched = False

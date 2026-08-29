@@ -22,7 +22,7 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "id": 100,
-      "title": "🚀 AWS Bedrock Gateway — Sistem & Trafik Özeti",
+      "title": "🚀 AWS Bedrock Gateway — Sistem & Canlı Trafik Özeti",
       "type": "row"
     },
     {
@@ -44,7 +44,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "expr": "sum(rate(gateway_requests_total[1m])) or sum(rate(http_requests_total[1m]))",
+          "expr": "sum(rate(gateway_requests_total[1m])) or vector(0)",
           "legendFormat": "Toplam İstek (RPS)"
         }
       ]
@@ -70,12 +70,16 @@
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" }
       },
-      "title": "İstek Gecikmesi (Latency p95)",
+      "title": "İstek Gecikmesi (Latency p95 & p50)",
       "type": "timeseries",
       "targets": [
         {
           "expr": "histogram_quantile(0.95, sum(rate(gateway_request_duration_seconds_bucket[5m])) by (le))",
-          "legendFormat": "p95 Latency"
+          "legendFormat": "p95 Latency (sn)"
+        },
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(gateway_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50 Latency (sn)"
         }
       ]
     },
@@ -94,7 +98,7 @@
       "targets": [
         {
           "expr": "sum by (status_code) (rate(gateway_requests_total[5m]))",
-          "legendFormat": "{{status_code}}"
+          "legendFormat": "HTTP {{status_code}}"
         }
       ]
     },
@@ -102,7 +106,7 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
       "id": 200,
-      "title": "🤖 Otonom Agent & 3-Katmanlı Hafıza / Tasarruf Paneli",
+      "title": "🤖 Otonom Agent, Telegram & 3-Katmanlı Hafıza / Tasarruf Paneli",
       "type": "row"
     },
     {
@@ -114,19 +118,19 @@
             "mode": "absolute",
             "steps": [
               { "color": "blue", "value": null },
-              { "color": "green", "value": 10 }
+              { "color": "green", "value": 1 }
             ]
           },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 9 },
+      "gridPos": { "h": 6, "w": 5, "x": 0, "y": 9 },
       "id": 10,
       "title": "Yürütülen Otonom Görevler",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(gateway_agent_runs_total) or 42",
+          "expr": "sum(gateway_agent_runs_total) or vector(0)",
           "legendFormat": "Toplam Görev"
         }
       ]
@@ -140,20 +144,20 @@
             "mode": "absolute",
             "steps": [
               { "color": "purple", "value": null },
-              { "color": "emerald", "value": 1000 }
+              { "color": "emerald", "value": 500 }
             ]
           },
           "unit": "short"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 9 },
+      "gridPos": { "h": 6, "w": 5, "x": 5, "y": 9 },
       "id": 11,
-      "title": "Hafıza & RAG ile Tasarruf Edilen Token",
+      "title": "Hafıza & RAG Tasarruf Token",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(gateway_agent_saved_tokens_total) or 185000",
-          "legendFormat": "Tasarruf Token"
+          "expr": "sum(gateway_agent_saved_tokens_total) or vector(0)",
+          "legendFormat": "Tasarruf Edilen Token"
         }
       ]
     },
@@ -162,16 +166,16 @@
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "unit": "reqps"
+          "unit": "short"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 9 },
+      "gridPos": { "h": 6, "w": 5, "x": 10, "y": 9 },
       "id": 12,
-      "title": "🛡️ Bedrock Guardrail Olayları (PII & Injection)",
+      "title": "🛡️ Bedrock Guardrail Olayları",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(gateway_guardrail_events_total) or 0",
+          "expr": "sum(gateway_guardrail_events_total) or vector(0)",
           "legendFormat": "Engellenen Saldırı / Maskeleme"
         }
       ]
@@ -184,14 +188,33 @@
           "unit": "short"
         }
       },
-      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 9 },
+      "gridPos": { "h": 6, "w": 5, "x": 15, "y": 9 },
       "id": 13,
-      "title": "📱 Telegram Bot Mesajlaşma Hacmi",
+      "title": "📱 Telegram Bot Mesajlaşma",
       "type": "stat",
       "targets": [
         {
-          "expr": "sum(gateway_telegram_messages_total) or 84",
-          "legendFormat": "Mesajlar"
+          "expr": "sum(gateway_telegram_messages_total) or vector(0)",
+          "legendFormat": "Toplam Mesaj"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 6, "w": 4, "x": 20, "y": 9 },
+      "id": 14,
+      "title": "⚡ Anlık Aktif Çıkarımlar",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "gateway_active_inferences or vector(0)",
+          "legendFormat": "Eşzamanlı İşlem"
         }
       ]
     },
@@ -215,7 +238,7 @@
       "options": {
         "legend": { "displayMode": "table", "placement": "bottom" }
       },
-      "title": "Model Bazında İşlenen Token Sayısı",
+      "title": "Model Bazında İşlenen Token Hızı (Token/s)",
       "type": "timeseries",
       "targets": [
         {
@@ -250,7 +273,7 @@
   "refresh": "5s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": ["bedrock", "ai-gateway", "agents", "guardrails", "rag"],
+  "tags": ["bedrock", "ai-gateway", "agents", "guardrails", "rag", "telegram"],
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {
     "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
@@ -258,5 +281,5 @@
   "timezone": "browser",
   "title": "AWS Bedrock AI Gateway — Canlı Otonom İzleme Paneli",
   "uid": "bedrock-gateway-overview",
-  "version": 2
+  "version": 3
 }

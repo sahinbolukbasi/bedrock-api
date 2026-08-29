@@ -25,9 +25,31 @@ async def lifespan(app: FastAPI):
     await init_redis()
 
     from app.core.database import Base
+    from sqlalchemy import text
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
+        # Safe column auto-patching for SQLite and PostgreSQL
+        alter_stmts = [
+            "ALTER TABLE conversations ADD COLUMN summary_context TEXT DEFAULT ''",
+            "ALTER TABLE conversations ADD COLUMN scratchpad TEXT DEFAULT ''",
+            "ALTER TABLE custom_agents ADD COLUMN goal_definition TEXT DEFAULT ''",
+            "ALTER TABLE custom_agents ADD COLUMN autonomy_level VARCHAR(32) DEFAULT 'AUTONOMOUS'",
+            "ALTER TABLE custom_agents ADD COLUMN learned_memory_cache TEXT DEFAULT ''",
+            "ALTER TABLE custom_agents ADD COLUMN memory_settings JSON DEFAULT '{}'",
+            "ALTER TABLE custom_agents ADD COLUMN tools_config JSON DEFAULT '{}'",
+            "ALTER TABLE custom_agents ADD COLUMN knowledge_sources JSON DEFAULT '[]'",
+            "ALTER TABLE custom_agents ADD COLUMN xp_points INTEGER DEFAULT 0",
+            "ALTER TABLE custom_agents ADD COLUMN level INTEGER DEFAULT 1",
+            "ALTER TABLE custom_agents ADD COLUMN evolution_stage VARCHAR(64) DEFAULT '🌱 Yenidoğan'",
+            "ALTER TABLE custom_agents ADD COLUMN growth_history JSON DEFAULT '[]'",
+            "ALTER TABLE custom_agents ADD COLUMN total_runs INTEGER DEFAULT 0",
+            "ALTER TABLE custom_agents ADD COLUMN last_run_at TIMESTAMP"
+        ]
+        for col_stmt in alter_stmts:
+            try:
+                await conn.execute(text(col_stmt))
+            except Exception:
+                pass
 
     try:
         await seed_database()
@@ -35,19 +57,24 @@ async def lifespan(app: FastAPI):
         logger.warning(f"Seed database warning: {e}")
 
 
+
+    from app.services.telegram_bot import TelegramBotService
     try:
         await BackgroundSchedulerService.start()
+        await TelegramBotService.start_polling_worker()
     except Exception as e:
-        logger.warning(f"Failed to start background scheduler: {e}")
+        logger.warning(f"Failed to start background services: {e}")
 
     yield
     # Shutdown
     logger.info("Shutting down Gateway...")
     try:
+        await TelegramBotService.stop_polling_worker()
         await BackgroundSchedulerService.stop()
     except Exception as e:
-        logger.warning(f"Error stopping background scheduler: {e}")
+        logger.warning(f"Error stopping background services: {e}")
     await close_redis()
+
     await engine.dispose()
 
 
@@ -104,7 +131,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled server error: {exc}", exc_info=True)
+    logger.exception("Unhandled server error: {}", exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
@@ -116,6 +143,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             }
         }
     )
+
 
 
 # Health check endpoint for ALB / ECS / CloudWatch

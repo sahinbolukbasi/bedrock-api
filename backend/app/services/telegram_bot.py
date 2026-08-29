@@ -17,11 +17,14 @@ from app.services.web_search import WebSearchService
 from app.services.scheduler import parse_time_expression, parse_interval_expression, AgentAutonomousEngine
 from app.domain.schemas import ImageGenerationRequest
 from app.providers.router import provider_router
+from app.core.metrics import TELEGRAM_MESSAGES_TOTAL
 from loguru import logger
+import asyncio
 
 # Default Telegram Bot Token & Username (Dynamically loaded from Secrets Manager / Environment)
 DEFAULT_TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8613347978:AAF0oVmP_GYBIA702VFXH4W5cy0BXS7DTbI")
 DEFAULT_TELEGRAM_BOT_USERNAME = os.getenv("TELEGRAM_BOT_USERNAME", "BedrocksAiBot")
+
 
 
 
@@ -88,10 +91,15 @@ class TelegramBotService:
                         # Fallback without Markdown
                         payload.pop("parse_mode", None)
                         await client.post(url, json=payload)
+                try:
+                    TELEGRAM_MESSAGES_TOTAL.labels(direction="outgoing").inc()
+                except Exception:
+                    pass
                 return True
         except Exception as e:
             logger.error(f"[TelegramBotService] Failed to send message to {chat_id}: {e}")
             return False
+
 
     @classmethod
     async def send_photo(
@@ -203,11 +211,16 @@ class TelegramBotService:
         db: AsyncSession
     ) -> Dict[str, Any]:
         token = bot_token or DEFAULT_TELEGRAM_BOT_TOKEN
+        try:
+            TELEGRAM_MESSAGES_TOTAL.labels(direction="incoming").inc()
+        except Exception:
+            pass
 
         # -------------------------------------------------------------
         # Handle Callback Queries (Inline Button Clicks)
         # -------------------------------------------------------------
         if "callback_query" in update_data:
+
             cq = update_data["callback_query"]
             cq_id = cq["id"]
             chat_id = str(cq.get("message", {}).get("chat", {}).get("id", ""))
@@ -828,4 +841,68 @@ class TelegramBotService:
 
         await cls.send_message(token, chat_id, full_reply)
         return {"status": "ok", "agent": active_agent.name}
+
+
+    _polling_task: Optional[asyncio.Task] = None
+    _is_polling: bool = False
+
+    @classmethod
+    async def start_polling_worker(cls):
+        """Starts background self-healing Telegram long-polling worker."""
+        if cls._is_polling:
+            return
+        token = DEFAULT_TELEGRAM_BOT_TOKEN
+        if not token:
+            return
+        cls._is_polling = True
+        cls._polling_task = asyncio.create_task(cls._polling_loop())
+        logger.info(f"[TelegramBotService] Background Telegram polling worker started for @{DEFAULT_TELEGRAM_BOT_USERNAME}")
+
+    @classmethod
+    async def stop_polling_worker(cls):
+        """Stops background Telegram polling worker cleanly."""
+        cls._is_polling = False
+        if cls._polling_task:
+            cls._polling_task.cancel()
+            try:
+                await cls._polling_task
+            except asyncio.CancelledError:
+                pass
+        logger.info("[TelegramBotService] Background Telegram polling worker stopped.")
+
+    @classmethod
+    async def _polling_loop(cls):
+        from app.core.database import AsyncSessionLocal
+        token = DEFAULT_TELEGRAM_BOT_TOKEN
+        if not token:
+            return
+        offset = 0
+        url = f"{cls.TELEGRAM_API_BASE}{token}/getUpdates"
+        logger.info(f"[TelegramBotService] Polling active for bot: @{DEFAULT_TELEGRAM_BOT_USERNAME}")
+        
+        while cls._is_polling:
+            try:
+                async with httpx.AsyncClient(timeout=35.0) as client:
+                    resp = await client.get(url, params={"offset": offset, "timeout": 20})
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        for update in data.get("result", []):
+                            offset = update["update_id"] + 1
+                            try:
+                                async with AsyncSessionLocal() as db:
+                                    await cls.process_webhook_update(token, update, db)
+                            except Exception as update_err:
+                                logger.error(f"[TelegramBotService] Error processing update: {update_err}")
+                    elif resp.status_code == 409:
+                        # Another instance active - backoff
+                        logger.debug("[TelegramBotService] Another getUpdates instance active, backing off 5s...")
+                        await asyncio.sleep(5)
+                    else:
+                        await asyncio.sleep(2)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"[TelegramBotService] Polling exception (auto-recovering in 3s): {e}")
+                await asyncio.sleep(3)
+
 
