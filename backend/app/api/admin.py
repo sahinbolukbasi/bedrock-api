@@ -17,6 +17,7 @@ class AdminBalanceAdjustRequest(BaseModel):
     new_balance_usd: Optional[Decimal] = None
     amount: Optional[Decimal] = None
     balance: Optional[Decimal] = None
+    reason: Optional[str] = "Yönetici panelinden bakiye güncellemesi"
 
 
 class AdminNotifyUserRequest(BaseModel):
@@ -32,8 +33,10 @@ async def get_admin_overview(
     admin_user: User = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    # Total users
-    users_count = await db.scalar(select(func.count(User.id)))
+    # Total active users (excluding soft-deleted)
+    users_count = await db.scalar(
+        select(func.count(User.id)).where(User.deleted_at.is_(None))
+    )
     # Active keys
     keys_count = await db.scalar(select(func.count(ApiKey.id)).where(ApiKey.is_active == True))
     
@@ -64,23 +67,39 @@ async def get_admin_overview(
 
 @router.get("/users")
 async def list_admin_users(
-    limit: int = 50,
+    search: Optional[str] = None,
+    status_filter: Optional[str] = None,
+    role_filter: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
     admin_user: User = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
     stmt = (
         select(User)
         .options(selectinload(User.wallet))
-        .order_by(User.created_at.desc())
-        .limit(limit)
+        .where(User.deleted_at.is_(None))
     )
+
+    if search and search.strip():
+        term = f"%{search.strip().lower()}%"
+        stmt = stmt.where((func.lower(User.email).like(term)) | (func.lower(User.full_name).like(term)))
+
+    if status_filter and status_filter.upper() != "ALL":
+        is_act = (status_filter.upper() == "ACTIVE")
+        stmt = stmt.where(User.is_active == is_act)
+
+    if role_filter and role_filter.upper() != "ALL":
+        stmt = stmt.where(User.role == role_filter.lower())
+
+    offset = (max(1, page) - 1) * page_size
+    stmt = stmt.order_by(User.created_at.desc()).offset(offset).limit(page_size)
+
     res = await db.execute(stmt)
     users = res.scalars().all()
 
-    # Enrich with usage aggregates per user
     enriched_users = []
     for u in users:
-        # Fetch usage stats for user
         usage_stmt = select(
             func.count(UsageRecord.id),
             func.coalesce(func.sum(UsageRecord.total_tokens), 0),
@@ -90,7 +109,6 @@ async def list_admin_users(
         u_stats = (await db.execute(usage_stmt)).first()
         req_cnt, total_toks, total_spent, last_seen = u_stats if u_stats else (0, 0, Decimal("0.0"), None)
 
-        # Fetch last model used
         last_rec_stmt = (
             select(UsageRecord)
             .where(UsageRecord.user_id == u.id)
@@ -101,7 +119,6 @@ async def list_admin_users(
         last_model = last_rec.model_id_str if last_rec else ("Nova Micro" if u.role == "user" else "Claude 3.5 Sonnet")
         last_ip = last_rec.ip_hash if (last_rec and last_rec.ip_hash) else "195.175.24.81"
 
-        # Deterministic Country/City estimation for Analytics UI
         country_name = "Türkiye" if ("@" in u.email and (u.email.endswith(".tr") or u.email.startswith("sahin") or u.email.startswith("ahmet") or u.email.startswith("admin"))) else "United States"
         city_name = "Istanbul" if country_name == "Türkiye" else "Virginia"
         country_flag = "🇹🇷" if country_name == "Türkiye" else "🇺🇸"
@@ -129,6 +146,38 @@ async def list_admin_users(
     return enriched_users
 
 
+@router.delete("/users/{user_id}")
+async def delete_user_soft(
+    user_id: uuid.UUID,
+    admin_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Performs safe soft delete on a user without destroying historical analytics.
+    """
+    stmt = select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı veya zaten silinmiş.")
+
+    from datetime import datetime, timezone
+    user.deleted_at = datetime.now(timezone.utc)
+    user.is_active = False
+
+    audit = AuditLog(
+        user_id=admin_user.id,
+        action="USER_SOFT_DELETED",
+        resource_type="USER",
+        resource_id=str(user.id),
+        details={"email": user.email}
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {"status": "success", "message": f"{user.email} kullanıcısı başarıyla silindi (soft delete)."}
+
+
 @router.post("/users/{user_id}/status")
 async def update_user_status(
     user_id: uuid.UUID,
@@ -136,11 +185,11 @@ async def update_user_status(
     admin_user: User = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(User).where(User.id == user_id)
+    stmt = select(User).where(User.id == user_id, User.deleted_at.is_(None))
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
 
     user.is_active = is_active
     audit = AuditLog(
@@ -152,6 +201,7 @@ async def update_user_status(
     )
     db.add(audit)
     await db.commit()
+    return {"status": "success", "is_active": is_active}
 
 
 @router.post("/users/{user_id}/balance")
@@ -162,31 +212,57 @@ async def adjust_user_balance(
     admin_user: User = Depends(get_current_active_admin),
     db: AsyncSession = Depends(get_db)
 ):
+    """
+    Atomically updates wallet balance with row-level locking and inserts append-only ledger transaction.
+    """
     target_balance = Decimal("0.0")
-    if body and body.new_balance_usd is not None:
-        target_balance = Decimal(str(body.new_balance_usd))
-    elif body and body.amount is not None:
-        target_balance = Decimal(str(body.amount))
-    elif body and body.balance is not None:
-        target_balance = Decimal(str(body.balance))
+    reason = "Yönetici panelinden bakiye güncellemesi"
+    if body:
+        if body.reason:
+            reason = body.reason
+        if body.new_balance_usd is not None:
+            target_balance = Decimal(str(body.new_balance_usd))
+        elif body.amount is not None:
+            target_balance = Decimal(str(body.amount))
+        elif body.balance is not None:
+            target_balance = Decimal(str(body.balance))
     elif new_balance_usd is not None:
         target_balance = Decimal(str(new_balance_usd))
 
-    stmt = select(Wallet).where(Wallet.user_id == user_id)
+    from app.models.entities import WalletTransaction
+
+    # Row-level lock on wallet
+    stmt = select(Wallet).where(Wallet.user_id == user_id).with_for_update()
     res = await db.execute(stmt)
     wallet = res.scalar_one_or_none()
+
     if not wallet:
         wallet = Wallet(user_id=user_id, balance_usd=target_balance)
         db.add(wallet)
+        await db.flush()
+        old_balance = Decimal("0.0")
     else:
+        old_balance = wallet.balance_usd
         wallet.balance_usd = target_balance
+
+    diff = target_balance - old_balance
+
+    # Append-only transaction ledger
+    tx = WalletTransaction(
+        wallet_id=wallet.id,
+        amount_usd=diff,
+        type="ADMIN_ADJUST" if diff >= 0 else "ADMIN_DEDUCT",
+        balance_after=target_balance,
+        description=f"{reason} (İşlemi yapan: {admin_user.email})"
+    )
+    db.add(tx)
 
     audit = AuditLog(
         user_id=admin_user.id,
         action="USER_BALANCE_ADJUSTED",
         resource_type="WALLET",
         resource_id=str(user_id),
-        details={"new_balance": float(target_balance)}
+        details={"previous_balance": float(old_balance), "new_balance": float(target_balance), "reason": reason}
     )
     db.add(audit)
     await db.commit()
@@ -679,4 +755,39 @@ async def export_users_csv(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=bedrock_users_export.csv"}
     )
+
+
+@router.get("/credits/ledger")
+async def list_credit_ledger(
+    page: int = 1,
+    page_size: int = 50,
+    admin_user: User = Depends(get_current_active_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns immutable append-only transaction ledger records.
+    """
+    from app.models.entities import WalletTransaction
+    offset = (max(1, page) - 1) * page_size
+    stmt = (
+        select(WalletTransaction)
+        .order_by(WalletTransaction.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+    )
+    res = await db.execute(stmt)
+    txs = res.scalars().all()
+
+    return [
+        {
+            "id": tx.id,
+            "wallet_id": tx.wallet_id,
+            "amount_usd": float(tx.amount_usd),
+            "type": tx.type,
+            "balance_after": float(tx.balance_after),
+            "description": tx.description,
+            "created_at": tx.created_at
+        }
+        for tx in txs
+    ]
 

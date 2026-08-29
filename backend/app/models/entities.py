@@ -32,6 +32,7 @@ class User(Base):
     telegram_username = Column(String(128), nullable=True)
     telegram_pairing_code = Column(String(32), nullable=True, index=True)
     telegram_active_agent_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)  # Soft delete support
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
