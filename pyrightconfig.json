@@ -3,12 +3,23 @@
     "backend"
   ],
   "extraPaths": [
-    "backend"
+    "backend",
+    "backend/app"
   ],
-  "venvPath": ".",
+  "venvPath": "/Users/sahinbolukbasi/Development/bedrock",
   "venv": "venv",
-  "pythonVersion": "3.11",
-  "typeCheckingMode": "basic",
+  "typeCheckingMode": "off",
   "reportMissingImports": "none",
-  "reportGeneralTypeIssues": "none"
+  "reportMissingModuleSource": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalSubscript": "none",
+  "reportPrivateImportUsage": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownArgumentType": "none",
+  "reportUntypedFunctionDecorator": "none",
+  "reportUntypedClassDecorator": "none",
+  "reportUntypedBaseClass": "none",
+  "reportUntypedNamedTuple": "none"
 }

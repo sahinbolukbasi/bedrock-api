@@ -4952,7 +4952,7 @@ export default function RootPage() {
 
                   {docsLanguage === "agent" && (
                     <pre className="text-gray-300">
-                      <span className="text-slate-500">// Cursor / Cline / Roo Code / VS Code AI Assistant Settings</span><br/>
+                      <span className="text-slate-500">&#47;&#47; Cursor / Cline / Roo Code / VS Code AI Assistant Settings</span><br/>
                       &#123;<br/>
                       &nbsp;&nbsp;<span className="text-amber-300">"openai.baseUrl"</span>: <span className="text-emerald-300">"{typeof window !== "undefined" ? `${window.location.origin}/v1` : "http://localhost:8000/v1"}"</span>,<br/>
                       &nbsp;&nbsp;<span className="text-amber-300">"openai.apiKey"</span>: <span className="text-amber-300">"{selectedDocsKey || (apiKeys[0]?.prefix ? `${apiKeys[0].prefix}••••••••` : "bg-live-your-api-key")}"</span>,<br/>
