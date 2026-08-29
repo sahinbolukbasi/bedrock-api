@@ -49,12 +49,15 @@ def get_main_menu_keyboard() -> Dict[str, Any]:
                 {"text": "➕ Yeni Bot Oluştur", "callback_data": "menu:newbot"}
             ],
             [
-                {"text": "⏰ Hatırlatıcılar", "callback_data": "menu:reminders"},
-                {"text": "🌐 Web & Haber Takibi", "callback_data": "menu:tracks"}
+                {"text": "⏰ Hatırlatıcı Kur", "callback_data": "menu:reminders"},
+                {"text": "🌐 Canlı Web Takibi", "callback_data": "menu:tracks"}
             ],
             [
-                {"text": "🎨 Görsel Üret (Image)", "callback_data": "menu:image"},
-                {"text": "💳 Cüzdan & Bakiye", "callback_data": "menu:balance"}
+                {"text": "🎨 Görsel Üret (Titan)", "callback_data": "menu:image"},
+                {"text": "💰 Cüzdan & Bakiye", "callback_data": "menu:balance"}
+            ],
+            [
+                {"text": "📖 Komut & Kullanım Rehberi", "callback_data": "menu:help"}
             ]
         ]
     }
@@ -250,13 +253,17 @@ class TelegramBotService:
                 return await cls._handle_agents_command(token, chat_id, user, db)
             elif data == "menu:newbot":
                 help_new = (
-                    "➕ *Yeni Otonom Bot Oluşturma:*\n\n"
-                    "Aşağıdaki formatta komut göndererek anında yeni bir bot tanımlayabilirsiniz:\n\n"
+                    "🤖 *Yeni Otonom Bot Oluşturma Rehberi*\n"
+                    "━━━━━━━━━━━━━━━━━━━━━\n"
+                    "Aşağıdaki formatta tek bir komut göndererek dilediğiniz yapay zeka ajanını oluşturabilirsiniz:\n\n"
                     "`/newbot <Bot Adı> | <Rol & Talimatlar> | <Web:Evet/Hayır> | <Model>`\n\n"
-                    "📌 *Örnek:*\n"
-                    "`/newbot Kripto Uzmanı | Kripto para piyasasını analiz edip tavsiyeler sun. | evet | amazon.nova-micro-v1:0`"
+                    "💡 *Kopyalayıp Deneyebileceğiniz Örnekler:*\n\n"
+                    "1️⃣ *Kripto Analisti:*\n"
+                    "`/newbot Kripto Uzmanı | Kripto para ve borsa piyasasını analiz et, teknik özetler sun. | evet | amazon.nova-micro-v1:0`\n\n"
+                    "2️⃣ *Yazılım & Kod Asistanı:*\n"
+                    "`/newbot Kod Mimarı | Python, Go ve TypeScript mimarisinde uzman bir kıdemli mühendissin. | hayır | amazon.nova-lite-v1:0`"
                 )
-                await cls.send_message(token, chat_id, help_new)
+                await cls.send_message(token, chat_id, help_new, reply_markup=get_main_menu_keyboard())
                 return {"status": "ok", "action": "newbot_help"}
             elif data == "menu:reminders":
                 return await cls._handle_list_reminders(token, chat_id, user, db)
@@ -264,15 +271,38 @@ class TelegramBotService:
                 return await cls._handle_list_tracks(token, chat_id, user, db)
             elif data == "menu:image":
                 help_img = (
-                    "🎨 *Görsel (Image) Üretimi:*\n\n"
-                    "AWS Bedrock Titan Image Generator ile istediğiniz resmi oluşturabilirsiniz.\n\n"
-                    "📌 *Kullanım:* `/image <görsel açıklaması>`\n"
-                    "👉 *Örnek:* `/image Boğaz köprüsü üzerinde siberpunk uçan arabalar, 4k ultra detay`"
+                    "🎨 *Yapay Zeka ile Görsel (Image) Üretimi*\n"
+                    "━━━━━━━━━━━━━━━━━━━━━\n"
+                    "AWS Bedrock Titan Image Generator G1 ile dilediğiniz görseli anında oluşturun.\n\n"
+                    "📌 *Kullanım:* `/image <görsel açıklaması>`\n\n"
+                    "💡 *Örnek Komutlar:*\n"
+                    "• `/image İstanbul Boğazı üzerinde gün batımında uçan siberpunk arabalar, 4k ultra detaylı fotogerçekçi`\n"
+                    "• `/image Geleceğin yapay zeka laboratuvarı, neon mor ve mavi ışıklar, minimal 3D render`"
                 )
-                await cls.send_message(token, chat_id, help_img)
+                await cls.send_message(token, chat_id, help_img, reply_markup=get_main_menu_keyboard())
                 return {"status": "ok", "action": "image_help"}
             elif data == "menu:balance":
                 return await cls._handle_balance_command(token, chat_id, user, db)
+            elif data == "menu:help":
+                help_all = (
+                    "📖 *Bedrock AI Botu — Hızlı Komut Rehberi*\n"
+                    "━━━━━━━━━━━━━━━━━━━━━\n"
+                    "⚡ *Doğrudan Mesaj:* Herhangi bir soru veya metin yazdığınızda aktif botunuz canlı web araması desteğiyle yanıtlar.\n\n"
+                    "⏰ *Hatırlatıcılar:*\n"
+                    "• `/remind 10m Toplantı var`\n"
+                    "• `/remind 18:30 Raporları teslim et`\n\n"
+                    "🌐 *Web & Haber Taramaları:*\n"
+                    "• `/track 1h Yapay Zeka Gelişmeleri`\n"
+                    "• `/haber Borsa İstanbul ve Altın`\n\n"
+                    "🎨 *Görsel Üretimi:*\n"
+                    "• `/image <açıklama>`\n\n"
+                    "🤖 *Bot & Ajan Yönetimi:*\n"
+                    "• `/agents` — Kayıtlı botlarınızı listeler ve aktif botu seçtirir.\n"
+                    "• `/switch <bot_adı>` — Aktif botu değiştirir.\n"
+                    "• `/balance` — Kullanılabilir cüzdan bakiyesini gösterir."
+                )
+                await cls.send_message(token, chat_id, help_all, reply_markup=get_main_menu_keyboard())
+                return {"status": "ok", "action": "help_shown"}
             elif data.startswith("cb:switch:"):
                 agent_id_str = data.split("cb:switch:")[1]
                 return await cls._switch_agent(token, chat_id, agent_id_str, user, db)
@@ -310,31 +340,37 @@ class TelegramBotService:
                 paired_user = await cls.pair_user_by_code(param, chat_id, username, db)
                 if paired_user:
                     welcome_text = (
-                        f"🎉 *Tebrikler! AWS Bedrock AI Hesabınız Başarıyla Eşleşti!*\n\n"
+                        f"🎉 *Tebrikler! AWS Bedrock AI Hesabınız Başarıyla Bağlandı!*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━\n"
                         f"👤 *Kullanıcı:* `{paired_user.email}`\n"
-                        f"🆔 *Telegram Chat ID:* `{chat_id}`\n\n"
-                        f"⚡ *Hızlı İşlemler İçin Menüyü Kullanabilirsiniz:*"
+                        f"🆔 *Telegram Chat ID:* `{chat_id}`\n"
+                        f"⚡ *Durum:* Güvenli & Çift Yönlü Entegrasyon Aktif\n"
+                        f"━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"Doğrudan mesaj yazarak sohbet edebilir veya aşağıdaki menüden dilediğiniz işlemi başlatabilirsiniz:"
                     )
                     await cls.send_message(token, chat_id, welcome_text, reply_markup=get_main_menu_keyboard())
                     return {"status": "paired", "user": paired_user.email}
 
             if user:
                 msg = (
-                    f"🤖 *AWS Bedrock AI — Hibrit Ajan & Otomasyon Asistanı*\n\n"
-                    f"Hoş geldiniz, *{user.full_name or user.email}*!\n\n"
-                    f"⚡ *Özellikler & Hızlı Komutlar:*\n"
-                    f"• `/remind 10m Toplantı` — Zilli hatırlatıcı kurar.\n"
-                    f"• `/track 1h Yapay Zeka` — Belirli aralıklarla canlı web taraması yapar.\n"
-                    f"• `/image <prompt>` — AWS Titan ile fotoğraf üretip gönderir.\n"
-                    f"• `/agents` veya `/switch` — Özel botlarınızı seçip yönetin.\n"
-                    f"• `/haber <konu>` — Anlık canlı haber ve web taraması."
+                    f"👋 *Merhaba, {user.full_name or user.email.split('@')[0]}!*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"Ben sizin **AWS Bedrock AI Kişisel Asistanınızım** ⚡\n\n"
+                    f"Bana doğrudan dilediğiniz soruyu sorabilir, internetten canlı haber taratabilir veya aşağıdaki hızlı butonları kullanabilirsiniz.\n\n"
+                    f"💡 *Popüler İşlemler:*\n"
+                    f"• ⏰ `/remind 15m Toplantı` — Zamanlayıcı kurar.\n"
+                    f"• 🌐 `/track 1h Yapay Zeka` — Canlı web takipçisi başlatır.\n"
+                    f"• 🎨 `/image Gece gökyüzü` — AWS Titan ile görsel çizer.\n"
+                    f"• 🤖 `/agents` — Kayıtlı yapay zeka botlarınızı listeler."
                 )
                 await cls.send_message(token, chat_id, msg, reply_markup=get_main_menu_keyboard())
             else:
                 msg = (
-                    "👋 *AWS Bedrock AI Gateway Botuna Hoş Geldiniz!*\n\n"
-                    "Otonom AI ajanlarınızı yönetmek, hatırlatıcı kurmak, web takipçisi başlatmak ve görsel üretmek için hesabınızı bağlayın:\n\n"
-                    "👉 `/pair TG-XXXXXX` (Web panelindeki eşleştirme kodunuzu girin)"
+                    "👋 *AWS Bedrock AI Gateway Asistanına Hoş Geldiniz!*\n"
+                    "━━━━━━━━━━━━━━━━━━━━━\n"
+                    "Otonom yapay zeka ajanlarınızı çalıştırmak, akıllı hatırlatıcılar kurmak ve görsel üretmek için hesabınızı bağlayın:\n\n"
+                    "👉 `/pair TG-XXXXXX` (Web panelinizdeki eşleştirme kodunu girin)\n\n"
+                    "💡 _Web panelinizdeki 'Ajanlar' sekmesinden tek tıkla da bağlanabilirsiniz._"
                 )
                 await cls.send_message(token, chat_id, msg)
             return {"status": "ok", "command": "start"}
@@ -343,7 +379,7 @@ class TelegramBotService:
         if text.startswith("/pair"):
             parts = text.split(" ", 1)
             if len(parts) < 2:
-                await cls.send_message(token, chat_id, "⚠️ Lütfen eşleştirme kodunu girin: `/pair TG-123456`")
+                await cls.send_message(token, chat_id, "⚠️ *Kullanım:* Lütfen web panelinizdeki eşleştirme kodunu girin:\n`/pair TG-123456`")
                 return {"status": "missing_code"}
             code = parts[1].strip()
             paired_user = await cls.pair_user_by_code(code, chat_id, username, db)
@@ -351,12 +387,12 @@ class TelegramBotService:
                 await cls.send_message(
                     token, 
                     chat_id, 
-                    f"✅ *Hesabınız Başarıyla Bağlandı!*\n\n👤 *Kullanıcı:* `{paired_user.email}`",
+                    f"🎉 *Hesabınız Başarıyla Bağlandı!*\n━━━━━━━━━━━━━━━━━━━━━\n👤 *Kullanıcı:* `{paired_user.email}`\n\nArtık tüm yapay zeka ajanlarınız ve hatırlatıcılarınız bu kanaldan hizmetinizdedir.",
                     reply_markup=get_main_menu_keyboard()
                 )
                 return {"status": "paired"}
             else:
-                await cls.send_message(token, chat_id, "❌ *Eşleştirme Başarısız.* Kod hatalı veya süresi dolmuş.")
+                await cls.send_message(token, chat_id, "❌ *Eşleştirme Başarısız.* Girdiğiniz kod geçersiz veya süresi dolmuş. Lütfen web panelinden yeni bir kod alın.")
                 return {"status": "invalid_code"}
 
         # Direct pairing code entered without /pair
@@ -364,7 +400,8 @@ class TelegramBotService:
             paired_user = await cls.pair_user_by_code(text, chat_id, username, db)
             if paired_user:
                 welcome_text = (
-                    f"🎉 *Tebrikler! AWS Bedrock AI Hesabınız Başarıyla Eşleşti!*\n\n"
+                    f"🎉 *Tebrikler! AWS Bedrock AI Hesabınız Başarıyla Eşleşti!*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n"
                     f"👤 *Kullanıcı:* `{paired_user.email}`\n"
                     f"🆔 *Telegram Chat ID:* `{chat_id}`\n\n"
                     f"⚡ *Hızlı İşlemler İçin Menüyü Kullanabilirsiniz:*"
@@ -376,7 +413,7 @@ class TelegramBotService:
             await cls.send_message(
                 token, 
                 chat_id, 
-                "🔒 *Yetkilendirme Gerekli:*\nLütfen önce hesabınızı bağlayın: `/pair TG-XXXXXX`"
+                "🔒 *Yetkilendirme Gerekli*\n━━━━━━━━━━━━━━━━━━━━━\nLütfen önce web panelinizdeki eşleştirme kodunu girin:\n`/pair TG-XXXXXX`"
             )
             return {"status": "unauthorized"}
 
@@ -793,15 +830,20 @@ class TelegramBotService:
         balance = f"${wallet.balance_usd:.4f} USD" if wallet else "$0.0000 USD"
 
         msg = (
-            f"💳 *Cüzdan & Hesap Özeti*\n"
+            f"💰 *Cüzdan & Bakiye Özeti*\n"
             f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👤 *Kullanıcı:* `{user.email}`\n"
-            f"💰 *Kullanılabilir Bakiye:* `{balance}`\n"
-            f"⚡ *Durum:* Aktif & Güvenli\n"
+            f"👤 *Hesap:* `{user.email}`\n"
+            f"💵 *Kullanılabilir Kredi:* `{balance}`\n"
+            f"⚡ *Durum:* Aktif & Kesintisiz\n"
             f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Bakiye yüklemek için web paneline gidebilirsiniz."
+            f"📊 *Yaklaşık Model Tüketimleri:*\n"
+            f"• ⚡ *Amazon Nova Micro:* ~10.000 kelime / $0.0005\n"
+            f"• 🧠 *Claude 3.5 Sonnet:* ~1.000 kelime / $0.003\n"
+            f"• 🎨 *Titan Görsel:* 1 adet / $0.05\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"💳 _Kredi paketleri ve geçmiş dökümler için web panelinizi ziyaret edebilirsiniz._"
         )
-        await cls.send_message(token, chat_id, msg)
+        await cls.send_message(token, chat_id, msg, reply_markup=get_main_menu_keyboard())
         return {"status": "ok", "balance": balance}
 
     @classmethod
