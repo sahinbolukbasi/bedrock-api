@@ -1,4 +1,6 @@
 import uuid
+import secrets
+import string
 import httpx
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Body
@@ -397,7 +399,7 @@ async def get_telegram_status(
     Always generates and returns an active pairing code and direct 1-click deep link.
     """
     if not current_user:
-        u_stmt = select(User).where(User.is_active == True).limit(1)
+        u_stmt = select(User).where(User.is_active == True).order_by(User.created_at.asc()).limit(1)
         res = await db.execute(u_stmt)
         current_user = res.scalar_one_or_none()
 
@@ -406,22 +408,26 @@ async def get_telegram_status(
         if not pairing_code:
             pairing_code = await TelegramBotService.generate_pairing_code(current_user.id, db)
 
+        bot_user = get_telegram_bot_username()
         return {
             "is_connected": bool(current_user.telegram_chat_id),
             "chat_id": current_user.telegram_chat_id,
             "username": current_user.telegram_username,
             "pairing_code": pairing_code,
-            "bot_username": get_telegram_bot_username(),
-            "deep_link": f"https://t.me/{get_telegram_bot_username()}?start={pairing_code}"
+            "bot_username": bot_user,
+            "deep_link": f"https://t.me/{bot_user}?start={pairing_code}"
         }
 
-    fallback_code = TelegramBotService.generate_pairing_code_static(current_user.id)
+    digits = "".join(secrets.choice(string.digits) for _ in range(6))
+    fallback_code = f"TG-{digits}"
+    bot_user = get_telegram_bot_username()
     return {
-        "connected": False,
+        "is_connected": False,
         "chat_id": None,
+        "username": None,
         "pairing_code": fallback_code,
-        "bot_username": get_telegram_bot_username(),
-        "deep_link": f"https://t.me/{get_telegram_bot_username()}?start={fallback_code}"
+        "bot_username": bot_user,
+        "deep_link": f"https://t.me/{bot_user}?start={fallback_code}"
     }
 
 
@@ -431,18 +437,21 @@ async def generate_telegram_pairing_code(
     db: AsyncSession = Depends(get_db)
 ):
     if not current_user:
-        u_stmt = select(User).where(User.is_active == True).limit(1)
+        u_stmt = select(User).where(User.is_active == True).order_by(User.created_at.asc()).limit(1)
         res = await db.execute(u_stmt)
         current_user = res.scalar_one_or_none()
 
     if current_user:
         code = await TelegramBotService.generate_pairing_code(current_user.id, db)
     else:
-        code = "TG-" + "".join(random.choices(string.digits, k=6))
+        digits = "".join(secrets.choice(string.digits) for _ in range(6))
+        code = f"TG-{digits}"
 
+    bot_user = get_telegram_bot_username()
     return {
         "pairing_code": code,
-        "deep_link": f"https://t.me/{get_telegram_bot_username()}?start={code}"
+        "deep_link": f"https://t.me/{bot_user}?start={code}",
+        "bot_username": bot_user
     }
 
 
@@ -454,19 +463,26 @@ async def disconnect_telegram(
     if not current_user:
         u_stmt = select(User).where(User.is_active == True).order_by(User.created_at.asc()).limit(1)
         res = await db.execute(u_stmt)
-        current_user = res.scalars().first()
+        current_user = res.scalar_one_or_none()
 
     if current_user:
         current_user.telegram_chat_id = None
+        current_user.telegram_username = None
+        digits = "".join(secrets.choice(string.digits) for _ in range(6))
+        new_code = f"TG-{digits}"
+        current_user.telegram_pairing_code = new_code
         await db.commit()
+    else:
+        digits = "".join(secrets.choice(string.digits) for _ in range(6))
+        new_code = f"TG-{digits}"
 
-    new_code = TelegramBotService.generate_pairing_code_static(current_user.id if current_user else "default")
+    bot_user = get_telegram_bot_username()
     return {
         "status": "disconnected",
         "message": "Telegram bağlantısı başarıyla kesildi.",
         "pairing_code": new_code,
-        "deep_link": f"https://t.me/{get_telegram_bot_username()}?start={new_code}",
-        "bot_username": get_telegram_bot_username()
+        "deep_link": f"https://t.me/{bot_user}?start={new_code}",
+        "bot_username": bot_user
     }
 
 
