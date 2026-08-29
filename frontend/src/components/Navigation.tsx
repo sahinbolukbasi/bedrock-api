@@ -183,48 +183,34 @@ export default function Navigation() {
               </div>
             </button>
 
-            {/* Hızlı Gezinme Butonları (Header Tabs) */}
+            {/* Hızlı Gezinme Butonları (Minimal Clean Tabs) */}
             {isLoggedIn && (
-              <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-gray-900 p-1 rounded-2xl border border-slate-200 dark:border-gray-800 text-xs font-bold">
+              <div className="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-gray-900/90 p-1 rounded-2xl border border-slate-200 dark:border-gray-800 text-xs font-bold">
                 <button
                   onClick={() => handleSelectTab("chat")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-indigo-600 transition shadow-sm"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-indigo-600 transition shadow-sm"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Sohbet Studio</span>
-                </button>
-                <button
-                  onClick={() => handleSelectTab("models")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-amber-500 transition"
-                >
-                  <Cpu className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Modeller & FinOps</span>
+                  <span>Sohbet</span>
                 </button>
                 <button
                   onClick={() => handleSelectTab("agents")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-purple-600 transition"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-purple-600 transition"
                 >
                   <Bot className="w-3.5 h-3.5 text-purple-600" />
                   <span>Ajanlar</span>
                 </button>
                 <button
                   onClick={() => handleSelectTab("api")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-emerald-600 transition"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-emerald-600 transition"
                 >
                   <Key className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>API & Docs</span>
-                </button>
-                <button
-                  onClick={() => handleSelectTab("profile")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-blue-600 transition"
-                >
-                  <CreditCard className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Cüzdan</span>
+                  <span>API</span>
                 </button>
                 {isAdmin && (
                   <button
                     onClick={() => handleSelectTab("admin")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold transition border border-purple-200 dark:border-purple-800"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold transition border border-purple-200 dark:border-purple-800"
                   >
                     <ShieldAlert className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                     <span>Admin</span>

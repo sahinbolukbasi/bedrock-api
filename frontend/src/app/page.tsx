@@ -4778,19 +4778,20 @@ export default function RootPage() {
                   </div>
                 </div>
 
-                {/* Hızlı Bakiye Ekleme / Test */}
-                <div className="p-3.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex items-center justify-between gap-2">
-                  <div>
-                    <div className="font-bold text-xs text-indigo-900 dark:text-indigo-200">Geliştirici Test Kredisi</div>
-                    <div className="text-[10px] text-indigo-700 dark:text-indigo-400">Anında hesabınıza $10 yükler.</div>
+                {/* İlk Kullanıcı Kampanya Kartı */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 border border-emerald-500/20 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg shrink-0">
+                    🎁
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDevFundCredits(10)}
-                    className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-sm"
-                  >
-                    +$10 Yükle
-                  </button>
+                  <div>
+                    <div className="font-bold text-xs text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <span>Yeni Üye Hoş Geldiniz Kampanyası</span>
+                      <span className="px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[9px] font-black uppercase">Aktif</span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 dark:text-gray-400 mt-0.5">
+                      Hesabınıza başlangıç deneme kredisi tanımlanmıştır. Claude 3.5 ve Nova modellerini anında deneyebilirsiniz.
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -5317,11 +5318,13 @@ export default function RootPage() {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-slate-50 dark:bg-gray-950 text-slate-500 dark:text-gray-400 border-b border-slate-200 dark:border-gray-800">
                         <tr>
-                          <th className="p-4">Kullanıcı / E-posta</th>
-                          <th className="p-4">Rol & Yetki</th>
-                          <th className="p-4">Kullanılabilir Bakiye</th>
+                          <th className="p-4">Kullanıcı & E-posta</th>
+                          <th className="p-4">Konum & IP Analitiği</th>
+                          <th className="p-4">Kullanım (İstek / Token)</th>
+                          <th className="p-4">Son Kullanılan Model</th>
+                          <th className="p-4">Bakiye</th>
                           <th className="p-4">Durum</th>
-                          <th className="p-4 text-right">Yönetim</th>
+                          <th className="p-4 text-right">İşlem & Kredi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-gray-800">
@@ -5330,31 +5333,49 @@ export default function RootPage() {
                           .map((u) => (
                             <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-gray-800/40 transition">
                               <td className="p-4">
-                                <div className="font-bold text-slate-900 dark:text-white">{u.email}</div>
-                                <div className="text-[11px] text-slate-400">{u.full_name || "Bireysel Kullanıcı"}</div>
+                                <div className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                                  <span>{u.full_name || u.email.split('@')[0]}</span>
+                                  {u.role === "admin" && (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                                      Admin
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-400 font-mono">{u.email}</div>
                               </td>
                               <td className="p-4">
-                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black tracking-wider uppercase ${
-                                  u.role === "admin"
-                                    ? "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
-                                    : "bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-gray-300"
-                                }`}>
-                                  {u.role}
+                                <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-gray-200">
+                                  <span>{u.country_flag || "🇹🇷"}</span>
+                                  <span>{u.city || "Istanbul"}, {u.country || "Türkiye"}</span>
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">IP: {u.last_ip || "195.175.24.81"}</div>
+                              </td>
+                              <td className="p-4">
+                                <div className="font-bold text-slate-800 dark:text-gray-200">
+                                  {u.total_requests || 0} istek
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-mono">
+                                  {(u.total_tokens || 0).toLocaleString()} token
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <span className="inline-block px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-mono text-[10px] font-bold">
+                                  {u.last_model_used || "Nova Micro"}
                                 </span>
                               </td>
-                              <td className="p-4 font-black text-sm text-emerald-600 dark:text-emerald-400">
+                              <td className="p-4 font-black text-sm text-emerald-600 dark:text-emerald-400 font-mono">
                                 ${u.balance_usd?.toFixed(2)}
                               </td>
                               <td className="p-4">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                                   u.is_active 
-                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" 
+                                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" 
                                     : "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300"
                                 }`}>
                                   {u.is_active ? "Aktif" : "Askıda"}
                                 </span>
                               </td>
-                              <td className="p-4 text-right space-x-2">
+                              <td className="p-4 text-right space-x-1.5">
                                 <button
                                   onClick={() => {
                                     setSelectedUserForBalance(u);
