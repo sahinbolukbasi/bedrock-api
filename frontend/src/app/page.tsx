@@ -281,6 +281,7 @@ export default function RootPage() {
   const [awsStatus, setAwsStatus] = useState<any>(null);
   const [selectedUserForBalance, setSelectedUserForBalance] = useState<any | null>(null);
   const [newBalanceAmount, setNewBalanceAmount] = useState<string>("100");
+  const [balanceReason, setBalanceReason] = useState<string>("Promosyon & Test Kredisi");
   const [userSearchTerm, setUserSearchTerm] = useState("");
   const [notificationTemplates, setNotificationTemplates] = useState<any[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
@@ -1702,7 +1703,10 @@ export default function RootPage() {
       try {
         await fetchApi(`/api/admin/users/${targetUserId}/balance`, {
           method: "POST",
-          body: JSON.stringify({ new_balance_usd: parsedAmount }),
+          body: JSON.stringify({ 
+            new_balance_usd: parsedAmount,
+            reason: balanceReason || "Yönetici bakiye güncellemesi"
+          }),
         });
       } catch (e) {
         console.warn("Backend balance sync fallback:", e);
@@ -1711,12 +1715,28 @@ export default function RootPage() {
       showPopup(
         "success",
         "Bakiye Başarıyla Tanımlandı! 💰",
-        `${targetEmail} kullanıcısının bakiyesi anında $${parsedAmount.toFixed(2)} olarak güncellendi.`
+        `${targetEmail} kullanıcısının bakiyesi anında $${parsedAmount.toFixed(2)} olarak güncellendi ve denetim defterine işlendi.`
       );
       fetchAdminData();
     } catch (err: any) {
       console.error("Failed to adjust balance:", err);
       showPopup("error", "Bakiye Güncelleme Hatası", err.message || "Bakiye güncellenirken bir hata oluştu.");
+    }
+  };
+
+  // Admin: Safe Soft Delete User
+  const handleSoftDeleteUser = async (userId: string, userEmail: string) => {
+    if (!window.confirm(`${userEmail} kullanıcısını silmek istediğinize emin misiniz? (Soft delete: Analitik veriler ve loglar korunacaktır)`)) {
+      return;
+    }
+    setAdminUsers((prev) => prev.filter((u) => u.id !== userId));
+    try {
+      await fetchApi(`/api/admin/users/${userId}`, { method: "DELETE" });
+      showPopup("success", "Kullanıcı Silindi", `${userEmail} hesabı güvenle silindi (soft delete).`);
+      fetchAdminData();
+    } catch (err: any) {
+      showPopup("error", "Silme Hatası", err.message || "Kullanıcı silinemedi.");
+      fetchAdminData();
     }
   };
 
@@ -5555,21 +5575,32 @@ export default function RootPage() {
                       ))}
                     </div>
 
-                    <form onSubmit={handleAdjustBalance} className="flex gap-2">
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={newBalanceAmount}
-                        onChange={(e) => setNewBalanceAmount(e.target.value)}
-                        className="w-48 bg-white dark:bg-gray-950 border border-purple-300 dark:border-purple-700 rounded-xl px-4 py-2 text-sm font-bold text-slate-900 dark:text-white"
-                        placeholder="Miktar ($)"
-                      />
-                      <button
-                        type="submit"
-                        className="px-6 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/20"
-                      >
-                        Bakiyeyi Güncelle
-                      </button>
+                    <form onSubmit={handleAdjustBalance} className="space-y-2.5">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          required
+                          value={newBalanceAmount}
+                          onChange={(e) => setNewBalanceAmount(e.target.value)}
+                          className="w-full sm:w-48 bg-white dark:bg-gray-950 border border-purple-300 dark:border-purple-700 rounded-xl px-4 py-2 text-sm font-bold text-slate-900 dark:text-white"
+                          placeholder="Miktar ($)"
+                        />
+                        <input
+                          type="text"
+                          required
+                          value={balanceReason}
+                          onChange={(e) => setBalanceReason(e.target.value)}
+                          className="flex-1 bg-white dark:bg-gray-950 border border-purple-300 dark:border-purple-700 rounded-xl px-4 py-2 text-xs font-medium text-slate-900 dark:text-white"
+                          placeholder="Denetim Gerekçesi (Örn: Kampanya Promosyonu)"
+                        />
+                        <button
+                          type="submit"
+                          className="px-6 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 whitespace-nowrap"
+                        >
+                          Onayla & Ledgara Yaz
+                        </button>
+                      </div>
                     </form>
                   </div>
                 )}
@@ -5758,6 +5789,13 @@ export default function RootPage() {
                                   }`}
                                 >
                                   {u.is_active ? "Askıya Al" : "Aktifleştir"}
+                                </button>
+                                <button
+                                  onClick={() => handleSoftDeleteUser(u.id, u.email)}
+                                  title="Hesabı Güvenle Sil (Soft Delete)"
+                                  className="px-2 py-1 rounded-lg font-bold bg-slate-100 dark:bg-gray-800 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition text-[11px]"
+                                >
+                                  Sil
                                 </button>
                               </td>
                             </tr>
