@@ -693,7 +693,45 @@ export default function RootPage() {
     setNewAgentAutonomy("AUTONOMOUS");
     setNewAgentKnowledgeText("");
 
-    if (tplKey === "crypto" || tplKey === "finance") {
+    if (tplKey === "visa") {
+      setNewAgentName("Vize & Konsolosluk Randevu Nöbetçisi");
+      setNewAgentIcon("🛂");
+      setNewAgentType("monitoring");
+      setNewAgentModel("amazon.nova-micro-v1:0");
+      setNewAgentPrompt("Sen VFS Global, iDATA, TLScontact ve resmi konsolosluk duyuru sitelerini periyodik tarayan, Schengen, ABD ve İngiltere vize randevularında boş slot açıldığında veya yeni kontenjan duyurulduğunda anında başvuru linkiyle birlikte Telegram üzerinden bildirim gönderen acil durum vize takip asistanısın.");
+      setNewAgentDesc("Vize randevusu açıldığında saniyesinde Telegram'dan başvuru linki ile bildirim iletir.");
+      setNewAgentMultiUrls(["https://idata.com.tr", "https://visa.vfsglobal.com"]);
+      setCustomApiUrl("");
+      setCustomApiMethod("GET");
+      setCustomApiAuth("");
+      setAgentWebSearchTool(true);
+      setAgentTelegramTool(true);
+      setAgentEmailTool(true);
+      setAgentChannelTelegram(true);
+      setAgentChannelWhatsApp(false);
+      setAgentChannelInstagram(false);
+      setAgentChannelWebWidget(false);
+      setAgentScheduleCron("*/15 * * * *");
+    } else if (tplKey === "research") {
+      setNewAgentName("Derin İnternet Araştırmacısı & Raporlama Asistanı");
+      setNewAgentIcon("🕵️");
+      setNewAgentType("research");
+      setNewAgentModel("anthropic.claude-3-5-sonnet-20241022-v2:0");
+      setNewAgentPrompt("Sen verilen herhangi bir araştırma konusunu internette derinlemesine tarayan, kaynakları çapraz doğrulayan, PDF/doküman içeriklerini sentezleyen ve yönetici seviyesinde kapsamlı analiz raporları hazırlayan uzman bir araştırma analistisin.");
+      setNewAgentDesc("İnternette derinlemesine konu araştırması yapar, dokümanları analiz eder ve özet raporlar.");
+      setNewAgentMultiUrls(["https://arxiv.org", "https://scholar.google.com"]);
+      setCustomApiUrl("");
+      setCustomApiMethod("GET");
+      setCustomApiAuth("");
+      setAgentWebSearchTool(true);
+      setAgentTelegramTool(true);
+      setAgentEmailTool(true);
+      setAgentChannelTelegram(true);
+      setAgentChannelWhatsApp(false);
+      setAgentChannelInstagram(false);
+      setAgentChannelWebWidget(false);
+      setAgentScheduleCron("");
+    } else if (tplKey === "crypto" || tplKey === "finance") {
       setNewAgentName("Kripto & Borsa API Botu");
       setNewAgentIcon("🪙");
       setNewAgentType("finance");
@@ -3168,25 +3206,43 @@ export default function RootPage() {
                 <span className="text-xs text-slate-400">İhtiyacınıza göre seçip anında özelleştirin</span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
                 {[
                   {
-                    key: "crypto",
-                    icon: "🪙",
-                    title: "Kripto & Borsa API Botu",
-                    desc: "Binance & Bybit API'lerine bağlanır, canlı piyasa fiyatlarını ve alım-satım fırsatlarını bildirir.",
-                    model: "Nova Micro ($0.000035/1k)",
-                    badge: "Finans & Borsa",
-                    tools: ["⚡ Binance API", "🌐 Web Arama", "✈️ Telegram"]
+                    key: "visa",
+                    icon: "🛂",
+                    title: "Vize & Randevu Takipçisi",
+                    desc: "VFS Global & iDATA portallarını tarar, boş Schengen/ABD slotu açıldığı an Telegram'dan linkle bildirir.",
+                    model: "Nova Micro",
+                    badge: "Randevu & Vize",
+                    tools: ["🌐 Canlı Web", "✈️ Telegram", "⏰ 15 Dk"]
                   },
                   {
                     key: "ecommerce",
                     icon: "🛍️",
                     title: "Instagram & WhatsApp Satış",
-                    desc: "Instagram DM ve WhatsApp müşterilerini karşılar, ürün/stok bilgisi verir ve sipariş alır.",
+                    desc: "Instagram DM ve WhatsApp müşterilerini 7/24 karşılar, ürün/stok bilgisi verir ve sipariş toplar.",
                     model: "Nova Micro",
-                    badge: "E-Ticaret & Satış",
+                    badge: "Meta DM & Satış",
                     tools: ["💬 WhatsApp", "📸 Instagram", "🌐 Web Widget"]
+                  },
+                  {
+                    key: "crypto",
+                    icon: "🪙",
+                    title: "Kripto & Borsa API Botu",
+                    desc: "Binance & Bybit API'lerine bağlanır, canlı piyasa fiyatlarını ve alım-satım fırsatlarını analiz eder.",
+                    model: "Nova Micro",
+                    badge: "Finans & Kripto",
+                    tools: ["⚡ Binance API", "🌐 Web Arama", "✈️ Telegram"]
+                  },
+                  {
+                    key: "research",
+                    icon: "🕵️",
+                    title: "Derin İnternet Araştırmacısı",
+                    desc: "Verilen konuyu internette derinlemesine araştırır, PDF dokümanları okur ve analiz raporu sunar.",
+                    model: "Claude 3.5 Sonnet",
+                    badge: "İleri Analiz",
+                    tools: ["🔍 Derin Arama", "📚 PDF Analizi", "📧 Rapor"]
                   },
                   {
                     key: "news",
@@ -3196,15 +3252,6 @@ export default function RootPage() {
                     model: "Nova Micro",
                     badge: "Gündem & Takip",
                     tools: ["🌐 Çoklu Web", "✈️ Telegram", "⏰ 09:00"]
-                  },
-                  {
-                    key: "security",
-                    icon: "🛡️",
-                    title: "Siber Güvenlik Nöbetçisi",
-                    desc: "Son çıkan kritik CVE güvenlik açıklarını ve sistem yamalarını raporlar.",
-                    model: "Claude 3.5 Sonnet",
-                    badge: "İleri Güvenlik",
-                    tools: ["🌐 Web Arama", "📧 E-Posta", "✈️ Telegram"]
                   },
                   {
                     key: "custom",
@@ -3893,63 +3940,107 @@ export default function RootPage() {
                         </div>
 
                         {/* 2. Çok Kanallı Dağıtım (Omnichannel) */}
-                        <div className="space-y-2">
-                          <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
-                            📱 Çok Kanallı Yayın & Dağıtım (Omnichannel)
-                          </label>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            <label className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
-                              agentChannelTelegram ? "bg-sky-50 dark:bg-sky-950/50 border-sky-500 text-sky-900 dark:text-sky-200 font-bold" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-800 dark:text-gray-200">
+                              📱 Çok Kanallı Yayın & Dağıtım (Omnichannel)
+                            </label>
+                            <p className="text-[11px] text-slate-400">
+                              Botunuzun hangi platformlarda 7/24 müşteri karşılayacağını veya size alarm göndereceğini seçin:
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelTelegram ? "bg-sky-50 dark:bg-sky-950/60 border-sky-500 text-sky-900 dark:text-sky-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
                             }`}>
-                              <span className="text-xl">✈️</span>
-                              <span className="text-[11px]">Telegram Bot</span>
+                              <span className="text-2xl">✈️</span>
+                              <span className="text-xs">Telegram Bot</span>
+                              <span className="text-[9px] text-slate-400 font-normal">Anlık Bildirim & Alarm</span>
                               <input
                                 type="checkbox"
                                 checked={agentChannelTelegram}
                                 onChange={(e) => setAgentChannelTelegram(e.target.checked)}
-                                className="w-4 h-4 accent-sky-500"
+                                className="w-4 h-4 accent-sky-500 mt-1"
                               />
                             </label>
 
-                            <label className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
-                              agentChannelWhatsApp ? "bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-bold" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
+                            <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelWhatsApp ? "bg-emerald-50 dark:bg-emerald-950/60 border-emerald-500 text-emerald-900 dark:text-emerald-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
                             }`}>
-                              <span className="text-xl">💬</span>
-                              <span className="text-[11px]">WhatsApp Bot</span>
+                              <span className="text-2xl">💬</span>
+                              <span className="text-xs">WhatsApp Bot</span>
+                              <span className="text-[9px] text-slate-400 font-normal">Müşteri & Sipariş Hattı</span>
                               <input
                                 type="checkbox"
                                 checked={agentChannelWhatsApp}
                                 onChange={(e) => setAgentChannelWhatsApp(e.target.checked)}
-                                className="w-4 h-4 accent-emerald-500"
+                                className="w-4 h-4 accent-emerald-500 mt-1"
                               />
                             </label>
 
-                            <label className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
-                              agentChannelInstagram ? "bg-pink-50 dark:bg-pink-950/50 border-pink-500 text-pink-900 dark:text-pink-200 font-bold" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
+                            <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelInstagram ? "bg-pink-50 dark:bg-pink-950/60 border-pink-500 text-pink-900 dark:text-pink-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
                             }`}>
-                              <span className="text-xl">📸</span>
-                              <span className="text-[11px]">Instagram DM</span>
+                              <span className="text-2xl">📸</span>
+                              <span className="text-xs">Instagram DM</span>
+                              <span className="text-[9px] text-slate-400 font-normal">7/24 Karşılama & Satış</span>
                               <input
                                 type="checkbox"
                                 checked={agentChannelInstagram}
                                 onChange={(e) => setAgentChannelInstagram(e.target.checked)}
-                                className="w-4 h-4 accent-pink-500"
+                                className="w-4 h-4 accent-pink-500 mt-1"
                               />
                             </label>
 
-                            <label className={`p-3 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
-                              agentChannelWebWidget ? "bg-indigo-50 dark:bg-indigo-950/50 border-indigo-500 text-indigo-900 dark:text-indigo-200 font-bold" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
+                            <label className={`p-3.5 rounded-2xl border cursor-pointer transition flex flex-col items-center justify-center gap-1.5 text-center ${
+                              agentChannelWebWidget ? "bg-indigo-50 dark:bg-indigo-950/60 border-indigo-500 text-indigo-900 dark:text-indigo-200 font-bold shadow-sm" : "bg-slate-50 dark:bg-gray-950 border-slate-200 dark:border-gray-800 text-slate-500"
                             }`}>
-                              <span className="text-xl">🌐</span>
-                              <span className="text-[11px]">Web Widget</span>
+                              <span className="text-2xl">🌐</span>
+                              <span className="text-xs">Web Widget</span>
+                              <span className="text-[9px] text-slate-400 font-normal">Sitenize Canlı Chat</span>
                               <input
                                 type="checkbox"
                                 checked={agentChannelWebWidget}
                                 onChange={(e) => setAgentChannelWebWidget(e.target.checked)}
-                                className="w-4 h-4 accent-indigo-500"
+                                className="w-4 h-4 accent-indigo-500 mt-1"
                               />
                             </label>
                           </div>
+
+                          {/* Instagram DM Detaylı Açıklama & Webhook Rehberi */}
+                          {agentChannelInstagram && (
+                            <div className="p-4 rounded-2xl bg-gradient-to-br from-pink-500/10 via-purple-500/5 to-transparent border border-pink-500/30 space-y-2 animate-in fade-in">
+                              <div className="flex items-center gap-2 text-pink-600 dark:text-pink-400 font-bold text-xs">
+                                <span>📸</span>
+                                <span>Instagram DM Satış & Otomasyon Rehberi:</span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-gray-300 leading-relaxed">
+                                Instagram işletme sayfanıza DM atan müşterileri <strong>7/24 otomatik karşılar</strong>, ürün kataloğunuzdan fiyat/stok bilgisi verir, kargo/iade sorularını yanıtlar ve sipariş toplar.
+                              </p>
+                              <div className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-pink-500/20 text-[10px] font-mono text-pink-300">
+                                <span>Meta Webhook: <code className="text-white">/api/agents/webhooks/instagram</code></span>
+                                <span className="text-emerald-400 font-bold">● Canlı & Aktif</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* WhatsApp Cloud Detaylı Açıklama */}
+                          {agentChannelWhatsApp && (
+                            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 animate-in fade-in">
+                              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                                <span>💬</span>
+                                <span>WhatsApp Cloud API Müşteri Temsilcisi:</span>
+                              </div>
+                              <p className="text-[11px] text-slate-600 dark:text-gray-300 leading-relaxed">
+                                WhatsApp hattınıza gelen mesajları anında yanıtlar, menü ve sipariş linklerini paylaşır, randevu veya destek taleplerini organize eder.
+                              </p>
+                              <div className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-emerald-500/20 text-[10px] font-mono text-emerald-300">
+                                <span>Meta Webhook: <code className="text-white">/api/agents/webhooks/whatsapp</code></span>
+                                <span className="text-emerald-400 font-bold">● Canlı & Aktif</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* 3. Canlı Arama & Zamanlama */}
