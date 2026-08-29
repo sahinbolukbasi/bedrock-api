@@ -58,7 +58,8 @@ class AgentRunRequest(BaseModel):
 
 # =====================================================================
 # AGENT CRUD ENDPOINTS
-# ====================================================================@router.get("", include_in_schema=False)
+# =====================================================================
+@router.get("", include_in_schema=False)
 @router.get("/")
 async def list_user_agents(
     current_user: Optional[User] = Depends(get_optional_user),
