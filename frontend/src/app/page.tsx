@@ -1129,10 +1129,11 @@ export default function RootPage() {
         }),
       });
       setUser(updated);
+      publishLiveSyncEvent("AUTH_UPDATED", updated);
       setProfileSavedMsg("Profil bilgileri başarıyla güncellendi!");
-      setTimeout(() => setProfileSavedMsg(null), 3000);
+      setTimeout(() => setProfileSavedMsg(null), 3500);
     } catch (err: any) {
-      setProfileSavedMsg(`Hata: ${err.message}`);
+      setProfileSavedMsg(`Hata: ${err.message || "Profil güncellenemedi."}`);
     }
   };
 
@@ -1144,13 +1145,19 @@ export default function RootPage() {
       const base64 = event.target?.result as string;
       setProfileAvatar(base64);
       try {
-        await fetchApi("/api/auth/profile", {
+        const updated = await fetchApi("/api/auth/profile", {
           method: "PATCH",
           body: JSON.stringify({ avatar_url: base64 }),
         });
+        if (updated) {
+          setUser(updated);
+          publishLiveSyncEvent("AUTH_UPDATED", updated);
+        }
         setProfileSavedMsg("Profil fotoğrafı güncellendi!");
-        setTimeout(() => setProfileSavedMsg(null), 3000);
-      } catch {}
+        setTimeout(() => setProfileSavedMsg(null), 3500);
+      } catch (err: any) {
+        setProfileSavedMsg(`Fotoğraf yüklenemedi: ${err.message || "Hata oluştu"}`);
+      }
     };
     reader.readAsDataURL(file);
   };

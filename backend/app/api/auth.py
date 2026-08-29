@@ -283,6 +283,8 @@ async def get_my_profile(current_user: User = Depends(get_current_user)):
 
 
 @router.patch("/profile", response_model=UserProfileResponse)
+@router.put("/profile", response_model=UserProfileResponse)
+@router.post("/profile", response_model=UserProfileResponse)
 async def update_profile(
     body: UserProfileUpdateRequest,
     current_user: User = Depends(get_current_user),

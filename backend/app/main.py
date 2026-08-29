@@ -30,6 +30,13 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
         # Safe column auto-patching for SQLite and PostgreSQL
         alter_stmts = [
+            "ALTER TABLE users ADD COLUMN full_name VARCHAR(255)",
+            "ALTER TABLE users ADD COLUMN phone_number VARCHAR(50)",
+            "ALTER TABLE users ADD COLUMN avatar_url TEXT",
+            "ALTER TABLE users ADD COLUMN telegram_chat_id VARCHAR(64)",
+            "ALTER TABLE users ADD COLUMN telegram_username VARCHAR(128)",
+            "ALTER TABLE users ADD COLUMN telegram_pairing_code VARCHAR(32)",
+            "ALTER TABLE users ADD COLUMN telegram_active_agent_id VARCHAR(64)",
             "ALTER TABLE conversations ADD COLUMN summary_context TEXT DEFAULT ''",
             "ALTER TABLE conversations ADD COLUMN scratchpad TEXT DEFAULT ''",
             "ALTER TABLE custom_agents ADD COLUMN goal_definition TEXT DEFAULT ''",

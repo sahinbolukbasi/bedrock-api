@@ -22,7 +22,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     phone_number = Column(String(50), nullable=True)
-    avatar_url = Column(String(1024), nullable=True)
+    avatar_url = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
     role = Column(String(50), default="user", nullable=False)  # "user" | "admin"
