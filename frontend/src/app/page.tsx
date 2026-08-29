@@ -63,6 +63,7 @@ import {
   VolumeX,
   BrainCircuit,
   FileText,
+  Upload,
   Download,
   GitBranch,
   ChevronLeft,
@@ -856,7 +857,7 @@ export default function RootPage() {
     }
     setScrapingMultiUrls(true);
     try {
-      const res = await apiRequest("/api/agents/scrape-sources", {
+      const res = await fetchApi("/api/agents/scrape-sources", {
         method: "POST",
         body: JSON.stringify({ urls: validUrls }),
       });
@@ -918,7 +919,7 @@ export default function RootPage() {
           // ignore
         }
       }
-      const res = await apiRequest("/api/agents/test-api", {
+      const res = await fetchApi("/api/agents/test-api", {
         method: "POST",
         body: JSON.stringify({
           endpoint_url: customApiUrl.trim(),
