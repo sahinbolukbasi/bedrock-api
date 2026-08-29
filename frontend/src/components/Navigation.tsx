@@ -194,6 +194,13 @@ export default function Navigation() {
                   <span>Sohbet Studio</span>
                 </button>
                 <button
+                  onClick={() => handleSelectTab("models")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-amber-500 transition"
+                >
+                  <Cpu className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Modeller & FinOps</span>
+                </button>
+                <button
                   onClick={() => handleSelectTab("agents")}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-purple-600 transition"
                 >
@@ -208,14 +215,24 @@ export default function Navigation() {
                   <span>API & Docs</span>
                 </button>
                 <button
-                  onClick={() => handleSelectTab("admin")}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold transition border border-purple-200 dark:border-purple-800"
+                  onClick={() => handleSelectTab("profile")}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 text-slate-700 dark:text-gray-300 hover:text-blue-600 transition"
                 >
-                  <ShieldAlert className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                  <span>Admin Konsolu</span>
+                  <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Cüzdan</span>
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => handleSelectTab("admin")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold transition border border-purple-200 dark:border-purple-800"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    <span>Admin</span>
+                  </button>
+                )}
               </div>
             )}
+
           </div>
 
           {/* Sağ Bölüm: Cüzdan Bakiyesi, Tema & Profil Açılır Menüsü */}

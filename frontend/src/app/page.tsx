@@ -4488,12 +4488,49 @@ export default function RootPage() {
         {/* SEKME 4: MODEL KATALOĞU */}
         {/* ================================================================= */}
         {activeTab === "models" && (
-          <div className="w-full space-y-6">
+          <div className="w-full space-y-8 animate-in fade-in">
+            {/* FinOps & AWS Bedrock Architecture Banner */}
+            <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-indigo-900/40 via-purple-900/30 to-amber-950/20 border border-indigo-500/20 shadow-xl space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                <div className="space-y-2 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-black">
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>AWS FINOPS & SIFIR İSRAF MİMARİSİ</span>
+                  </div>
+                  <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                    AWS Bedrock ile %99'a Varan Altyapı & LLM Maliyet Tasarrufu
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                    Bedrock AI Gateway, sunucusuz AWS ECS Fargate üzerinde çalışarak boşta bekleme maliyetlerini sıfırlar. Akıllı prompt önbellekleme ve Nova Micro modeli sayesinde geleneksel LLM sağlayıcılarına kıyasla aynı kalitede 100 kat daha düşük maliyet sunar.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 shrink-0">
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center space-y-1">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Nova Micro</span>
+                    <span className="text-lg font-black text-emerald-400 block">$0.035</span>
+                    <span className="text-[10px] text-slate-400 block">1M Token Başına</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center space-y-1">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Prompt Cache</span>
+                    <span className="text-lg font-black text-amber-400 block">-%90</span>
+                    <span className="text-[10px] text-slate-400 block">Tekrar Context</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center space-y-1 col-span-2 sm:col-span-1">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold block">Serverless Fargate</span>
+                    <span className="text-lg font-black text-indigo-400 block">$0.00</span>
+                    <span className="text-[10px] text-slate-400 block">Boşta Bekleme</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Model Kataloğu Başlık & Filtreler */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-white">AWS Bedrock Model Kataloğu</h2>
-                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">
-                  API Gateway üzerinden erişilebilen tüm AWS Bedrock foundation modelleri.
+                <h3 className="text-lg font-black text-slate-900 dark:text-white">Desteklenen Foundation Modeller</h3>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-0.5">
+                  Tüm modeller OpenAI SDK ve REST API standartlarıyla 1-e-1 tam uyumludur.
                 </p>
               </div>
 
@@ -4502,10 +4539,10 @@ export default function RootPage() {
                   <button
                     key={cat}
                     onClick={() => setModelCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
                       modelCategory === cat
-                        ? "bg-indigo-600 text-white"
-                        : "bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-100"
+                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                        : "bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 text-slate-600 dark:text-gray-400 hover:bg-slate-100 dark:hover:bg-gray-800"
                     }`}
                   >
                     {cat}
@@ -4514,32 +4551,61 @@ export default function RootPage() {
               </div>
             </div>
 
+            {/* Model Kartları Izgarası */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredModels.map((m) => (
                 <div
                   key={m.id}
-                  className="p-5 rounded-2xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm hover:border-indigo-500/50 transition space-y-3"
+                  className="p-5 rounded-3xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 shadow-sm hover:border-indigo-500/50 hover:shadow-md transition flex flex-col justify-between space-y-4 group"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-slate-900 dark:text-white">{m.name}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
-                      {m.type}
-                    </span>
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <span className="font-extrabold text-sm text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition">
+                          {m.name}
+                        </span>
+                        <div className="text-[10px] text-slate-500 dark:text-gray-400 font-mono break-all">
+                          {m.id}
+                        </div>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800 shrink-0">
+                        {m.type}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-gray-800/80 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] text-slate-400 block">Context Boyutu</span>
+                        <span className="font-bold text-slate-700 dark:text-gray-300">
+                          {m.context_window > 0 ? `${m.context_window.toLocaleString()} tok` : "N/A"}
+                        </span>
+                      </div>
+                      <div className="space-y-0.5 text-right">
+                        <span className="text-[10px] text-slate-400 block">1K Token Maliyeti</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          ${m.pricing?.input_per_1k || "0.000035"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 dark:text-gray-400 font-mono break-all">{m.id}</div>
-                  <div className="pt-2 border-t border-slate-100 dark:border-gray-800/80 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 dark:text-gray-400">
-                      Context: {m.context_window > 0 ? `${m.context_window.toLocaleString()} tok` : "N/A"}
-                    </span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                      ${m.pricing?.input_per_1k}/1k In
-                    </span>
-                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedModel(m.id);
+                      setActiveTab("chat");
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-slate-100 dark:bg-gray-800 hover:bg-indigo-600 dark:hover:bg-indigo-600 text-slate-700 dark:text-gray-300 hover:text-white dark:hover:text-white text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Bu Modeli Sohbet Studio'da Başlat</span>
+                  </button>
                 </div>
               ))}
             </div>
           </div>
         )}
+
 
         {/* ================================================================= */}
         {/* SEKME 6: KULLANICI PROFİLİ, CÜZDAN, GÜVENLİK & HARCAMA RAPORU (CSV) */}
