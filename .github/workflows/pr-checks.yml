@@ -63,7 +63,7 @@ jobs:
       - name: Run Backend Pytest Suite
         env:
           PYTHONPATH: backend
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           ENVIRONMENT: test
           SECRET_KEY: ci-secret-key-32-characters-minimum
           AWS_REGION: us-east-1

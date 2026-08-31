@@ -40,7 +40,7 @@ jobs:
 
       - name: Run Backend Unit & Integration Tests
         env:
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           ENVIRONMENT: test
           SECRET_KEY: test-secret-key-32-characters-min-test
           AWS_REGION: us-east-1
