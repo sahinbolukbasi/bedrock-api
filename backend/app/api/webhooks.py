@@ -108,10 +108,10 @@ async def handle_meta_webhook(
 
 async def process_whatsapp_message(agent_id, sender_phone, text, token, phone_id):
     from app.services.scheduler import AgentAutonomousEngine
-    from app.core.database import async_session_maker
+    from app.core.database import AsyncSessionLocal
     
-    # We must use a new DB session since this is a background task
-    async with async_session_maker() as db:
+    # Needs to hit DB inside background task since session isn't shared
+    async with AsyncSessionLocal() as db:
         stmt = select(CustomAgent).where(CustomAgent.id == agent_id)
         res = await db.execute(stmt)
         agent = res.scalar_one_or_none()
@@ -154,9 +154,9 @@ async def process_whatsapp_message(agent_id, sender_phone, text, token, phone_id
 
 async def process_instagram_message(agent_id, sender_id, text, token):
     from app.services.scheduler import AgentAutonomousEngine
-    from app.core.database import async_session_maker
+    from app.core.database import AsyncSessionLocal
     
-    async with async_session_maker() as db:
+    async with AsyncSessionLocal() as db:
         stmt = select(CustomAgent).where(CustomAgent.id == agent_id)
         res = await db.execute(stmt)
         agent = res.scalar_one_or_none()

@@ -292,6 +292,7 @@ resource "aws_db_instance" "postgres" {
   identifier             = "${var.project_name}-db"
   allocated_storage      = 20
   max_allocated_storage  = 100
+  storage_type           = "gp3"
   engine                 = "postgres"
   engine_version         = "16.3"
   instance_class         = "db.t4g.micro" # Cost-efficient for starter/prod
